@@ -1,0 +1,8 @@
+{
+  "buildCommand": "npx next build",
+  "outputDirectory": ".next",
+  "framework": "nextjs",
+  "env": {
+    "NEXT_PUBLIC_CONVEX_URL": "https://rugged-tortoise-417.convex.cloud"
+  }
+}
