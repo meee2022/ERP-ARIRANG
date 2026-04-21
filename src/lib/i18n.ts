@@ -1004,6 +1004,22 @@ export const translations = {
   totalValue:            { ar: "القيمة الإجمالية",     en: "Total Value" },
   totalInventoryValue:   { ar: "إجمالي قيمة المخزون",  en: "Total Inventory Value" },
   lastUpdated:           { ar: "آخر تحديث",             en: "Last Updated" },
+
+  // ── Print & document detail ───────────────────────────────────────────────
+  printGRN:              { ar: "طباعة إذن الاستلام",           en: "Print GRN" },
+  printVoucher:          { ar: "طباعة السند",                  en: "Print Voucher" },
+  printDocument:         { ar: "طباعة",                        en: "Print" },
+  salesInvoiceTitle:     { ar: "فاتورة مبيعات",                en: "Sales Invoice" },
+  purchaseInvoiceTitle:  { ar: "فاتورة مشتريات",               en: "Purchase Invoice" },
+  shipTo:                { ar: "شحن إلى",                      en: "Ship To" },
+  invoiceTotal:          { ar: "إجمالي الفاتورة",               en: "Invoice Total" },
+  authorizedBy:          { ar: "اعتمده",                       en: "Authorized By" },
+  grnLines:              { ar: "أصناف الاستلام",                en: "Receipt Lines" },
+  documentNotFound:      { ar: "المستند غير موجود",             en: "Document not found" },
+
+  // ── Fiscal Period badge ───────────────────────────────────────────────────
+  currentPeriod:         { ar: "الفترة الحالية",               en: "Current Period" },
+  noPeriodOpen:          { ar: "لا توجد فترة مفتوحة",          en: "No open period" },
 } as const;
 
 // ============================================================

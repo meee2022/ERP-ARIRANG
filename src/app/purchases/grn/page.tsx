@@ -7,6 +7,7 @@ import { api } from "../../../../convex/_generated/api";
 import { formatDateShort } from "@/lib/utils";
 import { StatusBadge } from "@/components/ui/status-badge";
 import { Truck, Plus, X, Check, Trash2, Search, CheckCircle } from "lucide-react";
+import { useRouter } from "next/navigation";
 import { useAuth } from "@/hooks/useAuth";
 import { usePermissions } from "@/hooks/usePermissions";
 import { useAppStore } from "@/store/useAppStore";
@@ -175,6 +176,7 @@ function ApproveGRNButton({ grn, userId }: { grn: any; userId: string | undefine
 
 export default function GRNPage() {
   const { t, isRTL } = useI18n();
+  const router = useRouter();
   const { canCreate, canPost } = usePermissions();
   const [showForm, setShowForm] = useState(false);
   const [fromDate, setFromDate] = useState(startOfMonthISO());
@@ -244,7 +246,14 @@ export default function GRNPage() {
               <tbody>
                 {filtered.map((g: any) => (
                   <tr key={g._id} className="border-t border-[color:var(--ink-100)] hover:bg-[color:var(--brand-50)]/40">
-                    <td className="px-4 py-3 font-mono text-xs text-[color:var(--brand-700)]">{g.grnNumber}</td>
+                    <td className="px-4 py-3">
+                      <button
+                        onClick={() => router.push(`/purchases/grn/${g._id}`)}
+                        className="font-mono text-xs text-[color:var(--brand-700)] hover:underline"
+                      >
+                        {g.grnNumber}
+                      </button>
+                    </td>
                     <td className="px-4 py-3 text-[color:var(--ink-600)]">{formatDateShort(g.receiptDate)}</td>
                     <td className="px-4 py-3 text-[color:var(--ink-700)]">{g.supplierName}</td>
                     <td className="px-4 py-3 text-[color:var(--ink-600)]">{g.warehouseName}</td>

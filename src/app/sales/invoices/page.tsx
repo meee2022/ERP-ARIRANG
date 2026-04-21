@@ -6,11 +6,12 @@ import { useQuery, useMutation } from "convex/react";
 import { api } from "../../../../convex/_generated/api";
 import { formatDateShort } from "@/lib/utils";
 import { StatusBadge } from "@/components/ui/status-badge";
-import { ShoppingCart, Search, Plus, X, Check, Trash2, Eye, ChevronLeft, ChevronRight, CheckCircle, RotateCcw } from "lucide-react";
-import { useRouter } from "next/navigation";
+import { INVOICE_TYPE_LABELS } from "@/lib/constants";
+import { Eye, ChevronLeft, ChevronRight, Search, Landmark, Plus, X, Check, Trash2, MapPin } from "lucide-react";
 import { useI18n } from "@/hooks/useI18n";
 import { useAuth } from "@/hooks/useAuth";
 import { usePermissions } from "@/hooks/usePermissions";
+import { useRouter } from "next/navigation";
 import { useAppStore } from "@/store/useAppStore";
 
 const PAGE_SIZE = 50;
@@ -21,19 +22,18 @@ function startOfMonthISO() {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-01`;
 }
 
-// ─── Purchase Invoice line type ────────────────────────────────────────────────
+// ─── Invoice line type ─────────────────────────────────────────────────────────
 
-interface PurchaseLine {
+interface InvoiceLine {
   id: number;
   itemId: string;
   quantity: string;
   unitPrice: string;
-  uomId: string;
 }
 
-// ─── New Purchase Invoice Form ─────────────────────────────────────────────────
+// ─── New Invoice Form ──────────────────────────────────────────────────────────
 
-function NewPurchaseInvoiceForm({ onClose }: { onClose: () => void }) {
+function NewInvoiceForm({ onClose }: { onClose: () => void }) {
   const { t, isRTL } = useI18n();
 
   const companies = useQuery(api.seed.getCompanies, {});
@@ -41,27 +41,33 @@ function NewPurchaseInvoiceForm({ onClose }: { onClose: () => void }) {
 
   const [invoiceDate, setInvoiceDate] = useState(todayISO());
   const [dueDate, setDueDate] = useState(todayISO());
-  const [supplierId, setSupplierId] = useState("");
+  const [invoiceType, setInvoiceType] = useState<"cash_sale" | "credit_sale">("cash_sale");
+  const [customerId, setCustomerId] = useState("");
+  const [warehouseId, setWarehouseId] = useState("");
+  const [outletId, setOutletId] = useState("");
   const [notes, setNotes] = useState("");
   const [lineIdCounter, setLineIdCounter] = useState(1);
-  const [lines, setLines] = useState<PurchaseLine[]>([
-    { id: 0, itemId: "", quantity: "1", unitPrice: "", uomId: "" },
-  ]);
+  const [lines, setLines] = useState<InvoiceLine[]>([{ id: 0, itemId: "", quantity: "1", unitPrice: "" }]);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
 
   // Queries for dependencies
-  const branch = useQuery(api.branches.getDefaultBranch, company ? { companyId: company._id } : "skip");
   const selectedBranchStore = useAppStore((s) => s.selectedBranch);
+  const branch = useQuery(api.branches.getDefaultBranch, company ? { companyId: company._id } : "skip");
   const effectiveBranchId = selectedBranchStore !== "all" ? selectedBranchStore : branch?._id;
   const openPeriod = useQuery(api.helpers.getOpenPeriod, company ? { companyId: company._id, date: invoiceDate } : "skip");
   const { currentUser: defaultUser } = useAuth();
   const defaultCurrency = useQuery(api.helpers.getDefaultCurrency, {});
-  const suppliers = useQuery(api.suppliers.getAll, company ? { companyId: company._id } : "skip");
+  const customers = useQuery(api.customers.getAll, company ? { companyId: company._id } : "skip");
   const items = useQuery(api.items.getAllItems, company ? { companyId: company._id } : "skip");
+  const warehouses = useQuery(api.items.getAllWarehouses, company ? { companyId: company._id } : "skip");
+  const outlets = useQuery(
+    api.customerOutlets.getAll,
+    customerId ? { customerId: customerId as any } : "skip"
+  );
   const units = useQuery(api.items.getAllUnits, company ? { companyId: company._id } : "skip");
 
-  const createInvoice = useMutation(api.purchaseInvoices.createPurchaseInvoice);
+  const createInvoice = useMutation(api.salesInvoices.createSalesInvoice);
 
   // Compute subtotal
   const subtotal = lines.reduce((sum, l) => {
@@ -71,10 +77,7 @@ function NewPurchaseInvoiceForm({ onClose }: { onClose: () => void }) {
   }, 0);
 
   const addLine = () => {
-    setLines((prev) => [
-      ...prev,
-      { id: lineIdCounter, itemId: "", quantity: "1", unitPrice: "", uomId: "" },
-    ]);
+    setLines((prev) => [...prev, { id: lineIdCounter, itemId: "", quantity: "1", unitPrice: "" }]);
     setLineIdCounter((c) => c + 1);
   };
 
@@ -82,18 +85,16 @@ function NewPurchaseInvoiceForm({ onClose }: { onClose: () => void }) {
     setLines((prev) => prev.filter((l) => l.id !== id));
   };
 
-  const updateLine = (id: number, field: keyof PurchaseLine, value: string) => {
+  const updateLine = (id: number, field: keyof InvoiceLine, value: string) => {
     setLines((prev) =>
       prev.map((l) => {
         if (l.id !== id) return l;
         const updated = { ...l, [field]: value };
+        // Auto-fill unit price from item sellingPrice when item changes
         if (field === "itemId" && value) {
           const foundItem = (items ?? []).find((it: any) => it._id === value);
-          if (foundItem?.lastCost) {
-            updated.unitPrice = String(foundItem.lastCost);
-          }
-          if (foundItem?.baseUomId) {
-            updated.uomId = foundItem.baseUomId;
+          if (foundItem?.sellingPrice) {
+            updated.unitPrice = String(foundItem.sellingPrice);
           }
         }
         return updated;
@@ -104,74 +105,64 @@ function NewPurchaseInvoiceForm({ onClose }: { onClose: () => void }) {
   const onSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!company) return;
-    if (!effectiveBranchId && !branch) { setError(t("errNoBranch")); return; }
-    if (!openPeriod) { setError(t("errNoPeriod")); return; }
-    if (!defaultUser) { setError(t("errNoUser")); return; }
-    if (!defaultCurrency) { setError(t("errNoCurrency")); return; }
-    if (!supplierId) { setError(t("errNoSupplier")); return; }
-
-    const validLines = lines.filter(
-      (l) => l.itemId && parseFloat(l.quantity) > 0 && parseFloat(l.unitPrice) >= 0
-    );
+    if (!effectiveBranchId) { setError("لا يوجد فرع افتراضي للشركة"); return; }
+    if (!openPeriod) { setError("لا توجد فترة محاسبية مفتوحة للتاريخ المحدد"); return; }
+    if (!defaultUser) { setError("لا يوجد مستخدم في النظام"); return; }
+    if (!defaultCurrency) { setError("لا توجد عملة افتراضية في النظام"); return; }
+    if (!warehouseId) { setError(t("errNoWarehouse")); return; }
+    if (invoiceType === "credit_sale" && !customerId) { setError(t("errNoCustomer")); return; }
+    const validLines = lines.filter((l) => l.itemId && parseFloat(l.quantity) > 0 && parseFloat(l.unitPrice) >= 0);
     if (validLines.length === 0) { setError(t("errNoLines")); return; }
 
     setSaving(true);
     setError("");
 
     try {
-      // Build lines — use item cogsAccountId as the line account, fallback to first account query
-      const invoiceLines = await Promise.all(
-        validLines.map(async (l) => {
-          const foundItem = (items ?? []).find((it: any) => it._id === l.itemId);
-          const qty = parseFloat(l.quantity);
-          const price = parseFloat(l.unitPrice);
-          const total = qty * price;
-          const resolvedUomId = l.uomId || foundItem?.baseUomId || (units ?? [])[0]?._id;
-
-          // Use item's cogsAccountId or expenseAccountId as the line account
-          const accountId = foundItem?.cogsAccountId ?? foundItem?.expenseAccountId ?? null;
-
-          return {
-            itemId: l.itemId as any,
-            description: foundItem ? (foundItem.nameAr || "") : undefined,
-            lineType: "stock_item" as const,
-            quantity: qty,
-            uomId: resolvedUomId as any,
-            unitPrice: price,
-            vatRate: 0,
-            vatAmount: 0,
-            lineTotal: total,
-            accountId: accountId as any,
-          };
-        })
-      );
-
-      // Filter out lines without an accountId — warn user
-      const linesWithAccount = invoiceLines.filter((l) => l.accountId);
-      if (linesWithAccount.length === 0) {
-        setError(t("errNoItemAccount"));
-        setSaving(false);
-        return;
-      }
+      // Build lines — resolve uomId from item's baseUomId
+      const invoiceLines = validLines.map((l) => {
+        const foundItem = (items ?? []).find((it: any) => it._id === l.itemId);
+        const qty = parseFloat(l.quantity);
+        const price = parseFloat(l.unitPrice);
+        const total = Math.round(qty * price * 100);
+        return {
+          itemId: l.itemId as any,
+          quantity: qty,
+          uomId: (foundItem?.baseUomId ?? (units ?? [])[0]?._id) as any,
+          unitPrice: Math.round(price * 100),
+          discountPct: 0,
+          discountAmount: 0,
+          vatRate: 0,
+          vatAmount: 0,
+          lineTotal: total,
+          revenueAccountId: foundItem?.revenueAccountId ?? undefined,
+          cogsAccountId: foundItem?.cogsAccountId ?? undefined,
+        };
+      });
 
       await createInvoice({
         companyId: company._id,
-        branchId: (effectiveBranchId ?? branch?._id) as any,
-        supplierId: supplierId as any,
-        invoiceType: "stock_purchase",
+        branchId: effectiveBranchId as any,
+        invoiceType: invoiceType as any,
+        customerId: customerId ? (customerId as any) : undefined,
         invoiceDate,
-        dueDate,
+        dueDate: invoiceType === "credit_sale" ? dueDate : undefined,
         periodId: openPeriod._id,
         currencyId: defaultCurrency._id,
         exchangeRate: 1,
+        warehouseId: warehouseId as any,
+        discountAmount: 0,
+        serviceCharge: 0,
+        cashReceived: invoiceType === "cash_sale" ? Math.round(subtotal * 100) : 0,
+        cardReceived: 0,
         notes: notes || undefined,
         createdBy: defaultUser._id,
-        lines: linesWithAccount,
+        customerOutletId: outletId ? (outletId as any) : undefined,
+        lines: invoiceLines,
       });
 
       onClose();
     } catch (err: any) {
-      setError(err.message ?? t("errUnexpected"));
+      setError(err.message ?? "حدث خطأ غير متوقع");
     } finally {
       setSaving(false);
     }
@@ -180,7 +171,7 @@ function NewPurchaseInvoiceForm({ onClose }: { onClose: () => void }) {
   return (
     <div className="surface-card p-5">
       <div className="flex items-center justify-between mb-5">
-        <h3 className="text-base font-semibold text-[color:var(--ink-900)]">{t("newPurchaseInvoice")}</h3>
+        <h3 className="text-base font-semibold text-[color:var(--ink-900)]">{t("newSalesInvoice")}</h3>
         <button type="button" onClick={onClose}
           className="p-1.5 rounded-lg hover:bg-[color:var(--ink-50)] text-[color:var(--ink-400)]">
           <X className="h-4 w-4" />
@@ -194,15 +185,13 @@ function NewPurchaseInvoiceForm({ onClose }: { onClose: () => void }) {
       <form onSubmit={onSubmit} className="space-y-5">
         {/* Header fields */}
         <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
-          {/* Supplier */}
+          {/* Invoice Type */}
           <div>
-            <label className="block text-xs font-medium text-[color:var(--ink-600)] mb-1">{t("supplier")} *</label>
-            <select value={supplierId} onChange={(e) => setSupplierId(e.target.value)}
+            <label className="block text-xs font-medium text-[color:var(--ink-600)] mb-1">{t("invoiceType")} *</label>
+            <select value={invoiceType} onChange={(e) => { setInvoiceType(e.target.value as any); setCustomerId(""); }}
               className="input-field h-9">
-              <option value="">{t("selectSupplier")}</option>
-              {(suppliers ?? []).map((s: any) => (
-                <option key={s._id} value={s._id}>{isRTL ? s.nameAr : (s.nameEn || s.nameAr)}</option>
-              ))}
+              <option value="cash_sale">{t("cash")}</option>
+              <option value="credit_sale">{t("creditSale")}</option>
             </select>
           </div>
 
@@ -213,12 +202,52 @@ function NewPurchaseInvoiceForm({ onClose }: { onClose: () => void }) {
               className="input-field h-9" />
           </div>
 
-          {/* Due Date */}
+          {/* Due Date (credit only) */}
+          {invoiceType === "credit_sale" && (
+            <div>
+              <label className="block text-xs font-medium text-[color:var(--ink-600)] mb-1">{t("dueDate")} *</label>
+              <input type="date" required={invoiceType === "credit_sale"} value={dueDate}
+                onChange={(e) => setDueDate(e.target.value)} className="input-field h-9" />
+            </div>
+          )}
+
+          {/* Customer (credit_sale shows required) */}
           <div>
-            <label className="block text-xs font-medium text-[color:var(--ink-600)] mb-1">{t("dueDate")} *</label>
-            <input type="date" required value={dueDate} onChange={(e) => setDueDate(e.target.value)}
-              className="input-field h-9" />
+            <label className="block text-xs font-medium text-[color:var(--ink-600)] mb-1">
+              {t("customer")}{invoiceType === "credit_sale" ? " *" : ""}
+            </label>
+            <select value={customerId} onChange={(e) => { setCustomerId(e.target.value); setOutletId(""); }}
+              className="input-field h-9">
+              <option value="">{t("selectCustomer")}</option>
+              {(customers ?? []).map((c: any) => (
+                <option key={c._id} value={c._id}>{isRTL ? c.nameAr : (c.nameEn || c.nameAr)}</option>
+              ))}
+            </select>
           </div>
+
+          {/* Warehouse */}
+          <div>
+            <label className="block text-xs font-medium text-[color:var(--ink-600)] mb-1">{t("warehouse")} *</label>
+            <select value={warehouseId} onChange={(e) => setWarehouseId(e.target.value)} className="input-field h-9">
+              <option value="">{t("selectWarehouse")}</option>
+              {(warehouses ?? []).map((w: any) => (
+                <option key={w._id} value={w._id}>{isRTL ? w.nameAr : (w.nameEn || w.nameAr)}</option>
+              ))}
+            </select>
+          </div>
+
+          {/* Outlet (only when customer selected) */}
+          {customerId && (
+            <div>
+              <label className="block text-xs font-medium text-[color:var(--ink-600)] mb-1">{t("outlet")}</label>
+              <select value={outletId} onChange={(e) => setOutletId(e.target.value)} className="input-field h-9">
+                <option value="">{t("selectOutlet")}</option>
+                {(outlets ?? []).map((o: any) => (
+                  <option key={o._id} value={o._id}>{isRTL ? o.nameAr : (o.nameEn || o.nameAr)}</option>
+                ))}
+              </select>
+            </div>
+          )}
         </div>
 
         {/* Lines table */}
@@ -242,21 +271,18 @@ function NewPurchaseInvoiceForm({ onClose }: { onClose: () => void }) {
                 </tr>
               </thead>
               <tbody>
-                {lines.map((line) => {
+                {lines.map((line, idx) => {
                   const qty = parseFloat(line.quantity) || 0;
                   const price = parseFloat(line.unitPrice) || 0;
                   const total = qty * price;
                   return (
                     <tr key={line.id} className="border-t border-[color:var(--ink-100)]">
                       <td className="px-2 py-1.5">
-                        <select value={line.itemId}
-                          onChange={(e) => updateLine(line.id, "itemId", e.target.value)}
+                        <select value={line.itemId} onChange={(e) => updateLine(line.id, "itemId", e.target.value)}
                           className="input-field h-8 w-full text-xs">
                           <option value="">{t("selectItem")}</option>
                           {(items ?? []).map((it: any) => (
-                            <option key={it._id} value={it._id}>
-                              {isRTL ? it.nameAr : (it.nameEn || it.nameAr)}
-                            </option>
+                            <option key={it._id} value={it._id}>{isRTL ? it.nameAr : (it.nameEn || it.nameAr)}</option>
                           ))}
                         </select>
                       </td>
@@ -324,91 +350,13 @@ function NewPurchaseInvoiceForm({ onClose }: { onClose: () => void }) {
   );
 }
 
-// ─── Approve Button ────────────────────────────────────────────────────────────
-
-function ApproveButton({ invoice, userId }: { invoice: any; userId: string | undefined }) {
-  const { t } = useI18n();
-  const [loading, setLoading] = useState(false);
-  const [err, setErr] = useState("");
-  const approve = useMutation(api.purchaseInvoices.approvePurchaseInvoice);
-
-  if (invoice.documentStatus !== "draft") return null;
-  if (!userId) return null;
-
-  const handle = async () => {
-    setLoading(true); setErr("");
-    try { await approve({ invoiceId: invoice._id, userId: userId as any }); }
-    catch (e: any) { setErr(e.message); }
-    finally { setLoading(false); }
-  };
-
-  return (
-    <div className="inline-flex flex-col items-end gap-1">
-      {err && <span className="text-xs text-red-600 max-w-[200px] text-end">{err}</span>}
-      <button
-        onClick={handle}
-        disabled={loading}
-        className="h-7 px-3 rounded-md text-xs font-semibold inline-flex items-center gap-1 bg-amber-50 text-amber-700 hover:bg-amber-100 border border-amber-200 disabled:opacity-60"
-      >
-        <CheckCircle className="h-3.5 w-3.5" />
-        {loading ? t("approving") : t("approve")}
-      </button>
-    </div>
-  );
-}
-
-// ─── Reverse Button ────────────────────────────────────────────────────────────
-
-function ReverseButton({ invoice, userId, companyId }: { invoice: any; userId: string | undefined; companyId: string | undefined }) {
-  const { t } = useI18n();
-  const [loading, setLoading] = useState(false);
-  const [err, setErr] = useState("");
-  const reverse = useMutation(api.purchaseInvoices.reversePurchaseInvoice);
-  const today = new Date().toISOString().split("T")[0];
-  const openPeriod = useQuery(
-    api.helpers.getOpenPeriod,
-    companyId ? { companyId: companyId as any, date: today } : "skip"
-  );
-
-  if (invoice.postingStatus !== "posted") return null;
-  if (!userId) return null;
-
-  const handle = async () => {
-    if (!openPeriod) { setErr(t("errNoPeriod")); return; }
-    setLoading(true); setErr("");
-    try {
-      await reverse({
-        invoiceId: invoice._id,
-        userId: userId as any,
-        reversalDate: today,
-        reversalPeriodId: openPeriod._id,
-      });
-    } catch (e: any) { setErr(e.message); }
-    finally { setLoading(false); }
-  };
-
-  return (
-    <div className="inline-flex flex-col items-end gap-1">
-      {err && <span className="text-xs text-red-600 max-w-[200px] text-end">{err}</span>}
-      <button
-        onClick={handle}
-        disabled={loading || !openPeriod}
-        className="h-7 px-3 rounded-md text-xs font-semibold inline-flex items-center gap-1 bg-red-50 text-red-700 hover:bg-red-100 border border-red-200 disabled:opacity-60"
-      >
-        <RotateCcw className="h-3.5 w-3.5" />
-        {loading ? t("reversing") : t("reverse")}
-      </button>
-    </div>
-  );
-}
-
 // ─── Post Button ───────────────────────────────────────────────────────────────
 
 function PostButton({ invoice, userId }: { invoice: any; userId: string | undefined }) {
   const { t } = useI18n();
   const [posting, setPosting] = useState(false);
   const [err, setErr] = useState("");
-  const quickPost = useMutation(api.purchaseInvoices.quickPostPurchaseInvoice);
+  const quickPost = useMutation(api.salesInvoices.quickPostSalesInvoice);
 
   if (invoice.postingStatus === "posted" || invoice.postingStatus === "reversed") return null;
   if (!userId) return null;
@@ -443,33 +391,36 @@ function PostButton({ invoice, userId }: { invoice: any; userId: string | undefi
 
 // ─── Page ──────────────────────────────────────────────────────────────────────
 
-export default function PurchaseInvoicesPage() {
-  const { t, isRTL, formatCurrency } = useI18n();
-  const router = useRouter();
+export default function SalesInvoicesPage() {
+  const { t, isRTL, lang, formatCurrency } = useI18n();
   const { currentUser: defaultUser } = useAuth();
   const { canCreate, canPost } = usePermissions();
-  const [fromDate, setFromDate] = useState(startOfMonthISO());
-  const [toDate, setToDate] = useState(todayISO());
-  const [postingStatus, setPostingStatus] = useState<string>("");
-  const [search, setSearch] = useState("");
-  const [page, setPage] = useState(0);
-  const [showForm, setShowForm] = useState(false);
-
+  const router = useRouter();
   const selectedBranch = useAppStore((s) => s.selectedBranch);
   const branchArg = selectedBranch !== "all" ? selectedBranch : undefined;
+  const [fromDate, setFromDate] = useState(startOfMonthISO());
+  const [toDate, setToDate] = useState(todayISO());
+  const [invoiceType, setInvoiceType] = useState<string>("");
+  const [postingStatus, setPostingStatus] = useState<string>("");
+  const [paymentStatus, setPaymentStatus] = useState<string>("");
+  const [searchText, setSearchText] = useState("");
+  const [page, setPage] = useState(0);
+  const [showForm, setShowForm] = useState(false);
 
   const companies = useQuery(api.seed.getCompanies, {});
   const company = companies?.[0];
 
   const invoices = useQuery(
-    api.purchaseInvoices.listByCompany,
+    api.salesInvoices.listByCompany,
     company
       ? {
           companyId: company._id,
+          branchId: branchArg as any,
           fromDate: fromDate || undefined,
           toDate: toDate || undefined,
+          invoiceType: (invoiceType as any) || undefined,
           postingStatus: (postingStatus as any) || undefined,
-          branchId: branchArg as any,
+          paymentStatus: (paymentStatus as any) || undefined,
         }
       : "skip"
   );
@@ -477,10 +428,10 @@ export default function PurchaseInvoicesPage() {
   const loading = invoices === undefined;
 
   const filtered = (invoices ?? []).filter((inv: any) => {
-    if (!search) return true;
-    const s = search.toLowerCase();
-    return (inv.invoiceNumber || "").toLowerCase().includes(s) ||
-      (inv.supplierName || "").toLowerCase().includes(s);
+    if (!searchText) return true;
+    const s = searchText.toLowerCase();
+    return inv.invoiceNumber.toLowerCase().includes(s) ||
+      (inv as any).customerName?.toLowerCase().includes(s);
   });
 
   const totalPages = Math.ceil(filtered.length / PAGE_SIZE);
@@ -488,8 +439,9 @@ export default function PurchaseInvoicesPage() {
 
   // Summary
   const posted = filtered.filter((i: any) => i.postingStatus === "posted");
-  const totalPosted = posted.reduce((s: any, i: any) => s + i.totalAmount, 0);
-  const totalAll = filtered.reduce((s: any, i: any) => s + i.totalAmount, 0);
+  const totalSales = posted.reduce((s: any, i: any) => s + i.totalAmount, 0);
+  const totalPaid = posted.reduce((s: any, i: any) => s + i.cashReceived + i.cardReceived, 0);
+  const totalCredit = posted.reduce((s: any, i: any) => s + i.creditAmount, 0);
 
   return (
     <div className="space-y-5">
@@ -498,23 +450,23 @@ export default function PurchaseInvoicesPage() {
         <div className="flex items-center gap-3">
           <div className="h-11 w-11 rounded-xl flex items-center justify-center"
             style={{ background: "var(--brand-50)", color: "var(--brand-700)" }}>
-            <ShoppingCart className="h-5 w-5" />
+            <Landmark className="h-5 w-5" />
           </div>
           <div>
-            <h1 className="text-2xl font-bold text-[color:var(--ink-900)]">{t("purchaseInvoicesTitle")}</h1>
-            <p className="text-xs text-[color:var(--ink-500)] mt-0.5">{filtered.length} {t("invoiceCount")}</p>
+            <h1 className="text-2xl font-bold text-[color:var(--ink-900)]">{t("salesInvoicesTitle")}</h1>
+            <p className="text-xs text-[color:var(--ink-500)] mt-0.5">{filtered.length}</p>
           </div>
         </div>
-        {canCreate("purchases") && (
-        <button onClick={() => { setShowForm((v) => !v); setPage(0); }}
+        {canCreate("sales") && (
+        <button onClick={() => { setShowForm((v) => !v); }}
           className="btn-primary h-10 px-4 rounded-lg inline-flex items-center gap-2 text-sm font-semibold">
-          <Plus className="h-4 w-4" /> {t("newPurchaseInvoice")}
+          <Plus className="h-4 w-4" /> {t("newInvoice")}
         </button>
         )}
       </div>
 
       {/* Inline Form */}
-      {showForm && <NewPurchaseInvoiceForm onClose={() => setShowForm(false)} />}
+      {showForm && <NewInvoiceForm onClose={() => setShowForm(false)} />}
 
       {/* Filter Bar */}
       <div className="surface-card p-3 flex items-center gap-3 flex-wrap">
@@ -528,6 +480,12 @@ export default function PurchaseInvoicesPage() {
           <input type="date" value={toDate} onChange={(e: any) => { setToDate(e.target.value); setPage(0); }}
             className="input-field h-9 w-auto" />
         </div>
+        <select value={invoiceType} onChange={(e: any) => { setInvoiceType(e.target.value); setPage(0); }}
+          className="input-field h-9 w-auto">
+          <option value="">{t("allStatuses")}</option>
+          <option value="cash_sale">{t("cash")}</option>
+          <option value="credit_sale">{t("creditSale")}</option>
+        </select>
         <select value={postingStatus} onChange={(e: any) => { setPostingStatus(e.target.value); setPage(0); }}
           className="input-field h-9 w-auto">
           <option value="">{t("allStatuses")}</option>
@@ -537,7 +495,7 @@ export default function PurchaseInvoicesPage() {
         </select>
         <div className="relative flex-1 min-w-[200px]">
           <Search className={`absolute top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-[color:var(--ink-400)] ${isRTL ? "right-3" : "left-3"}`} />
-          <input type="text" value={search} onChange={(e: any) => { setSearch(e.target.value); setPage(0); }}
+          <input type="text" value={searchText} onChange={(e: any) => { setSearchText(e.target.value); setPage(0); }}
             placeholder={t("searchPlaceholder")}
             className={`input-field h-9 ${isRTL ? "pr-9" : "pl-9"}`} />
         </div>
@@ -545,8 +503,9 @@ export default function PurchaseInvoicesPage() {
 
       {/* Summary */}
       <div className="surface-card p-3 flex items-center gap-6 text-sm">
-        <div><span className="text-[color:var(--ink-500)]">{t("total")}: </span><span className="font-semibold text-[color:var(--ink-900)] tabular-nums">{formatCurrency(totalAll / 100)}</span></div>
-        <div><span className="text-[color:var(--ink-500)]">{t("posted")}: </span><span className="font-semibold text-emerald-700 tabular-nums">{formatCurrency(totalPosted / 100)}</span></div>
+        <div><span className="text-[color:var(--ink-500)]">{t("amount")}: </span><span className="font-semibold text-[color:var(--ink-900)] tabular-nums">{formatCurrency(totalSales)}</span></div>
+        <div><span className="text-[color:var(--ink-500)]">{t("posted")}: </span><span className="font-semibold text-emerald-700 tabular-nums">{formatCurrency(totalPaid)}</span></div>
+        <div><span className="text-[color:var(--ink-500)]">{t("balance")}: </span><span className="font-semibold text-[color:var(--brand-700)] tabular-nums">{formatCurrency(totalCredit)}</span></div>
       </div>
 
       {/* Table */}
@@ -559,10 +518,10 @@ export default function PurchaseInvoicesPage() {
         ) : paginated.length === 0 ? (
           <div className="py-16 text-center text-[color:var(--ink-400)]">
             <p className="text-sm">{t("noResults")}</p>
-            {canCreate("purchases") && (
+            {canCreate("sales") && (
             <button onClick={() => setShowForm(true)}
               className="text-sm text-[color:var(--brand-700)] hover:underline mt-1">
-              + {t("newPurchaseInvoice")}
+              + {t("newInvoice")}
             </button>
             )}
           </div>
@@ -574,7 +533,9 @@ export default function PurchaseInvoicesPage() {
                   <tr>
                     <th className="px-4 py-3 text-start font-semibold">{t("invoiceNo")}</th>
                     <th className="px-4 py-3 text-start font-semibold">{t("date")}</th>
-                    <th className="px-4 py-3 text-start font-semibold">{t("supplier")}</th>
+                    <th className="px-4 py-3 text-start font-semibold">{t("type")}</th>
+                    <th className="px-4 py-3 text-start font-semibold">{t("customer")}</th>
+                    <th className="px-4 py-3 text-start font-semibold">{t("outlet")}</th>
                     <th className="px-4 py-3 text-end font-semibold">{t("amount")}</th>
                     <th className="px-4 py-3 text-center font-semibold">{t("postingStatus")}</th>
                     <th className="px-4 py-3 text-end font-semibold">{t("actions")}</th>
@@ -586,17 +547,28 @@ export default function PurchaseInvoicesPage() {
                       className="border-t border-[color:var(--ink-100)] hover:bg-[color:var(--brand-50)]/40">
                       <td className="px-4 py-3 font-mono text-xs text-[color:var(--brand-700)]">{inv.invoiceNumber}</td>
                       <td className="px-4 py-3 text-[color:var(--ink-600)]">{formatDateShort(inv.invoiceDate)}</td>
-                      <td className="px-4 py-3 text-[color:var(--ink-700)]">{inv.supplierName}</td>
-                      <td className="px-4 py-3 text-end font-semibold tabular-nums">{formatCurrency(inv.totalAmount / 100)}</td>
+                      <td className="px-4 py-3">
+                        <span className="text-xs text-[color:var(--ink-500)]">
+                          {INVOICE_TYPE_LABELS[inv.invoiceType as keyof typeof INVOICE_TYPE_LABELS]?.[lang]}
+                        </span>
+                      </td>
+                      <td className="px-4 py-3 text-[color:var(--ink-700)]">{(inv as any).customerName}</td>
+                      <td className="px-4 py-3 text-[color:var(--ink-500)] text-xs">
+                        {(inv as any).outletName ? (
+                          <span className="inline-flex items-center gap-1">
+                            <MapPin className="h-3 w-3 flex-shrink-0 text-[color:var(--brand-500)]" />
+                            {isRTL ? (inv as any).outletName : ((inv as any).outletNameEn || (inv as any).outletName)}
+                          </span>
+                        ) : "—"}
+                      </td>
+                      <td className="px-4 py-3 text-end font-semibold tabular-nums">{formatCurrency(inv.totalAmount)}</td>
                       <td className="px-4 py-3 text-center">
                         <StatusBadge status={inv.postingStatus} type="posting" />
                       </td>
                       <td className="px-4 py-3 text-end inline-flex items-center gap-2 justify-end">
-                        {canPost("purchases") && <ApproveButton invoice={inv} userId={defaultUser?._id} />}
-                        {canPost("purchases") && <PostButton invoice={inv} userId={defaultUser?._id} />}
-                        {canPost("purchases") && <ReverseButton invoice={inv} userId={defaultUser?._id} companyId={company?._id} />}
+                        {canPost("sales") && <PostButton invoice={inv} userId={defaultUser?._id} />}
                         <button
-                          onClick={() => router.push(`/purchases/invoices/${inv._id}`)}
+                          onClick={() => router.push(`/sales/invoices/${inv._id}`)}
                           className="h-8 w-8 inline-flex items-center justify-center rounded-md hover:bg-[color:var(--brand-50)] text-[color:var(--ink-600)]"
                           title={t("view")}>
                           <Eye className="h-4 w-4" />
@@ -613,11 +585,11 @@ export default function PurchaseInvoicesPage() {
                 <div className="flex items-center gap-1">
                   <button disabled={page === 0} onClick={() => setPage((p) => p - 1)}
                     className="p-1.5 rounded-lg hover:bg-[color:var(--ink-50)] disabled:opacity-40">
-                    {isRTL ? <ChevronRight className="h-4 w-4" /> : <ChevronLeft className="h-4 w-4" />}
+                    <ChevronRight className="h-4 w-4" />
                   </button>
                   <button disabled={page >= totalPages - 1} onClick={() => setPage((p) => p + 1)}
                     className="p-1.5 rounded-lg hover:bg-[color:var(--ink-50)] disabled:opacity-40">
-                    {isRTL ? <ChevronLeft className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
+                    <ChevronLeft className="h-4 w-4" />
                   </button>
                 </div>
               </div>
