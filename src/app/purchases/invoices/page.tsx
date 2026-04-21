@@ -1,0 +1,627 @@
+// @ts-nocheck
+"use client";
+
+import React, { useState } from "react";
+import { useQuery, useMutation } from "convex/react";
+import { api } from "../../../../convex/_generated/api";
+import { formatDateShort } from "@/lib/utils";
+import { StatusBadge } from "@/components/ui/status-badge";
+import { ShoppingCart, Search, Plus, X, Check, Trash2, Eye, ChevronLeft, ChevronRight, CheckCircle, RotateCcw } from "lucide-react";
+import { useI18n } from "@/hooks/useI18n";
+import { useAuth } from "@/hooks/useAuth";
+import { usePermissions } from "@/hooks/usePermissions";
+import { useAppStore } from "@/store/useAppStore";
+
+const PAGE_SIZE = 50;
+
+function todayISO() { return new Date().toISOString().split("T")[0]; }
+function startOfMonthISO() {
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-01`;
+}
+
+// ─── Purchase Invoice line type ────────────────────────────────────────────────
+
+interface PurchaseLine {
+  id: number;
+  itemId: string;
+  quantity: string;
+  unitPrice: string;
+  uomId: string;
+}
+
+// ─── New Purchase Invoice Form ─────────────────────────────────────────────────
+
+function NewPurchaseInvoiceForm({ onClose }: { onClose: () => void }) {
+  const { t, isRTL } = useI18n();
+
+  const companies = useQuery(api.seed.getCompanies, {});
+  const company = companies?.[0];
+
+  const [invoiceDate, setInvoiceDate] = useState(todayISO());
+  const [dueDate, setDueDate] = useState(todayISO());
+  const [supplierId, setSupplierId] = useState("");
+  const [notes, setNotes] = useState("");
+  const [lineIdCounter, setLineIdCounter] = useState(1);
+  const [lines, setLines] = useState<PurchaseLine[]>([
+    { id: 0, itemId: "", quantity: "1", unitPrice: "", uomId: "" },
+  ]);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState("");
+
+  // Queries for dependencies
+  const branch = useQuery(api.branches.getDefaultBranch, company ? { companyId: company._id } : "skip");
+  const selectedBranchStore = useAppStore((s) => s.selectedBranch);
+  const effectiveBranchId = selectedBranchStore !== "all" ? selectedBranchStore : branch?._id;
+  const openPeriod = useQuery(api.helpers.getOpenPeriod, company ? { companyId: company._id, date: invoiceDate } : "skip");
+  const { currentUser: defaultUser } = useAuth();
+  const defaultCurrency = useQuery(api.helpers.getDefaultCurrency, {});
+  const suppliers = useQuery(api.suppliers.getAll, company ? { companyId: company._id } : "skip");
+  const items = useQuery(api.items.getAllItems, company ? { companyId: company._id } : "skip");
+  const units = useQuery(api.items.getAllUnits, company ? { companyId: company._id } : "skip");
+
+  const createInvoice = useMutation(api.purchaseInvoices.createPurchaseInvoice);
+
+  // Compute subtotal
+  const subtotal = lines.reduce((sum, l) => {
+    const qty = parseFloat(l.quantity) || 0;
+    const price = parseFloat(l.unitPrice) || 0;
+    return sum + qty * price;
+  }, 0);
+
+  const addLine = () => {
+    setLines((prev) => [
+      ...prev,
+      { id: lineIdCounter, itemId: "", quantity: "1", unitPrice: "", uomId: "" },
+    ]);
+    setLineIdCounter((c) => c + 1);
+  };
+
+  const removeLine = (id: number) => {
+    setLines((prev) => prev.filter((l) => l.id !== id));
+  };
+
+  const updateLine = (id: number, field: keyof PurchaseLine, value: string) => {
+    setLines((prev) =>
+      prev.map((l) => {
+        if (l.id !== id) return l;
+        const updated = { ...l, [field]: value };
+        if (field === "itemId" && value) {
+          const foundItem = (items ?? []).find((it: any) => it._id === value);
+          if (foundItem?.lastCost) {
+            updated.unitPrice = String(foundItem.lastCost);
+          }
+          if (foundItem?.baseUomId) {
+            updated.uomId = foundItem.baseUomId;
+          }
+        }
+        return updated;
+      })
+    );
+  };
+
+  const onSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!company) return;
+    if (!effectiveBranchId && !branch) { setError(t("errNoBranch")); return; }
+    if (!openPeriod) { setError(t("errNoPeriod")); return; }
+    if (!defaultUser) { setError(t("errNoUser")); return; }
+    if (!defaultCurrency) { setError(t("errNoCurrency")); return; }
+    if (!supplierId) { setError(t("errNoSupplier")); return; }
+
+    const validLines = lines.filter(
+      (l) => l.itemId && parseFloat(l.quantity) > 0 && parseFloat(l.unitPrice) >= 0
+    );
+    if (validLines.length === 0) { setError(t("errNoLines")); return; }
+
+    setSaving(true);
+    setError("");
+
+    try {
+      // Build lines — use item cogsAccountId as the line account, fallback to first account query
+      const invoiceLines = await Promise.all(
+        validLines.map(async (l) => {
+          const foundItem = (items ?? []).find((it: any) => it._id === l.itemId);
+          const qty = parseFloat(l.quantity);
+          const price = parseFloat(l.unitPrice);
+          const total = qty * price;
+          const resolvedUomId = l.uomId || foundItem?.baseUomId || (units ?? [])[0]?._id;
+
+          // Use item's cogsAccountId or expenseAccountId as the line account
+          const accountId = foundItem?.cogsAccountId ?? foundItem?.expenseAccountId ?? null;
+
+          return {
+            itemId: l.itemId as any,
+            description: foundItem ? (foundItem.nameAr || "") : undefined,
+            lineType: "stock_item" as const,
+            quantity: qty,
+            uomId: resolvedUomId as any,
+            unitPrice: price,
+            vatRate: 0,
+            vatAmount: 0,
+            lineTotal: total,
+            accountId: accountId as any,
+          };
+        })
+      );
+
+      // Filter out lines without an accountId — warn user
+      const linesWithAccount = invoiceLines.filter((l) => l.accountId);
+      if (linesWithAccount.length === 0) {
+        setError(t("errNoItemAccount"));
+        setSaving(false);
+        return;
+      }
+
+      await createInvoice({
+        companyId: company._id,
+        branchId: (effectiveBranchId ?? branch?._id) as any,
+        supplierId: supplierId as any,
+        invoiceType: "stock_purchase",
+        invoiceDate,
+        dueDate,
+        periodId: openPeriod._id,
+        currencyId: defaultCurrency._id,
+        exchangeRate: 1,
+        notes: notes || undefined,
+        createdBy: defaultUser._id,
+        lines: linesWithAccount,
+      });
+
+      onClose();
+    } catch (err: any) {
+      setError(err.message ?? t("errUnexpected"));
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <div className="surface-card p-5">
+      <div className="flex items-center justify-between mb-5">
+        <h3 className="text-base font-semibold text-[color:var(--ink-900)]">{t("newPurchaseInvoice")}</h3>
+        <button type="button" onClick={onClose}
+          className="p-1.5 rounded-lg hover:bg-[color:var(--ink-50)] text-[color:var(--ink-400)]">
+          <X className="h-4 w-4" />
+        </button>
+      </div>
+
+      {error && (
+        <div className="bg-red-50 border border-red-200 text-red-700 text-sm rounded-lg p-3 mb-4">{error}</div>
+      )}
+
+      <form onSubmit={onSubmit} className="space-y-5">
+        {/* Header fields */}
+        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
+          {/* Supplier */}
+          <div>
+            <label className="block text-xs font-medium text-[color:var(--ink-600)] mb-1">{t("supplier")} *</label>
+            <select value={supplierId} onChange={(e) => setSupplierId(e.target.value)}
+              className="input-field h-9">
+              <option value="">{t("selectSupplier")}</option>
+              {(suppliers ?? []).map((s: any) => (
+                <option key={s._id} value={s._id}>{isRTL ? s.nameAr : (s.nameEn || s.nameAr)}</option>
+              ))}
+            </select>
+          </div>
+
+          {/* Invoice Date */}
+          <div>
+            <label className="block text-xs font-medium text-[color:var(--ink-600)] mb-1">{t("invoiceDate")} *</label>
+            <input type="date" required value={invoiceDate} onChange={(e) => setInvoiceDate(e.target.value)}
+              className="input-field h-9" />
+          </div>
+
+          {/* Due Date */}
+          <div>
+            <label className="block text-xs font-medium text-[color:var(--ink-600)] mb-1">{t("dueDate")} *</label>
+            <input type="date" required value={dueDate} onChange={(e) => setDueDate(e.target.value)}
+              className="input-field h-9" />
+          </div>
+        </div>
+
+        {/* Lines table */}
+        <div>
+          <div className="flex items-center justify-between mb-2">
+            <h4 className="text-xs font-semibold text-[color:var(--ink-700)] uppercase tracking-wide">{t("lines")}</h4>
+            <button type="button" onClick={addLine}
+              className="h-7 px-3 rounded-lg bg-[color:var(--brand-50)] text-[color:var(--brand-700)] text-xs font-medium hover:bg-[color:var(--brand-100)] inline-flex items-center gap-1">
+              <Plus className="h-3.5 w-3.5" /> {t("addLine")}
+            </button>
+          </div>
+          <div className="border border-[color:var(--ink-100)] rounded-lg overflow-hidden">
+            <table className="w-full text-sm">
+              <thead className="bg-[color:var(--ink-50)] text-[color:var(--ink-600)] text-xs">
+                <tr>
+                  <th className="px-3 py-2 text-start font-semibold">{t("item")} *</th>
+                  <th className="px-3 py-2 text-end font-semibold w-28">{t("quantity")} *</th>
+                  <th className="px-3 py-2 text-end font-semibold w-32">{t("unitPrice")} *</th>
+                  <th className="px-3 py-2 text-end font-semibold w-32">{t("lineTotal")}</th>
+                  <th className="w-10" />
+                </tr>
+              </thead>
+              <tbody>
+                {lines.map((line) => {
+                  const qty = parseFloat(line.quantity) || 0;
+                  const price = parseFloat(line.unitPrice) || 0;
+                  const total = qty * price;
+                  return (
+                    <tr key={line.id} className="border-t border-[color:var(--ink-100)]">
+                      <td className="px-2 py-1.5">
+                        <select value={line.itemId}
+                          onChange={(e) => updateLine(line.id, "itemId", e.target.value)}
+                          className="input-field h-8 w-full text-xs">
+                          <option value="">{t("selectItem")}</option>
+                          {(items ?? []).map((it: any) => (
+                            <option key={it._id} value={it._id}>
+                              {isRTL ? it.nameAr : (it.nameEn || it.nameAr)}
+                            </option>
+                          ))}
+                        </select>
+                      </td>
+                      <td className="px-2 py-1.5">
+                        <input type="number" min="0.001" step="0.001"
+                          value={line.quantity}
+                          onChange={(e) => updateLine(line.id, "quantity", e.target.value)}
+                          className="input-field h-8 text-end w-full tabular-nums text-xs" />
+                      </td>
+                      <td className="px-2 py-1.5">
+                        <input type="number" min="0" step="0.01"
+                          value={line.unitPrice}
+                          onChange={(e) => updateLine(line.id, "unitPrice", e.target.value)}
+                          className="input-field h-8 text-end w-full tabular-nums text-xs" />
+                      </td>
+                      <td className="px-3 py-1.5 text-end tabular-nums font-semibold text-[color:var(--ink-800)] text-xs">
+                        {total.toFixed(2)}
+                      </td>
+                      <td className="px-1 py-1.5 text-center">
+                        {lines.length > 1 && (
+                          <button type="button" onClick={() => removeLine(line.id)}
+                            title={t("removeLine")}
+                            className="h-7 w-7 rounded-md inline-flex items-center justify-center text-red-400 hover:bg-red-50">
+                            <Trash2 className="h-3.5 w-3.5" />
+                          </button>
+                        )}
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        {/* Subtotal & Notes */}
+        <div className="grid grid-cols-2 gap-3 items-end">
+          <div>
+            <label className="block text-xs font-medium text-[color:var(--ink-600)] mb-1">{t("notes")}</label>
+            <textarea value={notes} onChange={(e) => setNotes(e.target.value)} rows={2}
+              className="input-field w-full resize-none text-sm" />
+          </div>
+          <div className="text-end space-y-1">
+            <div className="text-xs text-[color:var(--ink-500)]">{t("subtotal")}</div>
+            <div className="text-2xl font-bold text-[color:var(--ink-900)] tabular-nums">
+              {subtotal.toFixed(2)}
+            </div>
+            <div className="text-xs text-[color:var(--ink-400)]">QAR</div>
+          </div>
+        </div>
+
+        {/* Actions */}
+        <div className="flex items-center gap-3 pt-2">
+          <button type="submit" disabled={saving}
+            className="btn-primary h-10 px-5 rounded-lg inline-flex items-center gap-2 text-sm font-semibold disabled:opacity-60">
+            {saving ? t("saving") : <><Check className="h-4 w-4" />{t("saveAsDraft")}</>}
+          </button>
+          <button type="button" onClick={onClose}
+            className="h-10 px-5 rounded-lg border border-[color:var(--ink-200)] text-[color:var(--ink-700)] text-sm hover:bg-[color:var(--ink-50)]">
+            {t("cancel")}
+          </button>
+        </div>
+      </form>
+    </div>
+  );
+}
+
+// ─── Approve Button ────────────────────────────────────────────────────────────
+
+function ApproveButton({ invoice, userId }: { invoice: any; userId: string | undefined }) {
+  const { t } = useI18n();
+  const [loading, setLoading] = useState(false);
+  const [err, setErr] = useState("");
+  const approve = useMutation(api.purchaseInvoices.approvePurchaseInvoice);
+
+  if (invoice.documentStatus !== "draft") return null;
+  if (!userId) return null;
+
+  const handle = async () => {
+    setLoading(true); setErr("");
+    try { await approve({ invoiceId: invoice._id, userId: userId as any }); }
+    catch (e: any) { setErr(e.message); }
+    finally { setLoading(false); }
+  };
+
+  return (
+    <div className="inline-flex flex-col items-end gap-1">
+      {err && <span className="text-xs text-red-600 max-w-[200px] text-end">{err}</span>}
+      <button
+        onClick={handle}
+        disabled={loading}
+        className="h-7 px-3 rounded-md text-xs font-semibold inline-flex items-center gap-1 bg-amber-50 text-amber-700 hover:bg-amber-100 border border-amber-200 disabled:opacity-60"
+      >
+        <CheckCircle className="h-3.5 w-3.5" />
+        {loading ? t("approving") : t("approve")}
+      </button>
+    </div>
+  );
+}
+
+// ─── Reverse Button ────────────────────────────────────────────────────────────
+
+function ReverseButton({ invoice, userId, companyId }: { invoice: any; userId: string | undefined; companyId: string | undefined }) {
+  const { t } = useI18n();
+  const [loading, setLoading] = useState(false);
+  const [err, setErr] = useState("");
+  const reverse = useMutation(api.purchaseInvoices.reversePurchaseInvoice);
+  const today = new Date().toISOString().split("T")[0];
+  const openPeriod = useQuery(
+    api.helpers.getOpenPeriod,
+    companyId ? { companyId: companyId as any, date: today } : "skip"
+  );
+
+  if (invoice.postingStatus !== "posted") return null;
+  if (!userId) return null;
+
+  const handle = async () => {
+    if (!openPeriod) { setErr(t("errNoPeriod")); return; }
+    setLoading(true); setErr("");
+    try {
+      await reverse({
+        invoiceId: invoice._id,
+        userId: userId as any,
+        reversalDate: today,
+        reversalPeriodId: openPeriod._id,
+      });
+    } catch (e: any) { setErr(e.message); }
+    finally { setLoading(false); }
+  };
+
+  return (
+    <div className="inline-flex flex-col items-end gap-1">
+      {err && <span className="text-xs text-red-600 max-w-[200px] text-end">{err}</span>}
+      <button
+        onClick={handle}
+        disabled={loading || !openPeriod}
+        className="h-7 px-3 rounded-md text-xs font-semibold inline-flex items-center gap-1 bg-red-50 text-red-700 hover:bg-red-100 border border-red-200 disabled:opacity-60"
+      >
+        <RotateCcw className="h-3.5 w-3.5" />
+        {loading ? t("reversing") : t("reverse")}
+      </button>
+    </div>
+  );
+}
+
+// ─── Post Button ───────────────────────────────────────────────────────────────
+
+function PostButton({ invoice, userId }: { invoice: any; userId: string | undefined }) {
+  const { t } = useI18n();
+  const [posting, setPosting] = useState(false);
+  const [err, setErr] = useState("");
+  const quickPost = useMutation(api.purchaseInvoices.quickPostPurchaseInvoice);
+
+  if (invoice.postingStatus === "posted" || invoice.postingStatus === "reversed") return null;
+  if (!userId) return null;
+
+  const handlePost = async () => {
+    setPosting(true);
+    setErr("");
+    try {
+      await quickPost({ invoiceId: invoice._id, userId: userId as any });
+    } catch (e: any) {
+      setErr(e.message ?? t("errPosting"));
+    } finally {
+      setPosting(false);
+    }
+  };
+
+  return (
+    <div className="inline-flex flex-col items-end gap-1">
+      {err && (
+        <span className="text-xs text-red-600 max-w-[200px] text-end leading-tight">{err}</span>
+      )}
+      <button
+        onClick={handlePost}
+        disabled={posting}
+        title={err || t("post")}
+        className="h-7 px-3 rounded-md text-xs font-semibold inline-flex items-center gap-1 bg-emerald-50 text-emerald-700 hover:bg-emerald-100 border border-emerald-200 disabled:opacity-60">
+        {posting ? t("posting") : t("post")}
+      </button>
+    </div>
+  );
+}
+
+// ─── Page ──────────────────────────────────────────────────────────────────────
+
+export default function PurchaseInvoicesPage() {
+  const { t, isRTL, formatCurrency } = useI18n();
+  const { currentUser: defaultUser } = useAuth();
+  const { canCreate, canPost } = usePermissions();
+  const [fromDate, setFromDate] = useState(startOfMonthISO());
+  const [toDate, setToDate] = useState(todayISO());
+  const [postingStatus, setPostingStatus] = useState<string>("");
+  const [search, setSearch] = useState("");
+  const [page, setPage] = useState(0);
+  const [showForm, setShowForm] = useState(false);
+
+  const selectedBranch = useAppStore((s) => s.selectedBranch);
+  const branchArg = selectedBranch !== "all" ? selectedBranch : undefined;
+
+  const companies = useQuery(api.seed.getCompanies, {});
+  const company = companies?.[0];
+
+  const invoices = useQuery(
+    api.purchaseInvoices.listByCompany,
+    company
+      ? {
+          companyId: company._id,
+          fromDate: fromDate || undefined,
+          toDate: toDate || undefined,
+          postingStatus: (postingStatus as any) || undefined,
+          branchId: branchArg as any,
+        }
+      : "skip"
+  );
+
+  const loading = invoices === undefined;
+
+  const filtered = (invoices ?? []).filter((inv: any) => {
+    if (!search) return true;
+    const s = search.toLowerCase();
+    return (inv.invoiceNumber || "").toLowerCase().includes(s) ||
+      (inv.supplierName || "").toLowerCase().includes(s);
+  });
+
+  const totalPages = Math.ceil(filtered.length / PAGE_SIZE);
+  const paginated = filtered.slice(page * PAGE_SIZE, (page + 1) * PAGE_SIZE);
+
+  // Summary
+  const posted = filtered.filter((i: any) => i.postingStatus === "posted");
+  const totalPosted = posted.reduce((s: any, i: any) => s + i.totalAmount, 0);
+  const totalAll = filtered.reduce((s: any, i: any) => s + i.totalAmount, 0);
+
+  return (
+    <div className="space-y-5">
+      {/* Header */}
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-3">
+          <div className="h-11 w-11 rounded-xl flex items-center justify-center"
+            style={{ background: "var(--brand-50)", color: "var(--brand-700)" }}>
+            <ShoppingCart className="h-5 w-5" />
+          </div>
+          <div>
+            <h1 className="text-2xl font-bold text-[color:var(--ink-900)]">{t("purchaseInvoicesTitle")}</h1>
+            <p className="text-xs text-[color:var(--ink-500)] mt-0.5">{filtered.length} {t("invoiceCount")}</p>
+          </div>
+        </div>
+        {canCreate("purchases") && (
+        <button onClick={() => { setShowForm((v) => !v); setPage(0); }}
+          className="btn-primary h-10 px-4 rounded-lg inline-flex items-center gap-2 text-sm font-semibold">
+          <Plus className="h-4 w-4" /> {t("newPurchaseInvoice")}
+        </button>
+        )}
+      </div>
+
+      {/* Inline Form */}
+      {showForm && <NewPurchaseInvoiceForm onClose={() => setShowForm(false)} />}
+
+      {/* Filter Bar */}
+      <div className="surface-card p-3 flex items-center gap-3 flex-wrap">
+        <div className="flex items-center gap-1.5">
+          <span className="text-xs text-[color:var(--ink-500)]">{t("fromDate")}:</span>
+          <input type="date" value={fromDate} onChange={(e: any) => { setFromDate(e.target.value); setPage(0); }}
+            className="input-field h-9 w-auto" />
+        </div>
+        <div className="flex items-center gap-1.5">
+          <span className="text-xs text-[color:var(--ink-500)]">{t("toDate")}:</span>
+          <input type="date" value={toDate} onChange={(e: any) => { setToDate(e.target.value); setPage(0); }}
+            className="input-field h-9 w-auto" />
+        </div>
+        <select value={postingStatus} onChange={(e: any) => { setPostingStatus(e.target.value); setPage(0); }}
+          className="input-field h-9 w-auto">
+          <option value="">{t("allStatuses")}</option>
+          <option value="unposted">{t("statusUnposted")}</option>
+          <option value="posted">{t("statusPosted")}</option>
+          <option value="reversed">{t("statusReversed")}</option>
+        </select>
+        <div className="relative flex-1 min-w-[200px]">
+          <Search className={`absolute top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-[color:var(--ink-400)] ${isRTL ? "right-3" : "left-3"}`} />
+          <input type="text" value={search} onChange={(e: any) => { setSearch(e.target.value); setPage(0); }}
+            placeholder={t("searchPlaceholder")}
+            className={`input-field h-9 ${isRTL ? "pr-9" : "pl-9"}`} />
+        </div>
+      </div>
+
+      {/* Summary */}
+      <div className="surface-card p-3 flex items-center gap-6 text-sm">
+        <div><span className="text-[color:var(--ink-500)]">{t("total")}: </span><span className="font-semibold text-[color:var(--ink-900)] tabular-nums">{formatCurrency(totalAll / 100)}</span></div>
+        <div><span className="text-[color:var(--ink-500)]">{t("posted")}: </span><span className="font-semibold text-emerald-700 tabular-nums">{formatCurrency(totalPosted / 100)}</span></div>
+      </div>
+
+      {/* Table */}
+      <div className="surface-card overflow-hidden">
+        {loading ? (
+          <div className="p-8 text-center text-[color:var(--ink-400)]">
+            <div className="animate-spin h-8 w-8 border-2 border-[color:var(--brand-600)] border-t-transparent rounded-full mx-auto mb-3" />
+            <p className="text-sm">{t("loading")}</p>
+          </div>
+        ) : paginated.length === 0 ? (
+          <div className="py-16 text-center text-[color:var(--ink-400)]">
+            <p className="text-sm">{t("noResults")}</p>
+            {canCreate("purchases") && (
+            <button onClick={() => setShowForm(true)}
+              className="text-sm text-[color:var(--brand-700)] hover:underline mt-1">
+              + {t("newPurchaseInvoice")}
+            </button>
+            )}
+          </div>
+        ) : (
+          <>
+            <div className="overflow-x-auto">
+              <table className="w-full zebra-table text-sm">
+                <thead className="bg-[color:var(--ink-50)] text-[color:var(--ink-600)] text-xs uppercase tracking-wider">
+                  <tr>
+                    <th className="px-4 py-3 text-start font-semibold">{t("invoiceNo")}</th>
+                    <th className="px-4 py-3 text-start font-semibold">{t("date")}</th>
+                    <th className="px-4 py-3 text-start font-semibold">{t("supplier")}</th>
+                    <th className="px-4 py-3 text-end font-semibold">{t("amount")}</th>
+                    <th className="px-4 py-3 text-center font-semibold">{t("postingStatus")}</th>
+                    <th className="px-4 py-3 text-end font-semibold">{t("actions")}</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {paginated.map((inv: any) => (
+                    <tr key={inv._id}
+                      className="border-t border-[color:var(--ink-100)] hover:bg-[color:var(--brand-50)]/40">
+                      <td className="px-4 py-3 font-mono text-xs text-[color:var(--brand-700)]">{inv.invoiceNumber}</td>
+                      <td className="px-4 py-3 text-[color:var(--ink-600)]">{formatDateShort(inv.invoiceDate)}</td>
+                      <td className="px-4 py-3 text-[color:var(--ink-700)]">{inv.supplierName}</td>
+                      <td className="px-4 py-3 text-end font-semibold tabular-nums">{formatCurrency(inv.totalAmount / 100)}</td>
+                      <td className="px-4 py-3 text-center">
+                        <StatusBadge status={inv.postingStatus} type="posting" />
+                      </td>
+                      <td className="px-4 py-3 text-end inline-flex items-center gap-2 justify-end">
+                        {canPost("purchases") && <ApproveButton invoice={inv} userId={defaultUser?._id} />}
+                        {canPost("purchases") && <PostButton invoice={inv} userId={defaultUser?._id} />}
+                        {canPost("purchases") && <ReverseButton invoice={inv} userId={defaultUser?._id} companyId={company?._id} />}
+                        <button
+                          className="h-8 w-8 inline-flex items-center justify-center rounded-md hover:bg-[color:var(--brand-50)] text-[color:var(--ink-600)]"
+                          title={t("view")}>
+                          <Eye className="h-4 w-4" />
+                        </button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+            {totalPages > 1 && (
+              <div className="flex items-center justify-between px-4 py-3 border-t border-[color:var(--ink-100)]">
+                <p className="text-xs text-[color:var(--ink-500)]">{page + 1} / {totalPages}</p>
+                <div className="flex items-center gap-1">
+                  <button disabled={page === 0} onClick={() => setPage((p) => p - 1)}
+                    className="p-1.5 rounded-lg hover:bg-[color:var(--ink-50)] disabled:opacity-40">
+                    {isRTL ? <ChevronRight className="h-4 w-4" /> : <ChevronLeft className="h-4 w-4" />}
+                  </button>
+                  <button disabled={page >= totalPages - 1} onClick={() => setPage((p) => p + 1)}
+                    className="p-1.5 rounded-lg hover:bg-[color:var(--ink-50)] disabled:opacity-40">
+                    {isRTL ? <ChevronLeft className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
+                  </button>
+                </div>
+              </div>
+            )}
+          </>
+        )}
+      </div>
+    </div>
+  );
+}
