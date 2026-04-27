@@ -5,20 +5,57 @@ import React, { useState, useMemo } from "react";
 import { useQuery, useMutation } from "convex/react";
 import { api } from "../../../../convex/_generated/api";
 import {
-  Users,
-  Search,
-  Plus,
-  Edit2,
-  Power,
-  MapPin,
-  ChevronDown,
-  ChevronUp,
-  Phone,
-  User,
-  FileText,
+  Users, Search, Plus, Edit2, Power, MapPin,
+  ChevronDown, ChevronUp, Phone, User, FileText, WalletCards, Briefcase, Activity, Filter, Trash2, CheckCircle
 } from "lucide-react";
+import { useAuth } from "@/hooks/useAuth";
 import { useI18n } from "@/hooks/useI18n";
 import { usePermissions } from "@/hooks/usePermissions";
+import { PageHeader } from "@/components/ui/page-header";
+import { FilterPanel } from "@/components/ui/filter-panel";
+import { EmptyState } from "@/components/ui/empty-state";
+
+// ─── Imported Branches Panel (group → branch accounts from customers table) ───
+
+function ImportedBranchesPanel({ groupNorm, companyId }: { groupNorm: string; companyId: string }) {
+  const { isRTL } = useI18n();
+  const branches = useQuery(api.customers.getBranchesByGroup, { companyId: companyId as any, groupNorm }) ?? [];
+
+  if (branches.length === 0) {
+    return (
+      <div className="px-4 py-3 text-xs text-gray-400 italic">No imported branches for this group.</div>
+    );
+  }
+
+  return (
+    <div className="overflow-x-auto">
+      <table className="w-full text-xs">
+        <thead className="bg-blue-50/60">
+          <tr className="text-blue-700 uppercase tracking-wide">
+            <th className="px-4 py-2 text-start font-semibold">Code</th>
+            <th className="px-4 py-2 text-start font-semibold">Branch Name</th>
+            <th className="px-4 py-2 text-center font-semibold">Status</th>
+          </tr>
+        </thead>
+        <tbody>
+          {branches.map((b: any) => (
+            <tr key={b._id} className="border-t border-blue-100/80">
+              <td className="px-4 py-2 font-mono text-blue-700 font-semibold">{b.code}</td>
+              <td className="px-4 py-2 font-medium text-gray-800">
+                {isRTL ? b.nameAr : (b.nameEn || b.nameAr)}
+              </td>
+              <td className="px-4 py-2 text-center">
+                <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold border ${
+                  b.isActive ? "bg-green-50 text-green-700 border-green-200" : "bg-gray-50 text-gray-400 border-gray-200"
+                }`}>{b.isActive ? "Active" : "Inactive"}</span>
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
+}
 
 // ─── Outlet Form Modal ────────────────────────────────────────────────────────
 
@@ -249,9 +286,9 @@ function OutletsPanel({ customerId }: { customerId: string }) {
           <div className="text-sm text-[color:var(--ink-500)] mb-1">{t("noOutlets")}</div>
           <button
             onClick={() => { setEditOutlet(null); setShowForm(true); }}
-            className="text-xs text-[color:var(--brand-600)] hover:underline font-medium"
+            className="btn-primary h-9 px-5 rounded-xl inline-flex items-center gap-2 text-sm font-semibold"
           >
-            + {t("addFirstOutlet")}
+            <Plus className="h-4 w-4" /> {t("addFirstOutlet")}
           </button>
         </div>
       ) : (
@@ -356,9 +393,33 @@ function OutletsPanel({ customerId }: { customerId: string }) {
 
 // ─── Main Page ────────────────────────────────────────────────────────────────
 
+import { useSearchParams } from "next/navigation";
+
+function CustomerStatCard({ title, value, icon: Icon, color }: any) {
+  return (
+    <div className={`relative overflow-hidden rounded-xl bg-white shadow-sm border p-4 hover:shadow-md transition-all duration-300 group flex-1`}>
+      <div className={`absolute inset-0 bg-gradient-to-br ${color} opacity-0 group-hover:opacity-5 transition-opacity duration-300`} />
+      <div className="relative flex items-center gap-3">
+        <div className={`w-11 h-11 rounded-xl flex items-center justify-center shadow-sm bg-gradient-to-br ${color} text-white`}>
+          <Icon className="h-5 w-5" />
+        </div>
+        <div>
+          <div className="text-xs text-gray-500 font-medium uppercase tracking-wide">{title}</div>
+          <div className="text-xl font-bold text-gray-900 tabular-nums">{value}</div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export default function CustomersPage() {
   const { t, isRTL, formatCurrency } = useI18n();
   const { canCreate, canEdit } = usePermissions();
+  const { currentUser } = useAuth();
+  const isAdmin = currentUser?.role === "admin";
+  const removeCustomer = useMutation(api.customers.remove);
+  
+  const searchParams = useSearchParams();
 
   const companies = useQuery(api.seed.getCompanies, {}) ?? [];
   const companyId = companies[0]?._id;
@@ -374,10 +435,11 @@ export default function CustomersPage() {
   const updateCustomer = useMutation(api.customers.update);
   const toggleActive = useMutation(api.customers.toggleActive);
 
-  const [showModal, setShowModal] = useState(false);
+  const [showModal, setShowModal] = useState(searchParams.get("new") === "true");
   const [editId, setEditId] = useState<string | null>(null);
   const [search, setSearch] = useState("");
   const [expandedCustomerId, setExpandedCustomerId] = useState<string | null>(null);
+  const [viewMode, setViewMode] = useState<"groups" | "all">("groups"); // C: default to group view
   const [form, setForm] = useState({
     code: "",
     nameAr: "",
@@ -394,13 +456,17 @@ export default function CustomersPage() {
 
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
-    if (!q) return customers;
-    return customers.filter((c: any) =>
-      [c.code, c.nameAr, c.nameEn, c.mobile, c.email]
+    // C: in groups mode, show only parent accounts; in all mode show everything
+    const pool = viewMode === "groups"
+      ? customers.filter((c: any) => c.isGroupParent === true)
+      : customers;
+    if (!q) return pool;
+    return pool.filter((c: any) =>
+      [c.code, c.nameAr, c.nameEn, c.mobile, c.email, c.customerGroup]
         .filter(Boolean)
         .some((v: string) => String(v).toLowerCase().includes(q))
     );
-  }, [customers, search]);
+  }, [customers, search, viewMode]);
 
   function reset() {
     setForm({
@@ -418,12 +484,20 @@ export default function CustomersPage() {
     setErr(null);
   }
 
-  function openNew() {
+  function openNew(e?: React.MouseEvent) {
+    if (e) {
+      e.preventDefault();
+      e.stopPropagation();
+    }
     reset();
     setShowModal(true);
   }
 
-  function openEdit(c: any) {
+  function openEdit(c: any, e?: React.MouseEvent) {
+    if (e) {
+      e.preventDefault();
+      e.stopPropagation();
+    }
     setEditId(c._id);
     setForm({
       code: c.code,
@@ -486,152 +560,213 @@ export default function CustomersPage() {
   }
 
   return (
-    <div className="space-y-5">
-      {/* Page header */}
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <div className="flex items-center gap-3">
-          <div
-            className="h-11 w-11 rounded-xl flex items-center justify-center"
-            style={{ background: "var(--brand-50)", color: "var(--brand-700)" }}
+    <div dir={isRTL ? "rtl" : "ltr"} className="space-y-5">
+
+      <div className="no-print">
+      <PageHeader
+        icon={Users}
+        title={t("customersTitle")}
+        badge={<span className="text-xs text-[color:var(--ink-400)] font-normal">({filtered.length})</span>}
+        actions={canCreate("sales") ? (
+          <button type="button" onClick={openNew}
+            className="btn-primary h-10 px-4 rounded-lg inline-flex items-center gap-2 text-sm font-semibold">
+            <Plus className="h-4 w-4" /> {t("newCustomer")}
+          </button>
+        ) : undefined}
+      />
+      </div>
+
+      {/* Modern Filter Strip - Box Design */}
+      <div className="bg-white rounded-lg border border-gray-200 p-3 flex flex-wrap items-end gap-3 w-full">
+        {/* C: view mode toggle */}
+        <div className="flex rounded-md overflow-hidden border border-gray-200 text-xs font-semibold">
+          <button
+            onClick={() => { setViewMode("groups"); setExpandedCustomerId(null); }}
+            className={`h-9 px-4 transition-colors ${viewMode === "groups" ? "bg-green-600 text-white" : "bg-white text-gray-600 hover:bg-gray-50"}`}
           >
-            <Users className="h-5 w-5" />
-          </div>
-          <div>
-            <h1 className="text-2xl font-bold text-[color:var(--ink-900)]">
-              {t("customersTitle")}
-            </h1>
-            <p className="text-xs text-[color:var(--ink-500)] mt-0.5">
-              {customers.length} {t("customersCount")}
-            </p>
-          </div>
+            {isRTL ? "مجموعات" : "Groups"} ({customers.filter((c: any) => c.isGroupParent).length})
+          </button>
+          <button
+            onClick={() => { setViewMode("all"); setExpandedCustomerId(null); }}
+            className={`h-9 px-4 border-l border-gray-200 transition-colors ${viewMode === "all" ? "bg-green-600 text-white" : "bg-white text-gray-600 hover:bg-gray-50"}`}
+          >
+            {isRTL ? "الكل" : "All"} ({customers.length})
+          </button>
         </div>
-        {canCreate("sales") && (
-        <button
-          onClick={openNew}
-          className="btn-primary h-10 px-4 rounded-lg inline-flex items-center gap-2 text-sm font-semibold"
-        >
-          <Plus className="h-4 w-4" /> {t("newCustomer")}
+
+        <button className="h-10 px-3 border border-gray-200 rounded-md flex items-center gap-2 text-sm font-medium text-gray-700 hover:bg-gray-50 transition-colors">
+          <Filter className="h-4 w-4" /> {t("filters")}
         </button>
-        )}
-      </div>
 
-      {/* Filters */}
-      <div className="surface-card p-3">
-        <div className="relative">
-          <Search
-            className={`absolute top-1/2 -translate-y-1/2 h-4 w-4 text-[color:var(--ink-400)] ${isRTL ? "right-3" : "left-3"}`}
-          />
-          <input
-            className={`input-field h-10 ${isRTL ? "pr-9" : "pl-9"}`}
-            placeholder={t("searchCustomers")}
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-          />
+        <div className={`flex-1 min-w-[200px] ${isRTL ? "mr-auto" : "ml-auto"}`}>
+          <div className="relative">
+            <Search className={`absolute top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400 ${isRTL ? "right-3" : "left-3"}`} />
+            <input 
+              type="text" 
+              value={search} 
+              onChange={(e) => setSearch(e.target.value)}
+              placeholder={t("searchCustomers")}
+              className={`w-full h-10 ${isRTL ? "pr-9 pl-3" : "pl-9 pr-3"} border border-gray-200 rounded-md text-sm text-gray-700 focus:outline-none focus:border-gray-400`} 
+            />
+          </div>
         </div>
       </div>
 
-      {/* Table */}
-      <div className="surface-card overflow-hidden">
+      {/* Premium KPI Cards - Modern Design */}
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+        <CustomerStatCard 
+          title={isRTL ? "المجموعات" : "Groups"} 
+          value={customers.filter((c: any) => c.isGroupParent).length} 
+          icon={Users}
+          color="from-blue-500 to-blue-600"
+        />
+        <CustomerStatCard 
+          title={isRTL ? "الفروع" : "Branches"} 
+          value={customers.filter((c: any) => !c.isGroupParent).length} 
+          icon={MapPin}
+          color="from-purple-500 to-purple-600"
+        />
+        <CustomerStatCard 
+          title={t("active")} 
+          value={customers.filter((c: any) => c.isActive).length} 
+          icon={CheckCircle}
+          color="from-green-500 to-green-600"
+        />
+        <CustomerStatCard 
+          title={isRTL ? "إجمالي العملاء" : "Total"} 
+          value={customers.length} 
+          icon={Users}
+          color="from-emerald-500 to-emerald-600"
+        />
+      </div>
+      <div className="bg-white rounded-2xl shadow-[0_2px_10px_rgba(0,0,0,0.04)] border border-[color:var(--ink-100)] overflow-hidden">
         {filtered.length === 0 ? (
-          <div className="py-20 text-center">
-            <Users className="mx-auto h-10 w-10 text-[color:var(--ink-300)]" />
-            <div className="mt-3 text-sm text-[color:var(--ink-500)]">{t("noCustomersYet")}</div>
-            {canCreate("sales") && (
-            <button
-              onClick={openNew}
-              className="mt-4 btn-primary h-9 px-4 rounded-lg inline-flex items-center gap-2 text-sm font-semibold"
-            >
-              <Plus className="h-4 w-4" /> {t("addFirstCustomer")}
-            </button>
-            )}
-          </div>
+          <EmptyState
+            icon={Users}
+            title={t("noCustomersYet")}
+            action={canCreate("sales") ? (
+              <button onClick={openNew}
+                className="btn-primary h-10 px-5 rounded-xl inline-flex items-center gap-2 text-sm font-semibold">
+                <Plus className="h-4 w-4" /> {t("addFirstCustomer")}
+              </button>
+            ) : undefined}
+          />
         ) : (
           <div className="overflow-x-auto">
-            <table className="w-full text-sm">
+            <table className="w-full text-sm text-left border-collapse" dir={isRTL ? "rtl" : "ltr"}>
               <thead>
-                <tr className="text-[color:var(--ink-600)] text-xs uppercase tracking-wider bg-[color:var(--ink-50)]">
-                  <th className="px-4 py-3 text-start font-semibold">{t("code")}</th>
-                  <th className="px-4 py-3 text-start font-semibold">{t("name")}</th>
-                  <th className="px-4 py-3 text-start font-semibold">{t("contact")}</th>
-                  <th className="px-4 py-3 text-end font-semibold">{t("creditLimit")}</th>
-                  <th className="px-4 py-3 text-center font-semibold">{t("creditDays")}</th>
-                  <th className="px-4 py-3 text-center font-semibold">{t("outlets")}</th>
-                  <th className="px-4 py-3 text-center font-semibold">{t("status")}</th>
-                  <th className="px-4 py-3 text-end font-semibold">{t("actions")}</th>
+                <tr className="bg-gray-50/50 border-b border-gray-100">
+                  <th className="px-6 py-4 text-[10px] font-bold text-gray-400 uppercase tracking-widest">{t("code")}</th>
+                  <th className="px-6 py-4 text-[10px] font-bold text-gray-400 uppercase tracking-widest">{t("name")}</th>
+                  <th className="px-6 py-4 text-[10px] font-bold text-gray-400 uppercase tracking-widest">{t("contact")}</th>
+                  <th className="px-6 py-4 text-[10px] font-bold text-gray-400 uppercase tracking-widest text-end">{t("creditLimit")}</th>
+                  <th className="px-6 py-4 text-[10px] font-bold text-gray-400 uppercase tracking-widest text-center">{t("creditDays")}</th>
+                  <th className="px-6 py-4 text-[10px] font-bold text-gray-400 uppercase tracking-widest text-center">{t("outlets")}</th>
+                  <th className="px-6 py-4 text-[10px] font-bold text-gray-400 uppercase tracking-widest text-center">{t("status")}</th>
+                  <th className="px-6 py-4 text-[10px] font-bold text-gray-400 uppercase tracking-widest text-end">{t("actions")}</th>
                 </tr>
               </thead>
-              <tbody>
+              <tbody className="divide-y divide-gray-50">
                 {filtered.map((c: any) => (
                   <React.Fragment key={c._id}>
-                    <tr
-                      className={`border-t border-[color:var(--ink-100)] hover:bg-[color:var(--brand-50)]/40 ${expandedCustomerId === c._id ? "bg-[color:var(--brand-50)]/20" : ""}`}
-                    >
-                      <td className="px-4 py-3 font-mono text-xs text-[color:var(--ink-700)]">
-                        {c.code}
+                    <tr className={`group transition-all duration-200 ${expandedCustomerId === c._id ? "bg-green-50/30" : "hover:bg-gray-50/80"}`}>
+                      <td className="px-6 py-4">
+                        <span className="inline-flex items-center px-2 py-0.5 rounded text-[11px] font-bold bg-gray-100 text-gray-600 border border-gray-200">
+                          {c.code}
+                        </span>
                       </td>
-                      <td className="px-4 py-3 font-medium text-[color:var(--ink-900)]">
-                        {isRTL ? c.nameAr : (c.nameEn || c.nameAr)}
-                        {c.nameEn && isRTL ? (
-                          <div className="text-xs text-[color:var(--ink-500)]">{c.nameEn}</div>
+                      <td className="px-6 py-4">
+                        <div className="font-bold text-gray-900 text-sm">
+                          {isRTL ? c.nameAr : (c.nameEn || c.nameAr)}
+                        </div>
+                        {/* C: group badge */}
+                        {c.isGroupParent ? (
+                          <span className="inline-flex items-center mt-0.5 px-1.5 py-0.5 rounded text-[9px] font-bold bg-blue-50 text-blue-700 border border-blue-200">
+                            GROUP · {c.branchCount ?? 0} branches
+                          </span>
+                        ) : c.customerGroup ? (
+                          <div className="text-[10px] text-gray-400 font-medium mt-0.5">{c.customerGroup}</div>
                         ) : null}
                       </td>
-                      <td className="px-4 py-3 text-[color:var(--ink-600)]">{c.mobile || "—"}</td>
-                      <td className="px-4 py-3 text-end tabular-nums">
-                        {formatCurrency(c.creditLimit ?? 0)}
-                      </td>
-                      <td className="px-4 py-3 text-center text-[color:var(--ink-600)]">
-                        {c.creditDays ?? 0} {t("days")}
-                      </td>
-                      <td className="px-4 py-3 text-center">
+                      <td className="px-6 py-4 text-xs text-gray-500 font-medium">{c.mobile || "—"}</td>
+                      <td className="px-6 py-4 text-end tabular-nums font-bold text-gray-900 text-sm">{formatCurrency(c.creditLimit ?? 0)}</td>
+                      <td className="px-6 py-4 text-center text-xs text-gray-500 font-medium">{c.creditDays ?? 0} {t("days")}</td>
+                      <td className="px-6 py-4 text-center">
                         <button
                           onClick={() => toggleExpand(c._id)}
-                          className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-semibold transition-colors ${
+                          className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md text-[11px] font-bold transition-all duration-200 shadow-sm ${
                             expandedCustomerId === c._id
-                              ? "bg-[color:var(--brand-600)] text-white"
-                              : "bg-[color:var(--brand-50)] text-[color:var(--brand-700)] hover:bg-[color:var(--brand-100)]"
+                              ? "bg-green-600 text-white"
+                              : "bg-white border border-gray-200 text-gray-600 hover:border-green-300 hover:text-green-600"
                           }`}
-                          title={expandedCustomerId === c._id ? t("hideOutlets") : t("manageOutlets")}
                         >
                           <MapPin className="h-3 w-3" />
-                          {expandedCustomerId === c._id ? (
-                            <ChevronUp className="h-3 w-3" />
-                          ) : (
-                            <ChevronDown className="h-3 w-3" />
-                          )}
+                          {expandedCustomerId === c._id ? <ChevronUp className="h-3 w-3" /> : <ChevronDown className="h-3 w-3" />}
                         </button>
                       </td>
-                      <td className="px-4 py-3 text-center">
-                        <span className={`badge-soft ${c.isActive ? "" : "badge-muted"}`}>
+                      <td className="px-6 py-4 text-center">
+                        <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold tracking-tight uppercase border ${
+                          c.isActive 
+                            ? "bg-green-50 text-green-700 border-green-200" 
+                            : "bg-gray-50 text-gray-500 border-gray-200"
+                        }`}>
                           {c.isActive ? t("active") : t("inactive")}
                         </span>
                       </td>
-                      <td className="px-4 py-3">
-                        <div className="flex items-center gap-1 justify-end">
+                      <td className="px-6 py-4 text-end">
+                        <div className="flex items-center gap-1 justify-end opacity-0 group-hover:opacity-100 transition-opacity duration-200">
                           {canEdit("sales") && (
-                          <button
-                            onClick={() => openEdit(c)}
-                            className="h-8 w-8 rounded-md hover:bg-[color:var(--brand-50)] text-[color:var(--ink-600)] hover:text-[color:var(--brand-700)] flex items-center justify-center"
-                            title={t("edit")}
-                          >
-                            <Edit2 className="h-4 w-4" />
-                          </button>
+                            <button onClick={(e) => openEdit(c, e)}
+                              className="h-8 w-8 rounded-lg bg-white border border-gray-200 text-gray-400 hover:text-blue-600 hover:border-blue-200 hover:shadow-sm flex items-center justify-center transition-all"
+                              title={t("edit")}>
+                              <Edit2 className="h-3.5 w-3.5" />
+                            </button>
                           )}
-                          <button
-                            onClick={() => toggleActive({ id: c._id })}
-                            className="h-8 w-8 rounded-md hover:bg-[color:var(--brand-50)] text-[color:var(--ink-600)] hover:text-[color:var(--brand-700)] flex items-center justify-center"
-                            title={c.isActive ? t("deactivate") : t("activate")}
-                          >
-                            <Power className="h-4 w-4" />
+                          {isAdmin && (
+                            <button onClick={async () => {
+                              if (confirm(t("confirmDelete"))) {
+                                try {
+                                  await removeCustomer({ id: c._id, userId: currentUser?._id });
+                                } catch (e: any) {
+                                  alert(e.message);
+                                }
+                              }
+                            }}
+                              className="h-8 w-8 rounded-lg bg-white border border-gray-200 text-gray-400 hover:text-red-500 hover:border-red-200 hover:shadow-sm flex items-center justify-center transition-all"
+                              title={t("delete")}>
+                              <Trash2 className="h-3.5 w-3.5" />
+                            </button>
+                          )}
+                          <button onClick={() => toggleActive({ id: c._id })}
+                            className={`h-8 w-8 rounded-lg bg-white border border-gray-200 flex items-center justify-center transition-all hover:shadow-sm ${
+                              c.isActive ? "text-gray-400 hover:text-amber-500 hover:border-amber-200" : "text-green-500 border-green-200 hover:bg-green-50"
+                            }`}
+                            title={c.isActive ? t("deactivate") : t("activate")}>
+                            <Power className="h-3.5 w-3.5" />
                           </button>
                         </div>
                       </td>
                     </tr>
-
-                    {/* Outlets expandable panel */}
                     {expandedCustomerId === c._id && (
                       <tr key={`outlets-${c._id}`}>
-                        <td colSpan={8} className="p-0">
-                          <OutletsPanel customerId={c._id} />
+                        <td colSpan={8} className="p-0 bg-white shadow-inner">
+                          {/* C: groups mode → show imported branches first, then delivery outlets */}
+                          {viewMode === "groups" && c.isGroupParent && c.customerGroupNorm ? (
+                            <div>
+                              <div className="px-4 pt-3 pb-1">
+                                <div className="flex items-center gap-2 mb-2">
+                                  <span className="text-xs font-bold text-blue-700 uppercase tracking-wide">Imported Branches</span>
+                                  <span className="text-[10px] text-blue-500">({c.branchCount ?? 0} from import)</span>
+                                </div>
+                                <ImportedBranchesPanel groupNorm={c.customerGroupNorm} companyId={companyId} />
+                              </div>
+                              <div className="border-t border-dashed border-gray-200 mt-2">
+                                <OutletsPanel customerId={c._id} />
+                              </div>
+                            </div>
+                          ) : (
+                            <OutletsPanel customerId={c._id} />
+                          )}
                         </td>
                       </tr>
                     )}

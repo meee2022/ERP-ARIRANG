@@ -39,3 +39,14 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# local agent / workspace files
+.agents/
+.claude/
+.verdent/
+backups/
+
+# temporary scripts / backups
+*.bak
+write_*.js
+run_import.bat

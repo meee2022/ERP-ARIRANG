@@ -160,12 +160,16 @@
   * { @apply border-border outline-ring/50; }
   body {
     @apply bg-background text-foreground antialiased;
-    font-family: var(--font-sans), 'Inter', 'IBM Plex Sans Arabic', system-ui, -apple-system, sans-serif;
+    font-family: 'Cairo', 'IBM Plex Sans Arabic', var(--font-sans), 'Inter', system-ui, sans-serif;
     font-feature-settings: "ss01","cv11";
   }
   html { @apply font-sans; }
-  html[dir="rtl"] body { font-family: 'IBM Plex Sans Arabic', var(--font-sans), system-ui, sans-serif; }
-  h1,h2,h3,h4 { letter-spacing: -0.01em; }
+  html[dir="rtl"] body, [dir="rtl"] {
+    font-family: 'Cairo', 'IBM Plex Sans Arabic', system-ui, sans-serif;
+    letter-spacing: 0;
+  }
+  h1,h2,h3,h4 { letter-spacing: -0.01em; font-weight: 700; }
+  [dir="rtl"] h1,[dir="rtl"] h2,[dir="rtl"] h3,[dir="rtl"] h4 { letter-spacing: 0; }
 }
 
 /* ─── Premium utilities ────────────────────────────────────────── */
@@ -222,7 +226,7 @@
 .input-field {
   width: 100%; background: #fff;
   border: 1px solid var(--ink-200); border-radius: 0.625rem;
-  padding: 0.55rem 0.75rem; font-size: 0.875rem;
+  padding: 0.4rem 0.75rem; font-size: 0.875rem;
   color: var(--ink-900);
   transition: border-color .15s ease, box-shadow .15s ease;
 }
@@ -230,6 +234,10 @@
   outline: none;
   border-color: var(--brand-500);
   box-shadow: 0 0 0 3px rgba(154,42,57,0.12);
+}
+select.input-field {
+  padding-top: 0;
+  padding-bottom: 0;
 }
 
 /* Custom scrollbar */
@@ -241,6 +249,69 @@
 /* Zebra tables */
 .zebra-table tbody tr:nth-child(even) { background: var(--surface-soft); }
 
+/* ─── Data Table (unified table style) ────────────────────────── */
+.data-table {
+  width: 100%;
+  font-size: 0.875rem;
+  border-collapse: collapse;
+}
+.data-table thead th {
+  padding: 0.7rem 1rem;
+  text-align: start;
+  font-size: 0.7rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--ink-500);
+  background: var(--ink-50);
+  border-bottom: 1.5px solid var(--ink-200);
+  white-space: nowrap;
+}
+.data-table thead th.text-end { text-align: end; }
+.data-table thead th.text-center { text-align: center; }
+.data-table tbody td {
+  padding: 0.625rem 1rem;
+  border-bottom: 1px solid var(--ink-100);
+  color: var(--ink-800);
+  vertical-align: middle;
+}
+.data-table tbody tr:last-child td { border-bottom: none; }
+.data-table tbody tr:hover { background: color-mix(in srgb, var(--brand-50) 40%, white); }
+.data-table tbody tr.row-total {
+  background: var(--ink-50);
+  border-top: 2px solid var(--ink-300);
+  font-weight: 700;
+}
+.data-table td.text-end { text-align: end; }
+.data-table td.text-center { text-align: center; }
+.data-table td.numeric { font-variant-numeric: tabular-nums; font-weight: 500; }
+.data-table td.muted { color: var(--ink-400); font-size: 0.8rem; }
+.data-table td.code { font-family: 'JetBrains Mono', 'Fira Code', monospace; font-size: 0.78rem; color: var(--brand-700); }
+
+/* ─── Page layout helpers ──────────────────────────────────────── */
+.page-section { @apply space-y-5; }
+
+/* ─── Loading spinner ──────────────────────────────────────────── */
+.loading-spinner {
+  display: flex; flex-direction: column; align-items: center;
+  justify-content: center; padding: 3.5rem 1rem;
+  gap: 0.75rem;
+}
+.loading-spinner .spinner {
+  width: 2rem; height: 2rem;
+  border: 2.5px solid var(--ink-200);
+  border-top-color: var(--brand-600);
+  border-radius: 50%;
+  animation: spin 0.7s linear infinite;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
+.loading-spinner .spinner-label {
+  font-size: 0.8rem; color: var(--ink-500);
+}
+
+/* ─── Improved scrollbars (extend existing) ────────────────────── */
+* { scrollbar-width: thin; scrollbar-color: rgba(201,163,90,0.25) transparent; }
+
 /* Status utilities */
 .status-good   { background: #e9f7ef; color: #0f6f3b; }
 .status-warn   { background: #fff5d9; color: #7a5504; }
@@ -250,38 +321,257 @@
 /* RTL flip utilities */
 html[dir="rtl"] .rtl-flip { transform: scaleX(-1); }
 
-/* ─── Global Print Styles ──────────────────────────────────────── */
+/* ─── Global Print Styles — Professional Document Output ───────── */
 @media print {
-  /* Hide app shell */
-  aside, nav, .sidebar, .no-print { display: none !important; }
+  /* ── Page geometry ──────────────────────────────────────── */
+  @page {
+    size: A4 portrait;
+    margin: 12mm 10mm 14mm 10mm;
+  }
+  @page :first { margin-top: 8mm; }
 
-  /* Full width content */
-  main { margin: 0 !important; padding: 0 !important; width: 100% !important; }
+  /* ── App shell: completely hidden ──────────────────────── */
+  aside, nav, header,
+  .sidebar, .no-print,
+  .action-buttons,
+  button.no-print,
+  [class*="FilterPanel"], [class*="filter-panel"],
+  .surface-card > .p-4:has(input[type="text"]),
+  .print\\:hidden { display: none !important; }
 
-  /* Clean backgrounds */
-  body { background: white !important; }
-  .surface-card { box-shadow: none !important; border: 1px solid #ddd !important; }
+  /* ── App shell flex layout reset ───────────────────────── */
+  body > div, #__next, [data-nextjs-scroll-focus-boundary],
+  .flex.h-screen, .flex-1.flex.flex-col {
+    display: block !important;
+    height: auto !important;
+    overflow: visible !important;
+  }
 
-  /* Print header (hidden on screen, shown on print) */
+  /* ── Layout reset ───────────────────────────────────────── */
+  html, body {
+    margin: 0 !important;
+    padding: 0 !important;
+    background: white !important;
+  }
+  body {
+    font-size: 10pt;
+    line-height: 1.45;
+    color: #1a1a2e;
+  }
+  main {
+    margin: 0 !important;
+    padding: 0 !important;
+    width: 100% !important;
+    max-width: 100% !important;
+  }
+  main > div {
+    max-width: 100% !important;
+    width: 100% !important;
+    margin: 0 !important;
+    padding: 0 !important;
+  }
+
+  /* ── Remove all container max-widths ─────────────────────── */
+  .max-w-4xl, .max-w-5xl, .max-w-6xl, .max-w-7xl,
+  .max-w-3xl, .max-w-2xl, .max-w-xl, .max-w-lg,
+  [class*="max-w-"] {
+    max-width: 100% !important;
+    width: 100% !important;
+    padding-left: 0 !important;
+    padding-right: 0 !important;
+    margin-left: 0 !important;
+    margin-right: 0 !important;
+  }
+
+  /* ── Cards / surfaces — clean, borderless document look ── */
+  .surface-card {
+    box-shadow: none !important;
+    border: none !important;
+    border-radius: 0 !important;
+    break-inside: avoid;
+    padding: 0 !important;
+  }
+
+  /* ── Screen-only PageHeader: hide icon box + actions, keep title as subtitle under print header ── */
+  /* The print header already has the title, so we hide the PageHeader entirely on print */
+
+  /* ── Color fidelity ─────────────────────────────────────── */
+  * {
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
+
+  /* ── Company print header ───────────────────────────────── */
+  .company-print-header {
+    display: block !important;
+    margin-bottom: 4px;
+  }
   .print-header { display: block !important; }
 
-  /* Ensure tables don't break across pages */
-  table { page-break-inside: auto; }
-  tr { page-break-inside: avoid; }
-
-  /* Hide action buttons in print mode */
-  button.no-print, .action-buttons { display: none !important; }
-
-  /* Show print-only elements */
-  .print-only { display: block !important; }
-
-  /* Tailwind print utilities */
-  .print\:hidden { display: none !important; }
+  /* ── Print-only / screen-only ───────────────────────────── */
+  .print-only   { display: block !important; }
+  .screen-only  { display: none !important; }
   .print\:block { display: block !important; }
+
+  /* ── SummaryStrip — compact for print ───────────────────── */
+  /* Keep summary strips visible but more compact */
+
+  /* ── Tables — professional document quality ─────────────── */
+  table {
+    width: 100% !important;
+    page-break-inside: auto;
+    border-collapse: collapse;
+    font-size: 9pt;
+    margin-bottom: 6pt;
+  }
+  thead { display: table-header-group; }
+  tfoot { display: table-footer-group; }
+  tr    { page-break-inside: avoid; }
+
+  /* Table cells — tight, clean, professional */
+  th, td {
+    padding: 4pt 7pt !important;
+    font-size: 9pt;
+    line-height: 1.35;
+    vertical-align: middle;
+  }
+
+  /* Headers — subtle gray band, bold, uppercase */
+  th {
+    background: #f3f4f6 !important;
+    font-weight: 700;
+    font-size: 8pt;
+    text-transform: uppercase;
+    letter-spacing: 0.03em;
+    color: #374151 !important;
+    border-bottom: 1.5pt solid #9ca3af !important;
+  }
+
+  /* Body cells — thin bottom borders */
+  td {
+    border-bottom: 0.5pt solid #e5e7eb !important;
+    color: #1f2937 !important;
+  }
+
+  /* data-table specifics in print */
+  .data-table thead tr {
+    background: #f3f4f6 !important;
+  }
+  .data-table thead th {
+    background: #f3f4f6 !important;
+    border-bottom: 1.5pt solid #9ca3af !important;
+    padding: 5pt 7pt !important;
+  }
+  .data-table tbody tr:nth-child(even) {
+    background: #fafbfc !important;
+  }
+  .data-table tbody tr:hover {
+    background: transparent !important;
+  }
+  .data-table tfoot tr {
+    background: #f0f1f3 !important;
+    border-top: 1.5pt solid #6b7280 !important;
+  }
+  .data-table tfoot td {
+    font-weight: 700;
+    font-size: 9pt;
+    padding: 5pt 7pt !important;
+    border-bottom: none !important;
+  }
+
+  /* Totals row */
+  .row-total, .print-total-row {
+    background: #f0f1f3 !important;
+    font-weight: 700;
+    border-top: 1.5pt solid #6b7280 !important;
+  }
+
+  /* Numeric cells in print */
+  .tabular-nums, .numeric, td.numeric {
+    font-variant-numeric: tabular-nums;
+    font-feature-settings: "tnum";
+  }
+
+  /* ── Typography ─────────────────────────────────────────── */
+  h1 { font-size: 15pt; font-weight: 700; margin: 0 0 6pt 0; }
+  h2 { font-size: 12pt; font-weight: 700; margin: 0 0 4pt 0; }
+  h3 { font-size: 10pt; font-weight: 600; }
+
+  /* ── Arabic font stack for print ─────────────────────────── */
+  * {
+    font-family: 'Cairo', 'IBM Plex Sans Arabic', 'Segoe UI', 'Tahoma', 'Arial', sans-serif !important;
+  }
+  [dir="rtl"] * {
+    letter-spacing: 0;
+  }
+  /* Mono cells keep mono font */
+  .font-mono, td.code, .code {
+    font-family: "JetBrains Mono", "Fira Code", "Consolas", monospace !important;
+    font-size: 8.5pt;
+  }
+
+  /* ── PageHeader — hide in print (title is in CompanyPrintHeader) ── */
+  /* We use a specific approach: hide the icon box and subtitle, but we can't
+     target PageHeader by class since it's a generic div. Instead, pages should
+     wrap PageHeader in no-print or we hide it via the document title section. */
+
+  /* ── KPI cards, badges — compact in print ───────────────── */
+  .kpi-card {
+    box-shadow: none !important;
+    border: 0.5pt solid #d1d5db !important;
+    border-radius: 4pt !important;
+    padding: 8pt 10pt !important;
+  }
+
+  /* ── SummaryStrip — keep but compact ─────────────────────── */
+  /* The grid summary shows key numbers; reduce visual weight */
+
+  /* ── Signature lines ────────────────────────────────────── */
+  .signature-line {
+    border-top: 1px solid #555;
+    margin-top: 36pt;
+    padding-top: 4pt;
+    text-align: center;
+    font-size: 9pt;
+    color: #374151;
+  }
+
+  /* ── Amount highlight box in vouchers ───────────────────── */
+  .voucher-amount-box {
+    border: 2pt solid #374151 !important;
+    background: #f9fafb !important;
+    border-radius: 6pt !important;
+  }
+
+  /* ── Page break utilities ───────────────────────────────── */
+  .page-break-before { page-break-before: always; }
+  .page-break-after  { page-break-after: always; }
+  .avoid-break       { page-break-inside: avoid; }
+
+  /* ── Print footer — page number (via CSS counters) ───────── */
+  /* Note: CSS @page footer is limited; this is best-effort. */
+
+  /* ── Spacing between sections ────────────────────────────── */
+  .space-y-5 > * + * { margin-top: 8pt !important; }
+
+  /* ── Hide filter bars and action toolbars explicitly ─────── */
+  .surface-card:has(input[type="date"]),
+  .surface-card:has(input[type="checkbox"]),
+  .surface-card:has(select):not(:has(table)):not(:has(.data-table)) {
+    display: none !important;
+  }
+
+  /* ── Status badges — keep visible, reduce padding ────────── */
+  .badge-soft, .badge-gold, .badge-ok, .badge-muted {
+    padding: 1pt 4pt !important;
+    font-size: 7.5pt !important;
+    border-radius: 3pt !important;
+  }
 }
 
 /* Hide print-only elements on screen */
 @media screen {
-  .print-only { display: none !important; }
-  .print-header { display: none !important; }
+  .print-only          { display: none !important; }
+  .print-header        { display: none !important; }
+  .company-print-header { display: none !important; }
 }

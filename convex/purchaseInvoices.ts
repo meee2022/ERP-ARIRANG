@@ -282,7 +282,23 @@ export const approveGRN = mutation({
 
     }
 
-    await ctx.db.patch(args.grnId, { documentStatus: "approved" });
+    // Permission check: requires purchases.edit
+    await assertUserPermission(ctx, args.userId, "purchases", "edit");
+
+    await ctx.db.patch(args.grnId, {
+      documentStatus: "approved",
+      approvedBy: args.userId,
+      approvedAt: Date.now(),
+    });
+
+    await logAudit(ctx, {
+      companyId: grn.companyId,
+      userId: args.userId,
+      action: "approve",
+      module: "purchases",
+      documentType: "grn",
+      documentId: String(args.grnId),
+    });
 
     return { success: true };
 
@@ -325,6 +341,12 @@ export const postGRN = mutation({
     if (grn.postingStatus === "posted") {
 
       throw new Error("إذن الاستلام مرحل مسبقاً");
+
+    }
+
+    if (grn.postingStatus === "reversed") {
+
+      throw new Error("لا يمكن ترحيل إذن استلام معكوس");
 
     }
 
@@ -484,6 +506,10 @@ export const postGRN = mutation({
 
       journalEntryId,
 
+      postedBy: args.userId,
+
+      postedAt: Date.now(),
+
     });
 
 
@@ -554,17 +580,66 @@ export const postGRN = mutation({
 
 
 
+    await logAudit(ctx, {
+      companyId: grn.companyId,
+      userId: args.userId,
+      action: "post",
+      module: "purchases",
+      documentType: "goodsReceiptNote",
+      documentId: String(args.grnId),
+    });
+
     return { success: true, journalEntryId };
 
   },
 
 });
 
+// ─── REVERSE GRN ─────────────────────────────────────────────────────────────
 
+export const reverseGRN = mutation({
+  args: {
+    grnId: v.id("goodsReceiptNotes"),
+    userId: v.id("users"),
+    reversalDate: v.string(),
+    reversalPeriodId: v.id("accountingPeriods"),
+  },
+  handler: async (ctx, args) => {
+    const grn = await ctx.db.get(args.grnId);
+    if (!grn) throw new Error("إذن الاستلام غير موجود");
+    if (grn.postingStatus !== "posted") throw new Error("يمكن عكس الإذن المرحّل فقط");
+    if (!grn.journalEntryId) throw new Error("لا يوجد قيد محاسبي مرتبط");
 
-// ─── CREATE PURCHASE INVOICE ──────────────────────────────────────────────────
+    await assertUserPermission(ctx, args.userId, "purchases", "post");
+    await validatePeriodOpen(ctx, args.reversalPeriodId);
 
+    // Reverse journal entry
+    await reverseJournalEntry(ctx, grn.journalEntryId, args.reversalDate, args.reversalPeriodId, args.userId);
 
+    // Reverse inventory: subtract quantities that were added on post
+    const lines = await ctx.db
+      .query("grnLines")
+      .withIndex("by_grn", (q) => q.eq("grnId", args.grnId))
+      .collect();
+
+    for (const line of lines) {
+      await updateStockBalance(ctx, line.itemId, grn.warehouseId, -line.quantity, line.unitCost, "grn_reversal");
+    }
+
+    await ctx.db.patch(args.grnId, { postingStatus: "reversed" });
+
+    await logAudit(ctx, {
+      companyId: grn.companyId,
+      userId: args.userId,
+      action: "reverse",
+      module: "purchases",
+      documentType: "goodsReceiptNote",
+      documentId: String(args.grnId),
+    });
+
+    return { success: true };
+  },
+});
 
 export const createPurchaseInvoice = mutation({
 
@@ -820,10 +895,22 @@ export const approvePurchaseInvoice = mutation({
 
     }
 
+    // Permission check: requires purchases.edit
+    await assertUserPermission(ctx, args.userId, "purchases", "edit");
+
     await ctx.db.patch(args.invoiceId, {
-
       documentStatus: "approved",
+      approvedBy: args.userId,
+      approvedAt: Date.now(),
+    });
 
+    await logAudit(ctx, {
+      companyId: invoice.companyId,
+      userId: args.userId,
+      action: "approve",
+      module: "purchases",
+      documentType: "purchaseInvoice",
+      documentId: String(args.invoiceId),
     });
 
     return { success: true };
@@ -1147,29 +1234,88 @@ export const getPurchaseInvoice = query({
   handler: async (ctx, args) => {
 
     const invoice = await ctx.db.get(args.invoiceId);
-
     if (!invoice) return null;
 
-
-
     const lines = await ctx.db
-
       .query("purchaseInvoiceLines")
-
       .withIndex("by_invoice", (q) => q.eq("invoiceId", args.invoiceId))
-
       .collect();
 
-
-
     const supplier = await ctx.db.get(invoice.supplierId);
+    const branch   = await ctx.db.get(invoice.branchId);
+    const company  = await ctx.db.get(invoice.companyId);
 
+    const enrichedLines = await Promise.all(
+      lines.map(async (line) => {
+        const item = line.itemId ? await ctx.db.get(line.itemId) : null;
+        const uom  = line.uomId  ? await ctx.db.get(line.uomId)  : null;
+        return {
+          ...line,
+          itemCode:   item?.code ?? "",
+          itemNameAr: item?.nameAr ?? "",
+          itemNameEn: (item as any)?.nameEn ?? item?.nameAr ?? "",
+          uomNameAr:  uom?.nameAr ?? "",
+        };
+      })
+    );
 
-
-    return { ...invoice, lines, supplier };
-
+    return {
+      ...invoice,
+      lines: enrichedLines,
+      supplierNameAr:   supplier?.nameAr ?? "",
+      supplierNameEn:   (supplier as any)?.nameEn ?? supplier?.nameAr ?? "",
+      supplierAddress:  (supplier as any)?.address ?? "",
+      supplierVatNumber:(supplier as any)?.taxNumber ?? "",
+      branchNameAr:     branch?.nameAr ?? "",
+      branchNameEn:     (branch as any)?.nameEn ?? branch?.nameAr ?? "",
+      companyNameAr:    company?.nameAr ?? "",
+      companyNameEn:    (company as any)?.nameEn ?? company?.nameAr ?? "",
+      companyAddress:   (company as any)?.address ?? "",
+      companyVatNumber: (company as any)?.taxNumber ?? "",
+    };
   },
+});
 
+export const deleteDraftPurchaseInvoice = mutation({
+  args: {
+    invoiceId: v.id("purchaseInvoices"),
+    userId: v.id("users"),
+  },
+  handler: async (ctx, args) => {
+    const invoice = await ctx.db.get(args.invoiceId);
+    if (!invoice) throw new Error("الفاتورة غير موجودة");
+    if (invoice.documentStatus !== "draft") {
+      throw new Error("يمكن حذف فواتير المشتريات في حالة المسودة فقط");
+    }
+    if (invoice.postingStatus !== "unposted") {
+      throw new Error("لا يمكن حذف فاتورة مرحلة أو معكوسة");
+    }
+
+    const user = await assertUserPermission(ctx, args.userId, "purchases", "delete");
+    assertUserBranch(user, invoice.branchId);
+
+    const lines = await ctx.db
+      .query("purchaseInvoiceLines")
+      .withIndex("by_invoice", (q) => q.eq("invoiceId", args.invoiceId))
+      .collect();
+
+    for (const line of lines) {
+      await ctx.db.delete(line._id);
+    }
+
+    await ctx.db.delete(args.invoiceId);
+
+    await logAudit(ctx, {
+      companyId: invoice.companyId,
+      userId: args.userId,
+      action: "delete",
+      module: "purchases",
+      documentType: "purchaseInvoice",
+      documentId: String(args.invoiceId),
+    });
+
+    return { success: true };
+  },
 });
 
 
@@ -1262,6 +1408,8 @@ export const quickPostPurchaseInvoice = mutation({
       documentStatus: "approved",
       postingStatus: "posted",
       journalEntryId,
+      postedBy: args.userId,
+      postedAt: Date.now(),
     });
 
     await logAudit(ctx, {

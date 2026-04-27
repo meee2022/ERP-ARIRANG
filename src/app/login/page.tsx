@@ -4,6 +4,7 @@ import React, { useState, FormEvent } from "react";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/hooks/useAuth";
 import { useAppStore } from "@/store/useAppStore";
+import { AlertCircle, Mail, Lock, Loader2 } from "lucide-react";
 
 const translations = {
   ar: {
@@ -116,10 +117,18 @@ export default function LoginPage() {
 
           {/* Form */}
           <form onSubmit={handleSubmit} className="space-y-4" noValidate>
-            {/* Error */}
+            {/* Error Message - Enhanced */}
             {error && (
-              <div className="bg-red-50 border border-red-200 text-red-700 text-sm rounded-xl p-3 text-center">
-                {error}
+              <div className="bg-red-50 border border-red-200 rounded-xl p-4 flex items-start gap-3 animate-in fade-in slide-in-from-top-2 duration-200">
+                <div className="w-8 h-8 rounded-full bg-red-100 flex items-center justify-center shrink-0">
+                  <AlertCircle className="h-4 w-4 text-red-600" />
+                </div>
+                <div className="flex-1">
+                  <p className="text-sm font-semibold text-red-800">
+                    {lang === "ar" ? "خطأ في تسجيل الدخول" : "Login Error"}
+                  </p>
+                  <p className="text-sm text-red-600 mt-0.5">{error}</p>
+                </div>
               </div>
             )}
 
@@ -128,15 +137,18 @@ export default function LoginPage() {
               <label className="block text-sm font-medium text-[color:var(--ink-700)] mb-1.5">
                 {t.email}
               </label>
-              <input
-                type="email"
-                autoComplete="email"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                className="input-field h-11 w-full text-sm"
-                placeholder={lang === "ar" ? "admin@demo.local" : "admin@demo.local"}
-                disabled={loading}
-              />
+              <div className="relative">
+                <Mail className={`absolute top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400 ${isRTL ? "right-3" : "left-3"}`} />
+                <input
+                  type="email"
+                  autoComplete="email"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  className={`input-field h-11 w-full text-sm ${isRTL ? "pr-10 pl-3" : "pl-10 pr-3"}`}
+                  placeholder={lang === "ar" ? "admin@demo.local" : "admin@demo.local"}
+                  disabled={loading}
+                />
+              </div>
             </div>
 
             {/* Password */}
@@ -144,24 +156,34 @@ export default function LoginPage() {
               <label className="block text-sm font-medium text-[color:var(--ink-700)] mb-1.5">
                 {t.password}
               </label>
-              <input
-                type="password"
-                autoComplete="current-password"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                className="input-field h-11 w-full text-sm"
-                placeholder="••••••••"
-                disabled={loading}
-              />
+              <div className="relative">
+                <Lock className={`absolute top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400 ${isRTL ? "right-3" : "left-3"}`} />
+                <input
+                  type="password"
+                  autoComplete="current-password"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  className={`input-field h-11 w-full text-sm ${isRTL ? "pr-10 pl-3" : "pl-10 pr-3"}`}
+                  placeholder="••••••••"
+                  disabled={loading}
+                />
+              </div>
             </div>
 
             {/* Submit */}
             <button
               type="submit"
               disabled={loading}
-              className="btn-primary h-11 w-full rounded-xl text-sm font-semibold disabled:opacity-60 transition-opacity"
+              className="btn-primary h-11 w-full rounded-xl text-sm font-semibold disabled:opacity-60 transition-opacity inline-flex items-center justify-center gap-2"
             >
-              {loading ? t.loading : t.submit}
+              {loading ? (
+                <>
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                  {t.loading}
+                </>
+              ) : (
+                t.submit
+              )}
             </button>
           </form>
 

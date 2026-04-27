@@ -13,14 +13,8 @@ interface State {
   errorInfo: React.ErrorInfo | null;
 }
 
-/**
- * Top-level React Error Boundary.
- * Catches render errors anywhere in the subtree and shows a bilingual
- * (Arabic / English) recovery screen instead of a blank white page.
- *
- * NOTE: Error Boundaries must be class components — hooks cannot catch
- * render errors from child subtrees.
- */
+const IS_DEV = process.env.NODE_ENV !== "production";
+
 export class ErrorBoundary extends React.Component<Props, State> {
   constructor(props: Props) {
     super(props);
@@ -34,13 +28,13 @@ export class ErrorBoundary extends React.Component<Props, State> {
   componentDidCatch(error: Error, errorInfo: React.ErrorInfo) {
     this.setState({ errorInfo });
 
-    // Structured console log for Convex / monitoring visibility
-    console.error("[PrimeBalance ErrorBoundary]", {
+    // Structured log — visible in Vercel Functions / Convex logs
+    console.error("[PrimeBalance]", {
       timestamp: new Date().toISOString(),
       message: error.message,
       name: error.name,
-      stack: error.stack,
-      componentStack: errorInfo.componentStack,
+      // Stack only in dev — avoid leaking internals in production
+      ...(IS_DEV && { stack: error.stack, componentStack: errorInfo.componentStack }),
     });
   }
 
@@ -49,15 +43,12 @@ export class ErrorBoundary extends React.Component<Props, State> {
   };
 
   private handleGoHome = () => {
-    // Navigate to home and reset state
     this.setState({ hasError: false, error: null, errorInfo: null });
     window.location.href = "/";
   };
 
   render() {
-    if (!this.state.hasError) {
-      return this.props.children;
-    }
+    if (!this.state.hasError) return this.props.children;
 
     const errorMessage = this.state.error?.message ?? "";
 
@@ -85,142 +76,69 @@ export class ErrorBoundary extends React.Component<Props, State> {
             textAlign: "center",
           }}
         >
-          {/* Icon */}
           <div
             style={{
-              width: "64px",
-              height: "64px",
-              borderRadius: "50%",
-              background: "#fef2f2",
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
+              width: "64px", height: "64px", borderRadius: "50%",
+              background: "#fef2f2", display: "flex",
+              alignItems: "center", justifyContent: "center",
               margin: "0 auto 24px",
             }}
           >
             <AlertTriangle style={{ color: "#ef4444", width: "32px", height: "32px" }} />
           </div>
 
-          {/* Arabic message */}
-          <h1
-            style={{
-              fontSize: "20px",
-              fontWeight: 700,
-              color: "#111827",
-              marginBottom: "8px",
-              direction: "rtl",
-            }}
-          >
+          <h1 style={{ fontSize: "20px", fontWeight: 700, color: "#111827", marginBottom: "8px" }}>
             حدث خطأ غير متوقع
           </h1>
-          <p
-            style={{
-              fontSize: "14px",
-              color: "#6b7280",
-              marginBottom: "4px",
-              direction: "rtl",
-            }}
-          >
+          <p style={{ fontSize: "14px", color: "#6b7280", marginBottom: "4px" }}>
             نأسف، واجه التطبيق مشكلة. يُرجى المحاولة مرة أخرى.
           </p>
-
-          {/* English message */}
-          <h2
-            style={{
-              fontSize: "16px",
-              fontWeight: 600,
-              color: "#374151",
-              marginTop: "20px",
-              marginBottom: "6px",
-              direction: "ltr",
-            }}
-          >
+          <h2 style={{ fontSize: "16px", fontWeight: 600, color: "#374151", marginTop: "20px", marginBottom: "6px", direction: "ltr" }}>
             Something went wrong
           </h2>
-          <p
-            style={{
-              fontSize: "13px",
-              color: "#9ca3af",
-              marginBottom: "8px",
-              direction: "ltr",
-            }}
-          >
+          <p style={{ fontSize: "13px", color: "#9ca3af", marginBottom: "8px", direction: "ltr" }}>
             An unexpected error occurred. Please try again or return home.
           </p>
 
-          {/* Error detail (collapsed for non-dev) */}
-          {errorMessage && (
+          {/* Show error detail only in development */}
+          {IS_DEV && errorMessage && (
             <details
               style={{
-                margin: "16px 0",
-                textAlign: "start",
-                background: "#fef2f2",
-                borderRadius: "8px",
-                padding: "10px 14px",
-                fontSize: "12px",
-                color: "#b91c1c",
-                cursor: "pointer",
+                margin: "16px 0", textAlign: "start",
+                background: "#fef2f2", borderRadius: "8px",
+                padding: "10px 14px", fontSize: "12px", color: "#b91c1c", cursor: "pointer",
               }}
             >
               <summary style={{ fontWeight: 600, marginBottom: "6px", direction: "ltr" }}>
-                Error details
+                Error details (dev only)
               </summary>
-              <code
-                style={{
-                  display: "block",
-                  whiteSpace: "pre-wrap",
-                  wordBreak: "break-word",
-                  direction: "ltr",
-                }}
-              >
+              <code style={{ display: "block", whiteSpace: "pre-wrap", wordBreak: "break-word", direction: "ltr" }}>
                 {errorMessage}
               </code>
             </details>
           )}
 
-          {/* Actions */}
-          <div
-            style={{
-              display: "flex",
-              gap: "12px",
-              justifyContent: "center",
-              marginTop: "24px",
-            }}
-          >
+          <div style={{ display: "flex", gap: "12px", justifyContent: "center", marginTop: "24px" }}>
             <button
               onClick={this.handleTryAgain}
               style={{
-                display: "inline-flex",
-                alignItems: "center",
-                gap: "6px",
-                padding: "10px 20px",
-                borderRadius: "10px",
-                background: "#2563eb",
-                color: "#ffffff",
-                fontSize: "14px",
-                fontWeight: 600,
-                border: "none",
-                cursor: "pointer",
+                display: "inline-flex", alignItems: "center", gap: "6px",
+                padding: "10px 20px", borderRadius: "10px",
+                background: "#2563eb", color: "#ffffff",
+                fontSize: "14px", fontWeight: 600, border: "none", cursor: "pointer",
               }}
             >
               <RefreshCw style={{ width: "16px", height: "16px" }} />
               <span>إعادة المحاولة / Try Again</span>
             </button>
-
             <button
               onClick={this.handleGoHome}
               style={{
-                display: "inline-flex",
-                alignItems: "center",
-                gap: "6px",
-                padding: "10px 20px",
-                borderRadius: "10px",
-                background: "#f3f4f6",
-                color: "#374151",
-                fontSize: "14px",
-                fontWeight: 600,
-                border: "1px solid #e5e7eb",
-                cursor: "pointer",
+                display: "inline-flex", alignItems: "center", gap: "6px",
+                padding: "10px 20px", borderRadius: "10px",
+                background: "#f3f4f6", color: "#374151",
+                fontSize: "14px", fontWeight: 600,
+                border: "1px solid #e5e7eb", cursor: "pointer",
               }}
             >
               <Home style={{ width: "16px", height: "16px" }} />

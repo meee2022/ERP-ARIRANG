@@ -11,6 +11,10 @@ import { Plus, Eye, X, Check, Search, FileCheck, ChevronDown } from "lucide-reac
 import { useAuth } from "@/hooks/useAuth";
 import { usePermissions } from "@/hooks/usePermissions";
 import { useAppStore } from "@/store/useAppStore";
+import { PageHeader } from "@/components/ui/page-header";
+import { FilterPanel, FilterField } from "@/components/ui/filter-panel";
+import { LoadingState } from "@/components/ui/data-display";
+import { EmptyState } from "@/components/ui/empty-state";
 
 function todayISO() { return new Date().toISOString().split("T")[0]; }
 function startOfMonthISO() {
@@ -493,80 +497,76 @@ export default function ChequesPage() {
   const totalAmount = filtered.reduce((sum: number, c: any) => sum + (c.amount ?? 0), 0);
 
   return (
-    <div className="space-y-5">
+    <div dir={isRTL ? "rtl" : "ltr"} className="space-y-5">
       {/* ── Header ────────────────────────────────────────────── */}
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-3">
-          <div
-            className="h-11 w-11 rounded-xl flex items-center justify-center"
-            style={{ background: "var(--brand-50)", color: "var(--brand-700)" }}
-          >
-            <FileCheck className="h-5 w-5" />
-          </div>
-          <div>
-            <h1 className="text-2xl font-bold text-[color:var(--ink-900)]">
-              {t("chequesTitle")}
-            </h1>
-            <p className="text-xs text-[color:var(--ink-500)] mt-0.5">
-              {filtered.length} {t("chequeCount")}
-            </p>
-          </div>
-        </div>
-        {canCreate("treasury") && (
-        <button
-          onClick={() => setShowForm((v) => !v)}
-          className="btn-primary h-10 px-4 rounded-lg inline-flex items-center gap-2 text-sm font-semibold"
-        >
-          <Plus className="h-4 w-4" /> {t("newCheque")}
-        </button>
-        )}
+      <div className="no-print">
+      <PageHeader
+        icon={FileCheck}
+        title={t("chequesTitle")}
+        subtitle={`${filtered.length} ${t("chequeCount")}`}
+        actions={
+          canCreate("treasury") ? (
+            <button
+              onClick={() => setShowForm((v) => !v)}
+              className="btn-primary h-10 px-4 rounded-lg inline-flex items-center gap-2 text-sm font-semibold"
+            >
+              <Plus className="h-4 w-4" /> {t("newCheque")}
+            </button>
+          ) : undefined
+        }
+      />
       </div>
 
       {/* ── Inline Create Form ─────────────────────────────────── */}
       {showForm && <NewChequeForm onClose={() => setShowForm(false)} />}
 
       {/* ── Type Tab Filter ────────────────────────────────────── */}
-      <div className="surface-card p-3 flex items-center gap-2 flex-wrap">
-        <TypeTab label={t("allCheques")} active={typeFilter === "all"} onClick={() => setTypeFilter("all")} />
-        <TypeTab label={t("receivedCheques")} active={typeFilter === "received"} onClick={() => setTypeFilter("received")} />
-        <TypeTab label={t("issuedCheques")} active={typeFilter === "issued"} onClick={() => setTypeFilter("issued")} />
-      </div>
+      <FilterPanel>
+        <FilterField label={t("chequeType")}>
+          <div className="flex items-center gap-2">
+            <TypeTab label={t("allCheques")} active={typeFilter === "all"} onClick={() => setTypeFilter("all")} />
+            <TypeTab label={t("receivedCheques")} active={typeFilter === "received"} onClick={() => setTypeFilter("received")} />
+            <TypeTab label={t("issuedCheques")} active={typeFilter === "issued"} onClick={() => setTypeFilter("issued")} />
+          </div>
+        </FilterField>
+      </FilterPanel>
 
       {/* ── Filter Bar ────────────────────────────────────────── */}
-      <div className="surface-card p-3 flex items-center gap-3 flex-wrap">
-        <div className="flex items-center gap-1.5">
-          <span className="text-xs text-[color:var(--ink-500)]">{t("fromDate")}:</span>
+      <FilterPanel
+        right={
+          <div className="relative">
+            <Search
+              className={`absolute top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-[color:var(--ink-400)] ${
+                isRTL ? "right-3" : "left-3"
+              }`}
+            />
+            <input
+              type="text"
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              placeholder={t("searchPlaceholder")}
+              className={`input-field h-9 min-w-[200px] ${isRTL ? "pr-9" : "pl-9"}`}
+            />
+          </div>
+        }
+      >
+        <FilterField label={t("fromDate")}>
           <input
             type="date"
             value={fromDate}
             onChange={(e) => setFromDate(e.target.value)}
             className="input-field h-9 w-auto"
           />
-        </div>
-        <div className="flex items-center gap-1.5">
-          <span className="text-xs text-[color:var(--ink-500)]">{t("toDate")}:</span>
+        </FilterField>
+        <FilterField label={t("toDate")}>
           <input
             type="date"
             value={toDate}
             onChange={(e) => setToDate(e.target.value)}
             className="input-field h-9 w-auto"
           />
-        </div>
-        <div className="relative flex-1 min-w-[200px]">
-          <Search
-            className={`absolute top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-[color:var(--ink-400)] ${
-              isRTL ? "right-3" : "left-3"
-            }`}
-          />
-          <input
-            type="text"
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            placeholder={t("searchPlaceholder")}
-            className={`input-field h-9 ${isRTL ? "pr-9" : "pl-9"}`}
-          />
-        </div>
-      </div>
+        </FilterField>
+      </FilterPanel>
 
       {/* ── Summary Row ───────────────────────────────────────── */}
       <div className="surface-card p-3 flex items-center gap-6 text-sm flex-wrap">
@@ -595,36 +595,35 @@ export default function ChequesPage() {
       {/* ── Table ─────────────────────────────────────────────── */}
       <div className="surface-card overflow-hidden">
         {loading ? (
-          <div className="p-8 text-center text-[color:var(--ink-400)]">
-            <div className="animate-spin h-8 w-8 border-2 border-[color:var(--brand-600)] border-t-transparent rounded-full mx-auto mb-3" />
-            <p className="text-sm">{t("loading")}</p>
-          </div>
+          <LoadingState label={t("loading")} />
         ) : filtered.length === 0 ? (
-          <div className="py-16 text-center text-[color:var(--ink-400)]">
-            <FileCheck className="h-10 w-10 mx-auto mb-3 opacity-30" />
-            <p className="text-sm">{t("noResults")}</p>
-            {canCreate("treasury") && (
-            <button
-              onClick={() => setShowForm(true)}
-              className="text-sm text-[color:var(--brand-700)] hover:underline mt-1"
-            >
-              + {t("newCheque")}
-            </button>
-            )}
-          </div>
+          <EmptyState
+            icon={FileCheck}
+            title={t("noResults")}
+            action={
+              canCreate("treasury") ? (
+                <button
+                  onClick={() => setShowForm(true)}
+                  className="btn-primary h-9 px-5 rounded-xl inline-flex items-center gap-2 text-sm font-semibold"
+                >
+                  <Plus className="h-4 w-4" /> {t("newCheque")}
+                </button>
+              ) : undefined
+            }
+          />
         ) : (
           <div className="overflow-x-auto">
-            <table className="w-full zebra-table text-sm">
-              <thead className="bg-[color:var(--ink-50)] text-[color:var(--ink-600)] text-xs uppercase tracking-wider">
+            <table className="data-table">
+              <thead>
                 <tr>
-                  <th className="px-4 py-3 text-start font-semibold">{t("chequeNo")}</th>
-                  <th className="px-4 py-3 text-start font-semibold">{t("chequeType")}</th>
-                  <th className="px-4 py-3 text-start font-semibold">{t("bankName")}</th>
-                  <th className="px-4 py-3 text-start font-semibold">{t("drawerName")}</th>
-                  <th className="px-4 py-3 text-end font-semibold">{t("amount")}</th>
-                  <th className="px-4 py-3 text-start font-semibold">{t("chequeDate")}</th>
-                  <th className="px-4 py-3 text-start font-semibold">{t("chequeStatus")}</th>
-                  <th className="px-4 py-3 text-end font-semibold">{t("actions")}</th>
+                  <th>{t("chequeNo")}</th>
+                  <th>{t("chequeType")}</th>
+                  <th>{t("bankName")}</th>
+                  <th>{t("drawerName")}</th>
+                  <th className="text-end">{t("amount")}</th>
+                  <th>{t("chequeDate")}</th>
+                  <th>{t("chequeStatus")}</th>
+                  <th className="text-end">{t("actions")}</th>
                 </tr>
               </thead>
               <tbody>
@@ -640,7 +639,7 @@ export default function ChequesPage() {
                     >
                       {/* Cheque Number */}
                       <td className="px-4 py-3">
-                        <span className="font-mono text-xs text-[color:var(--brand-700)] font-semibold">
+                        <span className="code">
                           {c.chequeNumber}
                         </span>
                       </td>
@@ -651,22 +650,22 @@ export default function ChequesPage() {
                       </td>
 
                       {/* Bank Name */}
-                      <td className="px-4 py-3 text-[color:var(--ink-700)]">
+                      <td className="px-4 py-3">
                         {c.drawnOnBank || "—"}
                       </td>
 
                       {/* Drawer Name */}
-                      <td className="px-4 py-3 text-[color:var(--ink-600)]">
+                      <td className="px-4 py-3 muted">
                         {drawerDisplay}
                       </td>
 
                       {/* Amount */}
-                      <td className="px-4 py-3 text-end font-semibold tabular-nums">
+                      <td className="px-4 py-3 numeric text-end">
                         {formatCurrency((c.amount ?? 0) / 100)}
                       </td>
 
                       {/* Cheque Date (dueDate) */}
-                      <td className="px-4 py-3 text-[color:var(--ink-600)]">
+                      <td className="px-4 py-3 muted">
                         {formatDateShort(c.dueDate)}
                       </td>
 

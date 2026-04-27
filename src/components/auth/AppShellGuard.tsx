@@ -4,9 +4,10 @@ import React from "react";
 import { useRouter, usePathname } from "next/navigation";
 import { useAuth } from "@/hooks/useAuth";
 import { AppShell } from "@/components/layout/app-shell";
+import { hasPermission, type AppRole, type Module } from "../../../convex/lib/permissions";
 
 export function AppShellGuard({ children }: { children: React.ReactNode }) {
-  const { isAuthenticated, isLoading } = useAuth();
+  const { isAuthenticated, isLoading, currentUser } = useAuth();
   const router = useRouter();
   const pathname = usePathname();
   const isLoginPage = pathname === "/login";
@@ -19,6 +20,28 @@ export function AppShellGuard({ children }: { children: React.ReactNode }) {
       router.replace("/");
     }
   }, [isLoading, isAuthenticated, isLoginPage, router]);
+
+  const getRouteModule = React.useCallback((path: string): Module | null => {
+    if (path.startsWith("/sales")) return "sales";
+    if (path.startsWith("/purchases")) return "purchases";
+    if (path.startsWith("/inventory")) return "inventory";
+    if (path.startsWith("/treasury")) return "treasury";
+    if (path.startsWith("/finance")) return "finance";
+    if (path.startsWith("/reports")) return "reports";
+    if (path.startsWith("/settings/users")) return "users";
+    if (path.startsWith("/settings")) return "settings";
+    if (path.startsWith("/hr")) return "hr";
+    return null;
+  }, []);
+
+  React.useEffect(() => {
+    if (!currentUser || isLoginPage) return;
+    const module = getRouteModule(pathname);
+    if (!module) return;
+    if (!hasPermission(currentUser.role as AppRole, module, "view")) {
+      router.replace("/");
+    }
+  }, [currentUser, pathname, router, isLoginPage, getRouteModule]);
 
   // Show spinner while session is being validated (not on login page)
   if (isLoading && !isLoginPage) {

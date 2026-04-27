@@ -3,7 +3,9 @@
 
 /**
  * DocActionBar — unified approve / post / reverse bar.
- * Renders context-appropriate action buttons for any ERP document.
+ *
+ * Combines document state + RBAC role to determine which actions
+ * the current user may perform. Uses resolveDocActions() from approvalRules.ts.
  *
  * Usage:
  *   <DocActionBar
@@ -20,13 +22,18 @@ import React, { useState } from "react";
 import { useMutation, useQuery } from "convex/react";
 import { api } from "../../../convex/_generated/api";
 import { useI18n } from "@/hooks/useI18n";
-import { CheckCircle, Send, RotateCcw } from "lucide-react";
+import { usePermissions } from "@/hooks/usePermissions";
+import { resolveDocActions, DOC_SUPPORTS } from "@/lib/approvalRules";
+import { CheckCircle, Send, RotateCcw, ShieldOff } from "lucide-react";
 
 export type DocType =
   | "grn"
   | "purchase_invoice"
+  | "sales_invoice"
   | "sales_return"
-  | "purchase_return";
+  | "purchase_return"
+  | "cash_receipt"
+  | "cash_payment";
 
 interface DocActionBarProps {
   docType: DocType;
@@ -35,7 +42,6 @@ interface DocActionBarProps {
   postingStatus: string;
   userId: string | undefined;
   companyId?: string;
-  /** called after every successful action so the parent can refresh */
   onSuccess?: () => void;
 }
 
@@ -49,6 +55,7 @@ export function DocActionBar({
   onSuccess,
 }: DocActionBarProps) {
   const { t } = useI18n();
+  const perms = usePermissions();
   const [loading, setLoading] = useState<"approve" | "post" | "reverse" | null>(null);
   const [error, setError] = useState("");
 
@@ -58,23 +65,29 @@ export function DocActionBar({
     companyId ? { companyId: companyId as any, date: today } : "skip"
   );
 
-  // Mutations — only one of each will actually be called depending on docType
-  const approveGRN            = useMutation(api.purchaseInvoices.approveGRN);
+  // ── Mutations ──────────────────────────────────────────────────────────────
+  const approveGRN             = useMutation(api.purchaseInvoices.approveGRN);
   const approvePurchaseInvoice = useMutation(api.purchaseInvoices.approvePurchaseInvoice);
-  const quickPost             = useMutation(api.purchaseInvoices.quickPostPurchaseInvoice);
-  const reversePurchaseInvoice= useMutation(api.purchaseInvoices.reversePurchaseInvoice);
-  const postPurchaseReturn    = useMutation(api.purchaseReturns.postPurchaseReturn);
-  const postSalesReturn       = useMutation(api.salesReturns.postSalesReturn);
+  const quickPost              = useMutation(api.purchaseInvoices.quickPostPurchaseInvoice);
+  const reversePurchaseInvoice = useMutation(api.purchaseInvoices.reversePurchaseInvoice);
+  const reverseGRN             = useMutation(api.purchaseInvoices.reverseGRN);
+  const postPurchaseReturn     = useMutation(api.purchaseReturns.postPurchaseReturn);
+  const reversePurchaseReturn  = useMutation(api.purchaseReturns.reversePurchaseReturn);
+  const postSalesReturn        = useMutation(api.salesReturns.postSalesReturn);
+  const reverseSalesReturn     = useMutation(api.salesReturns.reverseSalesReturn);
 
-  const isDraft   = documentStatus === "draft";
-  const isApproved= documentStatus === "approved";
-  const isPosted  = postingStatus  === "posted";
-  const isCancelled = documentStatus === "cancelled";
+  // ── Permission + state resolution ─────────────────────────────────────────
+  const { canApprove, canPost, canReverse } = resolveDocActions(
+    docType,
+    { documentStatus, postingStatus },
+    perms
+  );
+  const supports = DOC_SUPPORTS[docType];
 
-  const canApprove = isDraft   && !isCancelled;
-  const canPost    = (isDraft || isApproved) && !isPosted && !isCancelled;
-  const canReverse = isPosted  && !isCancelled;
+  // If this doc type doesn't support any actions, render nothing
+  if (!supports.approve && !supports.post && !supports.reverse) return null;
 
+  // ── Action runner ──────────────────────────────────────────────────────────
   const run = async (action: "approve" | "post" | "reverse") => {
     if (!userId) { setError(t("errNoUser")); return; }
     setLoading(action); setError("");
@@ -90,13 +103,18 @@ export function DocActionBar({
       }
       if (action === "reverse") {
         if (!openPeriod) { setError(t("errNoPeriod")); setLoading(null); return; }
+        const reversalArgs = { userId: userId as any, reversalDate: today, reversalPeriodId: openPeriod._id };
         if (docType === "purchase_invoice") {
-          await reversePurchaseInvoice({
-            invoiceId: docId as any,
-            userId: userId as any,
-            reversalDate: today,
-            reversalPeriodId: openPeriod._id,
-          });
+          await reversePurchaseInvoice({ invoiceId: docId as any, ...reversalArgs });
+        }
+        if (docType === "grn") {
+          await reverseGRN({ grnId: docId as any, ...reversalArgs });
+        }
+        if (docType === "purchase_return") {
+          await reversePurchaseReturn({ returnId: docId as any, ...reversalArgs });
+        }
+        if (docType === "sales_return") {
+          await reverseSalesReturn({ returnId: docId as any, ...reversalArgs });
         }
       }
       onSuccess?.();
@@ -110,43 +128,82 @@ export function DocActionBar({
   const buttonBase =
     "h-8 px-3 rounded-lg text-xs font-semibold inline-flex items-center gap-1.5 transition-colors disabled:opacity-50 border";
 
+  // ── Render ─────────────────────────────────────────────────────────────────
   return (
     <div className="flex flex-col items-start gap-1">
       <div className="flex items-center gap-2 flex-wrap">
+
         {/* Approve */}
-        {canApprove && (docType === "grn" || docType === "purchase_invoice") && (
-          <button
-            onClick={() => run("approve")}
-            disabled={loading !== null}
-            className={`${buttonBase} bg-amber-50 text-amber-700 border-amber-200 hover:bg-amber-100`}
-          >
-            <CheckCircle className="h-3.5 w-3.5" />
-            {loading === "approve" ? t("approving") : t("approve")}
-          </button>
+        {supports.approve && (
+          canApprove ? (
+            <button
+              onClick={() => run("approve")}
+              disabled={loading !== null}
+              className={`${buttonBase} bg-amber-50 text-amber-700 border-amber-200 hover:bg-amber-100`}
+            >
+              <CheckCircle className="h-3.5 w-3.5" />
+              {loading === "approve" ? t("approving") : t("approve")}
+            </button>
+          ) : (
+            /* Show a disabled ghost button so the user knows Approve exists but is blocked */
+            documentStatus === "draft" && (
+              <span
+                title={t("noPermission")}
+                className={`${buttonBase} bg-gray-50 text-gray-400 border-gray-200 cursor-not-allowed`}
+              >
+                <ShieldOff className="h-3.5 w-3.5" />
+                {t("approve")}
+              </span>
+            )
+          )
         )}
 
         {/* Post */}
-        {canPost && (docType === "purchase_invoice" || docType === "purchase_return" || docType === "sales_return") && (
-          <button
-            onClick={() => run("post")}
-            disabled={loading !== null}
-            className={`${buttonBase} bg-emerald-50 text-emerald-700 border-emerald-200 hover:bg-emerald-100`}
-          >
-            <Send className="h-3.5 w-3.5" />
-            {loading === "post" ? t("posting") : t("post")}
-          </button>
+        {supports.post && (
+          canPost ? (
+            <button
+              onClick={() => run("post")}
+              disabled={loading !== null}
+              className={`${buttonBase} bg-emerald-50 text-emerald-700 border-emerald-200 hover:bg-emerald-100`}
+            >
+              <Send className="h-3.5 w-3.5" />
+              {loading === "post" ? t("posting") : t("post")}
+            </button>
+          ) : (
+            (documentStatus === "draft" || documentStatus === "approved") && postingStatus !== "posted" && (
+              <span
+                title={t("noPermission")}
+                className={`${buttonBase} bg-gray-50 text-gray-400 border-gray-200 cursor-not-allowed`}
+              >
+                <ShieldOff className="h-3.5 w-3.5" />
+                {t("post")}
+              </span>
+            )
+          )
         )}
 
         {/* Reverse */}
-        {canReverse && docType === "purchase_invoice" && (
-          <button
-            onClick={() => run("reverse")}
-            disabled={loading !== null || !openPeriod}
-            className={`${buttonBase} bg-red-50 text-red-700 border-red-200 hover:bg-red-100`}
-          >
-            <RotateCcw className="h-3.5 w-3.5" />
-            {loading === "reverse" ? t("reversing") : t("reverse")}
-          </button>
+        {supports.reverse && (
+          canReverse ? (
+            <button
+              onClick={() => run("reverse")}
+              disabled={loading !== null || !openPeriod}
+              className={`${buttonBase} bg-red-50 text-red-700 border-red-200 hover:bg-red-100`}
+            >
+              <RotateCcw className="h-3.5 w-3.5" />
+              {loading === "reverse" ? t("reversing") : t("reverse")}
+            </button>
+          ) : (
+            postingStatus === "posted" && (
+              <span
+                title={t("noPermission")}
+                className={`${buttonBase} bg-gray-50 text-gray-400 border-gray-200 cursor-not-allowed`}
+              >
+                <ShieldOff className="h-3.5 w-3.5" />
+                {t("reverse")}
+              </span>
+            )
+          )
         )}
       </div>
 

@@ -6,6 +6,9 @@ import { useQuery } from "convex/react";
 import { api } from "../../../../convex/_generated/api";
 import { useI18n } from "@/hooks/useI18n";
 import { useAuth } from "@/hooks/useAuth";
+import { PageHeader } from "@/components/ui/page-header";
+import { LoadingState } from "@/components/ui/data-display";
+import { EmptyState } from "@/components/ui/empty-state";
 import { Shield, Search, Filter, Calendar } from "lucide-react";
 
 const MODULE_OPTIONS = ["sales", "purchases", "treasury", "inventory", "finance", "auth"];
@@ -34,8 +37,8 @@ function actionBadgeClass(action: string): string {
     case "edit":   return "bg-yellow-100 text-yellow-800";
     case "delete": return "bg-red-100 text-red-800";
     case "login":  return "bg-purple-100 text-purple-800";
-    case "logout": return "bg-gray-100 text-gray-700";
-    default:       return "bg-gray-100 text-gray-700";
+    case "logout": return "bg-[color:var(--ink-100)] text-[color:var(--ink-700)]";
+    default:       return "bg-[color:var(--ink-100)] text-[color:var(--ink-700)]";
   }
 }
 
@@ -56,7 +59,7 @@ export default function AuditLogPage() {
       <div dir={isRTL ? "rtl" : "ltr"} className="flex items-center justify-center min-h-[60vh] p-8">
         <div className="text-center space-y-3">
           <Shield className="mx-auto h-12 w-12 text-red-400" />
-          <p className="text-lg font-semibold text-gray-700">{t("permissionDenied")}</p>
+          <p className="text-lg font-semibold text-[color:var(--ink-700)]">{t("permissionDenied")}</p>
         </div>
       </div>
     );
@@ -70,6 +73,7 @@ export default function AuditLogPage() {
     companyId
       ? {
           companyId,
+          requesterUserId: currentUser?._id,
           module:        filterModule || undefined,
           action:        filterAction || undefined,
           fromTimestamp: fromTimestamp || undefined,
@@ -96,104 +100,120 @@ export default function AuditLogPage() {
   return (
     <div dir={isRTL ? "rtl" : "ltr"} className="space-y-5">
       {/* Header */}
-      <div className="mb-6 flex flex-wrap items-center justify-between gap-4">
-        <div className="flex items-center gap-3">
-          <Shield className="h-7 w-7 text-blue-600" />
-          <h1 className="text-2xl font-bold text-gray-900">{t("auditLogs")}</h1>
-        </div>
-        <span className="text-sm text-gray-500">{filtered?.length ?? 0} {t("records")}</span>
+      <div className="no-print">
+        <PageHeader
+          icon={Shield}
+          title={t("auditLogs")}
+          subtitle={`${filtered?.length ?? 0} ${t("records")}`}
+        />
       </div>
 
       {/* Filters */}
-      <div className="mb-5 flex flex-wrap gap-3">
-        {/* Search */}
-        <div className="relative flex-1 min-w-[180px]">
-          <Search className={`absolute top-2.5 h-4 w-4 text-gray-400 ${isRTL ? "right-2" : "left-2"}`} />
-          <input
-            type="text"
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            placeholder={t("search")}
-            className={`w-full border border-gray-300 rounded-lg py-2 text-sm bg-white focus:ring-2 focus:ring-blue-400 outline-none ${isRTL ? "pr-8 pl-3" : "pl-8 pr-3"}`}
-          />
+      {/* Modern Filter Strip */}
+      <div className="bg-white rounded-lg border border-gray-200 p-3 flex flex-wrap items-end gap-3 w-full shadow-sm">
+        <div className="flex-1 min-w-[200px]">
+          <div className="relative">
+            <Search className={`absolute top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400 ${isRTL ? "right-3" : "left-3"}`} />
+            <input 
+              type="text" 
+              value={search} 
+              onChange={(e) => setSearch(e.target.value)}
+              placeholder={t("search")}
+              className={`w-full h-10 ${isRTL ? "pr-9 pl-3" : "pl-9 pr-3"} border border-gray-200 rounded-md text-sm text-gray-700 focus:outline-none focus:border-gray-400`} 
+            />
+          </div>
         </div>
 
-        {/* Module filter */}
-        <select
-          value={filterModule}
-          onChange={(e) => setFilterModule(e.target.value)}
-          className="border border-gray-300 rounded-lg px-3 py-2 text-sm bg-white focus:ring-2 focus:ring-blue-400 outline-none"
-        >
-          <option value="">{t("allModules")}</option>
-          {MODULE_OPTIONS.map((m) => (
-            <option key={m} value={m}>{labelModule(m, t)}</option>
-          ))}
-        </select>
+        <div className="flex flex-col gap-1">
+          <label className="text-[10px] font-bold text-gray-500 uppercase">{t("module")}</label>
+          <select
+            value={filterModule}
+            onChange={(e) => setFilterModule(e.target.value)}
+            className="h-10 px-3 border border-gray-200 rounded-md text-sm text-gray-700 focus:outline-none focus:border-gray-400 bg-white min-w-[140px]"
+          >
+            <option value="">{t("allModules")}</option>
+            {MODULE_OPTIONS.map((m) => (
+              <option key={m} value={m}>{labelModule(m, t)}</option>
+            ))}
+          </select>
+        </div>
 
-        {/* Action filter */}
-        <select
-          value={filterAction}
-          onChange={(e) => setFilterAction(e.target.value)}
-          className="border border-gray-300 rounded-lg px-3 py-2 text-sm bg-white focus:ring-2 focus:ring-blue-400 outline-none"
-        >
-          <option value="">{t("allActions")}</option>
-          {ACTION_OPTIONS.map((a) => (
-            <option key={a} value={a}>{labelAction(a, t)}</option>
-          ))}
-        </select>
+        <div className="flex flex-col gap-1">
+          <label className="text-[10px] font-bold text-gray-500 uppercase">{t("action")}</label>
+          <select
+            value={filterAction}
+            onChange={(e) => setFilterAction(e.target.value)}
+            className="h-10 px-3 border border-gray-200 rounded-md text-sm text-gray-700 focus:outline-none focus:border-gray-400 bg-white min-w-[140px]"
+          >
+            <option value="">{t("allActions")}</option>
+            {ACTION_OPTIONS.map((a) => (
+              <option key={a} value={a}>{labelAction(a, t)}</option>
+            ))}
+          </select>
+        </div>
 
-        {/* Date filter */}
-        <div className="flex items-center gap-1 border border-gray-300 rounded-lg px-2 bg-white">
-          <Calendar className="h-4 w-4 text-gray-400" />
-          <input
-            type="date"
-            value={filterDate}
-            onChange={(e) => setFilterDate(e.target.value)}
-            className="py-2 text-sm bg-transparent outline-none"
-          />
+        <div className="flex flex-col gap-1">
+          <label className="text-[10px] font-bold text-gray-500 uppercase">{t("date")}</label>
+          <div className="relative">
+            <Calendar className={`absolute top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400 ${isRTL ? "right-3" : "left-3"}`} />
+            <input 
+              type="date" 
+              value={filterDate} 
+              onChange={(e) => setFilterDate(e.target.value)}
+              className={`h-10 ${isRTL ? "pr-9 pl-3" : "pl-9 pr-3"} border border-gray-200 rounded-md text-sm text-gray-700 focus:outline-none focus:border-gray-400 w-[160px]`} 
+            />
+          </div>
         </div>
       </div>
 
       {/* Table */}
-      <div className="overflow-x-auto rounded-xl border border-gray-200 bg-white shadow-sm">
-        <table className="min-w-full divide-y divide-gray-100 text-sm">
-          <thead className="bg-gray-50">
-            <tr>
-              <th className="px-4 py-3 text-start font-semibold text-gray-600">{t("timestamp")}</th>
-              <th className="px-4 py-3 text-start font-semibold text-gray-600">{t("userName")}</th>
-              <th className="px-4 py-3 text-start font-semibold text-gray-600">{t("action")}</th>
-              <th className="px-4 py-3 text-start font-semibold text-gray-600">{t("module")}</th>
-              <th className="px-4 py-3 text-start font-semibold text-gray-600">{t("documentType")}</th>
-              <th className="px-4 py-3 text-start font-semibold text-gray-600">{t("documentId")}</th>
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-gray-50">
-            {logs === undefined ? (
-              <tr><td colSpan={6} className="py-10 text-center text-gray-400">{t("loading")}</td></tr>
-            ) : filtered.length === 0 ? (
-              <tr><td colSpan={6} className="py-10 text-center text-gray-400">{t("noAuditLogs")}</td></tr>
-            ) : (
-              filtered.map((log: any) => (
-                <tr key={log._id} className="hover:bg-gray-50 transition-colors">
-                  <td className="px-4 py-3 text-gray-500 whitespace-nowrap">
-                    {new Date(log.timestamp).toLocaleString(isRTL ? "ar-QA" : "en-GB")}
-                  </td>
-                  <td className="px-4 py-3 font-medium text-gray-800">{log.userName}</td>
-                  <td className="px-4 py-3">
-                    <span className={`inline-block rounded-full px-2 py-0.5 text-xs font-semibold ${actionBadgeClass(log.action)}`}>
-                      {labelAction(log.action, t)}
-                    </span>
-                  </td>
-                  <td className="px-4 py-3 text-gray-600">{labelModule(log.module, t)}</td>
-                  <td className="px-4 py-3 text-gray-600">{log.documentType ?? "—"}</td>
-                  <td className="px-4 py-3 font-mono text-xs text-gray-500 truncate max-w-[140px]">
-                    {log.documentId ? log.documentId.slice(-8) : "—"}
-                  </td>
+      <div className="bg-white rounded-2xl shadow-[0_2px_10px_rgba(0,0,0,0.04)] border border-[color:var(--ink-100)] overflow-hidden">
+        {logs === undefined ? (
+          <LoadingState label={t("loading")} />
+        ) : filtered.length === 0 ? (
+          <EmptyState icon={Shield} title={t("noAuditLogs")} />
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm text-left border-collapse" dir={isRTL ? "rtl" : "ltr"}>
+              <thead>
+                <tr className="bg-gray-50/50 border-b border-gray-100">
+                  <th className="px-6 py-4 text-[10px] font-bold text-gray-400 uppercase tracking-widest">{t("timestamp")}</th>
+                  <th className="px-6 py-4 text-[10px] font-bold text-gray-400 uppercase tracking-widest">{t("userName")}</th>
+                  <th className="px-6 py-4 text-[10px] font-bold text-gray-400 uppercase tracking-widest text-center">{t("action")}</th>
+                  <th className="px-6 py-4 text-[10px] font-bold text-gray-400 uppercase tracking-widest">{t("module")}</th>
+                  <th className="px-6 py-4 text-[10px] font-bold text-gray-400 uppercase tracking-widest">{t("documentType")}</th>
+                  <th className="px-6 py-4 text-[10px] font-bold text-gray-400 uppercase tracking-widest">{t("documentId")}</th>
                 </tr>
-              ))
-            )}
-          </tbody>
-        </table>
+              </thead>
+              <tbody className="divide-y divide-gray-50 bg-white">
+                {filtered.map((log: any) => (
+                  <tr key={log._id} className="group hover:bg-gray-50/80 transition-all duration-200">
+                    <td className="px-6 py-4 text-xs text-gray-500 font-medium whitespace-nowrap">
+                      {new Date(log.timestamp).toLocaleString(isRTL ? "ar-QA" : "en-GB")}
+                    </td>
+                    <td className="px-6 py-4">
+                      <span className="font-bold text-gray-900 text-sm">{log.userName}</span>
+                    </td>
+                    <td className="px-6 py-4 text-center">
+                      <span className={`inline-block rounded-full px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-tight ${actionBadgeClass(log.action)}`}>
+                        {labelAction(log.action, t)}
+                      </span>
+                    </td>
+                    <td className="px-6 py-4 text-xs text-gray-500 font-bold uppercase tracking-tight">
+                      {labelModule(log.module, t)}
+                    </td>
+                    <td className="px-6 py-4 text-xs text-gray-400 font-medium">{log.documentType ?? "—"}</td>
+                    <td className="px-6 py-4">
+                      <span className="inline-flex items-center px-2 py-0.5 rounded text-[11px] font-bold bg-gray-50 text-gray-400 border border-gray-100 tabular-nums">
+                        {log.documentId ? log.documentId.slice(-8) : "—"}
+                      </span>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
       </div>
     </div>
   );

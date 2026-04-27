@@ -5,8 +5,13 @@ import React, { useState } from "react";
 import { useI18n } from "@/hooks/useI18n";
 import { useQuery } from "convex/react";
 import { api } from "../../../../convex/_generated/api";
-import { ShoppingCart } from "lucide-react";
+import { ShoppingCart, Calendar, Receipt } from "lucide-react";
 import { useAppStore } from "@/store/useAppStore";
+import { LoadingState, KPICard } from "@/components/ui/data-display";
+import { EmptyState } from "@/components/ui/empty-state";
+import { PageHeader } from "@/components/ui/page-header";
+import { CompanyPrintHeader } from "@/components/ui/company-print-header";
+import { useCompanySettings } from "@/hooks/useCompanySettings";
 
 function todayISO() { return new Date().toISOString().split("T")[0]; }
 function startOfMonthISO() {
@@ -16,8 +21,9 @@ function startOfMonthISO() {
 
 export default function PurchaseReportPage() {
   const { t, isRTL, formatCurrency } = useI18n();
+  const { company: printCompany } = useCompanySettings();
   const [fromDate, setFromDate] = useState(startOfMonthISO());
-  const [toDate, setToDate] = useState(todayISO());
+  const [toDate, setToDate]   = useState(todayISO());
   const [groupBy, setGroupBy] = useState<"day" | "supplier" | "item">("day");
 
   const selectedBranch = useAppStore((s) => s.selectedBranch);
@@ -31,37 +37,45 @@ export default function PurchaseReportPage() {
   );
 
   const loading = report === undefined;
+  const totalAmt = (report?.totalPurchases ?? 0) / 100;
+  const invoiceCount = report?.invoiceCount ?? 0;
 
   return (
-    <div className="space-y-5">
-      {/* Header */}
-      <div className="flex items-center gap-3">
-        <div className="h-11 w-11 rounded-xl flex items-center justify-center" style={{ background: "var(--brand-50)", color: "var(--brand-700)" }}>
-          <ShoppingCart className="h-5 w-5" />
-        </div>
-        <div>
-          <h1 className="text-2xl font-bold text-[color:var(--ink-900)]">{t("purchaseReportTitle")}</h1>
-          {report && (
-            <p className="text-xs text-[color:var(--ink-500)] mt-0.5">
-              {report.invoiceCount} {t("purchaseCount")} — {formatCurrency((report.totalPurchases ?? 0) / 100)}
-            </p>
-          )}
-        </div>
+    <div dir={isRTL ? "rtl" : "ltr"} className="space-y-5">
+      {/* Print header — hidden on screen */}
+      <CompanyPrintHeader
+        company={printCompany}
+        isRTL={isRTL}
+        documentTitle={t("purchaseReportTitle")}
+        periodLine={`${fromDate} — ${toDate}`}
+      />
+
+      {/* Screen header */}
+      <div className="no-print">
+        <PageHeader
+          icon={ShoppingCart}
+          title={t("purchaseReportTitle")}
+          subtitle={report ? `${invoiceCount} ${t("purchaseCount")} — ${formatCurrency(totalAmt)}` : undefined}
+        />
       </div>
 
-      {/* Filters */}
-      <div className="surface-card p-3 flex items-center gap-3 flex-wrap">
-        <div className="flex items-center gap-1.5">
-          <span className="text-xs text-[color:var(--ink-500)]">{t("fromDate")}:</span>
-          <input type="date" value={fromDate} onChange={e => setFromDate(e.target.value)} className="input-field h-9 w-auto" />
+      {/* Filter bar */}
+      <div className="no-print surface-card px-5 py-3.5 flex items-center gap-4 flex-wrap border-b border-[color:var(--ink-100)]">
+        <div className="flex items-center gap-2">
+          <Calendar className="h-4 w-4 text-[color:var(--ink-400)] shrink-0" />
+          <span className="text-xs font-medium text-[color:var(--ink-500)] whitespace-nowrap">{t("fromDate")}</span>
+          <input type="date" value={fromDate} onChange={e => setFromDate(e.target.value)}
+            className="input-field h-8 text-sm w-auto" />
         </div>
-        <div className="flex items-center gap-1.5">
-          <span className="text-xs text-[color:var(--ink-500)]">{t("toDate")}:</span>
-          <input type="date" value={toDate} onChange={e => setToDate(e.target.value)} className="input-field h-9 w-auto" />
+        <div className="flex items-center gap-2">
+          <span className="text-xs font-medium text-[color:var(--ink-500)] whitespace-nowrap">{t("toDate")}</span>
+          <input type="date" value={toDate} onChange={e => setToDate(e.target.value)}
+            className="input-field h-8 text-sm w-auto" />
         </div>
-        <div className="flex items-center gap-1.5">
-          <span className="text-xs text-[color:var(--ink-500)]">{t("groupBy")}:</span>
-          <select value={groupBy} onChange={e => setGroupBy(e.target.value as any)} className="input-field h-9 w-auto">
+        <div className="flex items-center gap-2 ms-auto">
+          <span className="text-xs font-medium text-[color:var(--ink-500)] whitespace-nowrap">{t("groupBy")}</span>
+          <select value={groupBy} onChange={e => setGroupBy(e.target.value as any)}
+            className="input-field h-8 text-sm w-auto">
             <option value="day">{t("groupByDay")}</option>
             <option value="supplier">{t("groupBySupplier")}</option>
             <option value="item">{t("groupByItem")}</option>
@@ -69,73 +83,71 @@ export default function PurchaseReportPage() {
         </div>
       </div>
 
-      {/* Summary */}
+      {/* KPI summary */}
       {report && (
-        <div className="surface-card p-4 flex items-center gap-8 flex-wrap text-sm">
-          <div>
-            <div className="text-xs text-[color:var(--ink-500)]">{t("totalPurchases")}</div>
-            <div className="text-xl font-bold text-[color:var(--ink-900)] tabular-nums">
-              {formatCurrency((report.totalPurchases ?? 0) / 100)}
-            </div>
-          </div>
-          <div>
-            <div className="text-xs text-[color:var(--ink-500)]">{t("purchaseCount")}</div>
-            <div className="text-xl font-bold text-[color:var(--ink-900)] tabular-nums">{report.invoiceCount}</div>
-          </div>
+        <div className="grid grid-cols-2 gap-4">
+          <KPICard
+            label={t("totalPurchases")}
+            value={formatCurrency(totalAmt)}
+            icon={ShoppingCart}
+            iconColor="var(--brand-700)"
+            accent="var(--brand-600)"
+          />
+          <KPICard
+            label={t("purchaseCount")}
+            value={String(invoiceCount)}
+            icon={Receipt}
+            iconColor="#0ea5e9"
+            accent="#0ea5e9"
+          />
         </div>
       )}
 
       {/* Table */}
       <div className="surface-card overflow-hidden">
         {loading ? (
-          <div className="p-8 text-center">
-            <div className="animate-spin h-8 w-8 border-2 border-[color:var(--brand-600)] border-t-transparent rounded-full mx-auto mb-3" />
-            <p className="text-sm text-[color:var(--ink-400)]">{t("loading")}</p>
-          </div>
-        ) : !report || !report.data || report.data.length === 0 ? (
-          <div className="py-16 text-center text-[color:var(--ink-400)]">
-            <ShoppingCart className="h-10 w-10 mx-auto mb-3 opacity-30" />
-            <p className="text-sm">{t("noResults")}</p>
-          </div>
+          <LoadingState label={t("loading")} />
+        ) : !report?.data?.length ? (
+          <EmptyState icon={ShoppingCart} title={t("noResults")} />
         ) : (
           <div className="overflow-x-auto">
-            <table className="w-full zebra-table text-sm">
-              <thead className="bg-[color:var(--ink-50)] text-[color:var(--ink-600)] text-xs uppercase tracking-wider">
+            <table className="data-table">
+              <thead>
                 <tr>
                   {groupBy === "day" && <>
-                    <th className="px-4 py-3 text-start font-semibold">{t("date")}</th>
-                    <th className="px-4 py-3 text-end font-semibold">{t("purchaseCount")}</th>
-                    <th className="px-4 py-3 text-end font-semibold">{t("totalPurchases")}</th>
+                    <th>{t("date")}</th>
+                    <th className="text-end">{t("purchaseCount")}</th>
+                    <th className="text-end">{t("totalPurchases")}</th>
                   </>}
                   {groupBy === "supplier" && <>
-                    <th className="px-4 py-3 text-start font-semibold">{t("supplier")}</th>
-                    <th className="px-4 py-3 text-end font-semibold">{t("purchaseCount")}</th>
-                    <th className="px-4 py-3 text-end font-semibold">{t("totalPurchases")}</th>
+                    <th>{t("supplier")}</th>
+                    <th className="text-end">{t("purchaseCount")}</th>
+                    <th className="text-end">{t("totalPurchases")}</th>
                   </>}
                   {groupBy === "item" && <>
-                    <th className="px-4 py-3 text-start font-semibold">{t("item")}</th>
-                    <th className="px-4 py-3 text-end font-semibold">{t("quantity")}</th>
-                    <th className="px-4 py-3 text-end font-semibold">{t("totalPurchases")}</th>
+                    <th>{t("item")}</th>
+                    <th className="text-end">{t("quantity")}</th>
+                    <th className="text-end">{t("totalPurchases")}</th>
                   </>}
                 </tr>
               </thead>
               <tbody>
                 {report.data.map((row: any, i: number) => (
-                  <tr key={i} className="border-t border-[color:var(--ink-100)] hover:bg-[color:var(--brand-50)]/40">
+                  <tr key={i}>
                     {groupBy === "day" && <>
-                      <td className="px-4 py-3 tabular-nums text-[color:var(--ink-700)]">{row.date}</td>
-                      <td className="px-4 py-3 text-end tabular-nums">{row.count}</td>
-                      <td className="px-4 py-3 text-end font-semibold tabular-nums">{formatCurrency((row.total ?? 0) / 100)}</td>
+                      <td className="muted tabular-nums">{row.date}</td>
+                      <td className="numeric text-end">{row.count}</td>
+                      <td className="numeric text-end font-semibold">{formatCurrency((row.total ?? 0) / 100)}</td>
                     </>}
                     {groupBy === "supplier" && <>
-                      <td className="px-4 py-3 text-[color:var(--ink-700)]">{row.supplierName}</td>
-                      <td className="px-4 py-3 text-end tabular-nums">{row.count}</td>
-                      <td className="px-4 py-3 text-end font-semibold tabular-nums">{formatCurrency((row.total ?? 0) / 100)}</td>
+                      <td>{row.supplierName}</td>
+                      <td className="numeric text-end">{row.count}</td>
+                      <td className="numeric text-end font-semibold">{formatCurrency((row.total ?? 0) / 100)}</td>
                     </>}
                     {groupBy === "item" && <>
-                      <td className="px-4 py-3 text-[color:var(--ink-700)]">{row.itemName}</td>
-                      <td className="px-4 py-3 text-end tabular-nums">{(row.qty ?? 0).toFixed(2)}</td>
-                      <td className="px-4 py-3 text-end font-semibold tabular-nums">{formatCurrency((row.total ?? 0) / 100)}</td>
+                      <td>{row.itemName}</td>
+                      <td className="numeric text-end">{(row.qty ?? 0).toFixed(2)}</td>
+                      <td className="numeric text-end font-semibold">{formatCurrency((row.total ?? 0) / 100)}</td>
                     </>}
                   </tr>
                 ))}

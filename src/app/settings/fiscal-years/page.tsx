@@ -6,6 +6,10 @@ import { useQuery, useMutation } from "convex/react";
 import { api } from "../../../../convex/_generated/api";
 import { useI18n } from "@/hooks/useI18n";
 import { useAuth } from "@/hooks/useAuth";
+import { usePermissions } from "@/hooks/usePermissions";
+import { PageHeader } from "@/components/ui/page-header";
+import { LoadingState } from "@/components/ui/data-display";
+import { EmptyState } from "@/components/ui/empty-state";
 import {
   CalendarDays,
   Plus,
@@ -26,7 +30,7 @@ function StatusBadge({ status, t }: { status: string; t: (key: string) => string
       className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold ${
         isOpen
           ? "bg-green-100 text-green-800"
-          : "bg-gray-100 text-gray-500"
+          : "bg-[color:var(--ink-100)] text-[color:var(--ink-500)]"
       }`}
     >
       {isOpen ? t("active") : t("inactive")}
@@ -49,17 +53,17 @@ function ConfirmDialog({
 }) {
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm p-4">
-      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm overflow-hidden">
+      <div className="surface-card w-full max-w-sm overflow-hidden">
         <div className="px-6 py-5">
           <div className="flex items-start gap-3">
             <AlertTriangle className="h-5 w-5 text-amber-500 mt-0.5 shrink-0" />
-            <p className="text-sm text-gray-700">{message}</p>
+            <p className="text-sm text-[color:var(--ink-700)]">{message}</p>
           </div>
         </div>
         <div className="flex gap-3 px-6 pb-5">
           <button
             onClick={onCancel}
-            className="flex-1 border border-gray-300 rounded-lg px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 transition-colors"
+            className="flex-1 border border-[color:var(--ink-300)] rounded-lg px-4 py-2 text-sm text-[color:var(--ink-700)] hover:bg-[color:var(--ink-50)] transition-colors"
           >
             {t("cancel")}
           </button>
@@ -88,14 +92,14 @@ function Modal({
 }) {
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm p-4">
-      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg overflow-hidden">
-        <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100">
-          <h2 className="text-lg font-bold text-gray-900">{title}</h2>
+      <div className="surface-card w-full max-w-lg overflow-hidden">
+        <div className="flex items-center justify-between px-6 py-4 border-b border-[color:var(--ink-100)]">
+          <h2 className="text-lg font-bold text-[color:var(--ink-900)]">{title}</h2>
           <button
             onClick={onClose}
-            className="p-1 rounded-lg hover:bg-gray-100 transition-colors"
+            className="p-1 rounded-lg hover:bg-[color:var(--ink-100)] transition-colors"
           >
-            <X className="h-5 w-5 text-gray-500" />
+            <X className="h-5 w-5 text-[color:var(--ink-500)]" />
           </button>
         </div>
         <div className="px-6 py-5">{children}</div>
@@ -113,7 +117,7 @@ function Field({
 }) {
   return (
     <div className="mb-4">
-      <label className="block text-sm font-medium text-gray-700 mb-1">
+      <label className="block text-sm font-medium text-[color:var(--ink-700)] mb-1">
         {label}
       </label>
       {children}
@@ -122,7 +126,7 @@ function Field({
 }
 
 const inputClass =
-  "w-full border border-gray-300 rounded-lg px-3 py-2 text-sm bg-white focus:ring-2 focus:ring-blue-400 outline-none";
+  "w-full border border-[color:var(--ink-300)] rounded-lg px-3 py-2 text-sm bg-white focus:ring-2 focus:ring-[color:var(--brand-400)] outline-none";
 
 // ─── Periods Table ─────────────────────────────────────────────────────────────
 
@@ -138,6 +142,7 @@ function PeriodsTable({
   const { t, isRTL } = useI18n();
   const data = useQuery(api.fiscalYears.getFiscalYearWithPeriods, {
     fiscalYearId,
+    userId,
   });
   const closePeriodMut = useMutation(api.fiscalYears.closePeriod);
   const reopenPeriodMut = useMutation(api.fiscalYears.reopenPeriod);
@@ -166,9 +171,7 @@ function PeriodsTable({
   };
 
   if (!data) {
-    return (
-      <div className="p-4 text-sm text-gray-400">{t("loading")}</div>
-    );
+    return <LoadingState label={t("loading")} />;
   }
 
   const periods = data.periods ?? [];
@@ -192,66 +195,64 @@ function PeriodsTable({
           t={t}
         />
       )}
-      <table className="w-full text-sm">
-        <thead>
-          <tr className="border-b border-gray-100">
-            <th className="text-right py-2 pr-2 text-xs font-semibold text-gray-500">
-              {t("periodName")}
-            </th>
-            <th className="text-right py-2 text-xs font-semibold text-gray-500">
-              {t("fromDate")}
-            </th>
-            <th className="text-right py-2 text-xs font-semibold text-gray-500">
-              {t("toDate")}
-            </th>
-            <th className="text-right py-2 text-xs font-semibold text-gray-500">
-              {t("status")}
-            </th>
-            <th className="py-2 text-xs font-semibold text-gray-500" />
-          </tr>
-        </thead>
-        <tbody>
-          {periods.map((p: any) => (
-            <tr key={p._id} className="border-b border-gray-50 hover:bg-gray-50">
-              <td className="py-2 pr-2 font-medium text-gray-800">{p.name}</td>
-              <td className="py-2 text-gray-600">{p.startDate}</td>
-              <td className="py-2 text-gray-600">{p.endDate}</td>
-              <td className="py-2">
-                <StatusBadge status={p.status} t={t} />
-              </td>
-              <td className="py-2 text-left">
-                {yearStatus === "open" && (
-                  <>
-                    {p.status === "open" ? (
-                      <button
-                        onClick={() =>
-                          setConfirm({ type: "close", periodId: p._id, name: p.name })
-                        }
-                        className="inline-flex items-center gap-1 px-2 py-1 rounded-md text-xs bg-gray-100 text-gray-700 hover:bg-red-50 hover:text-red-700 transition-colors"
-                      >
-                        <Lock className="h-3 w-3" />
-                        {t("close")}
-                      </button>
-                    ) : p.status === "closed" ? (
-                      <button
-                        onClick={() =>
-                          setConfirm({ type: "reopen", periodId: p._id, name: p.name })
-                        }
-                        className="inline-flex items-center gap-1 px-2 py-1 rounded-md text-xs bg-gray-100 text-gray-700 hover:bg-green-50 hover:text-green-700 transition-colors"
-                      >
-                        <LockOpen className="h-3 w-3" />
-                        {t("reopenPeriod")}
-                      </button>
-                    ) : null}
-                  </>
-                )}
-              </td>
+      <div className="border border-gray-100 rounded-xl overflow-hidden shadow-sm">
+        <table className="w-full text-sm text-left border-collapse" dir={isRTL ? "rtl" : "ltr"}>
+          <thead>
+            <tr className="bg-gray-50/50 border-b border-gray-100">
+              <th className="px-6 py-4 text-[10px] font-bold text-gray-400 uppercase tracking-widest">{t("periodName")}</th>
+              <th className="px-6 py-4 text-[10px] font-bold text-gray-400 uppercase tracking-widest">{t("fromDate")}</th>
+              <th className="px-6 py-4 text-[10px] font-bold text-gray-400 uppercase tracking-widest">{t("toDate")}</th>
+              <th className="px-6 py-4 text-[10px] font-bold text-gray-400 uppercase tracking-widest">{t("status")}</th>
+              <th className="px-6 py-4 text-[10px] font-bold text-gray-400 uppercase tracking-widest text-end">{t("actions")}</th>
             </tr>
-          ))}
-        </tbody>
-      </table>
+          </thead>
+          <tbody className="divide-y divide-gray-50 bg-white">
+            {periods.map((p: any) => (
+              <tr key={p._id} className="group hover:bg-gray-50/80 transition-all duration-200">
+                <td className="px-6 py-4">
+                  <span className="font-bold text-gray-900 text-sm">{p.name}</span>
+                </td>
+                <td className="px-6 py-4 text-xs text-gray-500 font-medium">{p.startDate}</td>
+                <td className="px-6 py-4 text-xs text-gray-500 font-medium">{p.endDate}</td>
+                <td className="px-6 py-4">
+                  <StatusBadge status={p.status} t={t} />
+                </td>
+                <td className="px-6 py-4 text-end">
+                  <div className="flex items-center justify-end gap-1 opacity-0 group-hover:opacity-100 transition-opacity duration-200">
+                    {yearStatus === "open" && (
+                      <>
+                        {p.status === "open" ? (
+                          <button
+                            onClick={() =>
+                              setConfirm({ type: "close", periodId: p._id, name: p.name })
+                            }
+                            className="h-8 px-3 rounded-lg bg-red-50 text-red-700 text-[10px] font-bold uppercase tracking-tight hover:bg-red-100 transition-all flex items-center gap-1 border border-red-100"
+                          >
+                            <Lock className="h-3 w-3" />
+                            {t("close")}
+                          </button>
+                        ) : p.status === "closed" ? (
+                          <button
+                            onClick={() =>
+                              setConfirm({ type: "reopen", periodId: p._id, name: p.name })
+                            }
+                            className="h-8 px-3 rounded-lg bg-green-50 text-green-700 text-[10px] font-bold uppercase tracking-tight hover:bg-green-100 transition-all flex items-center gap-1 border border-green-100"
+                          >
+                            <LockOpen className="h-3 w-3" />
+                            {t("reopenPeriod")}
+                          </button>
+                        ) : null}
+                      </>
+                    )}
+                  </div>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
       {periods.length === 0 && (
-        <p className="text-center text-sm text-gray-400 py-4">
+        <p className="text-center text-sm text-[color:var(--ink-400)] py-4">
           {t("noResults")}
         </p>
       )}
@@ -275,16 +276,16 @@ function FiscalYearRow({
   const [expanded, setExpanded] = useState(false);
 
   return (
-    <div className="border border-gray-200 rounded-xl overflow-hidden mb-3">
+    <div className="border border-[color:var(--ink-200)] rounded-xl overflow-hidden mb-3">
       <div
-        className="flex items-center justify-between px-4 py-3 cursor-pointer hover:bg-gray-50 transition-colors"
+        className="flex items-center justify-between px-4 py-3 cursor-pointer hover:bg-[color:var(--ink-50)] transition-colors"
         onClick={() => setExpanded((v) => !v)}
       >
         <div className="flex items-center gap-3">
           <CalendarDays className="h-5 w-5 text-blue-500 shrink-0" />
           <div>
-            <div className="font-semibold text-gray-900 text-sm">{fy.nameAr}</div>
-            <div className="text-xs text-gray-500">
+            <div className="font-semibold text-[color:var(--ink-900)] text-sm">{fy.nameAr}</div>
+            <div className="text-xs text-[color:var(--ink-500)]">
               {fy.startDate} — {fy.endDate}
             </div>
           </div>
@@ -304,14 +305,14 @@ function FiscalYearRow({
             </button>
           )}
           {expanded ? (
-            <ChevronUp className="h-4 w-4 text-gray-400" />
+            <ChevronUp className="h-4 w-4 text-[color:var(--ink-400)]" />
           ) : (
-            <ChevronDown className="h-4 w-4 text-gray-400" />
+            <ChevronDown className="h-4 w-4 text-[color:var(--ink-400)]" />
           )}
         </div>
       </div>
       {expanded && (
-        <div className="border-t border-gray-100 bg-white">
+        <div className="border-t border-[color:var(--ink-100)] bg-white">
           <PeriodsTable
             fiscalYearId={fy._id}
             yearStatus={fy.status}
@@ -328,12 +329,13 @@ function FiscalYearRow({
 export default function FiscalYearsPage() {
   const { t, isRTL } = useI18n();
   const { currentUser } = useAuth();
+  const { canView, canCreate } = usePermissions();
 
   const effectiveCompanyId = (currentUser as any)?.companyId ?? null;
 
   const fiscalYears = useQuery(
     api.fiscalYears.listFiscalYears,
-    effectiveCompanyId ? { companyId: effectiveCompanyId } : "skip"
+    effectiveCompanyId && currentUser ? { companyId: effectiveCompanyId, userId: currentUser._id as any } : "skip"
   );
 
   const createFiscalYear = useMutation(api.fiscalYears.createFiscalYear);
@@ -396,31 +398,28 @@ export default function FiscalYearsPage() {
 
   const userId = currentUser?._id ?? "";
 
+  if (!canView("settings")) {
+    return <EmptyState icon={CalendarDays} title={t("permissionDenied")} />;
+  }
+
   return (
     <div className="space-y-5" dir={isRTL ? "rtl" : "ltr"}>
       {/* Header */}
-      <div className="surface-card flex items-center justify-between">
-        <div className="flex items-center gap-3">
-          <div className="w-10 h-10 rounded-xl bg-blue-600 flex items-center justify-center">
-            <CalendarDays className="h-5 w-5 text-white" />
-          </div>
-          <div>
-            <h1 className="text-xl font-bold text-gray-900">
-              {t("fiscalYearsTitle")}
-            </h1>
-            <p className="text-sm text-gray-500">{t("fiscalYearsSubtitle")}</p>
-          </div>
-        </div>
-        <button
-          onClick={() => {
-            setShowModal(true);
-            setError(null);
-          }}
-          className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-blue-600 text-white text-sm font-medium hover:bg-blue-700 transition-colors shadow-sm"
-        >
-          <Plus className="h-4 w-4" />
-          {t("newFiscalYear")}
-        </button>
+      <div className="no-print">
+        <PageHeader
+          icon={CalendarDays}
+          title={t("fiscalYearsTitle")}
+          subtitle={t("fiscalYearsSubtitle")}
+          actions={canCreate("settings") ? (
+            <button
+              onClick={() => { setShowModal(true); setError(null); }}
+              className="btn-primary h-10 px-4 rounded-lg inline-flex items-center gap-2 text-sm font-semibold"
+            >
+              <Plus className="h-4 w-4" />
+              {t("newFiscalYear")}
+            </button>
+          ) : undefined}
+        />
       </div>
 
       {/* Alerts */}
@@ -436,31 +435,25 @@ export default function FiscalYearsPage() {
       )}
 
       {/* Fiscal Years List */}
-      <div className="surface-card">
-        {!effectiveCompanyId && (
-          <div className="text-center text-gray-400 py-12 text-sm">
-            {t("loading")}
-          </div>
-        )}
-
-        {effectiveCompanyId && fiscalYears === undefined && (
-          <div className="text-center text-gray-400 py-12 text-sm">
-            {t("loading")}
-          </div>
+      <div className="surface-card p-4">
+        {(!effectiveCompanyId || fiscalYears === undefined) && (
+          <LoadingState label={t("loading")} />
         )}
 
         {effectiveCompanyId && fiscalYears !== undefined && fiscalYears.length === 0 && (
-          <div className="text-center py-16">
-            <CalendarDays className="h-12 w-12 text-gray-300 mx-auto mb-3" />
-            <p className="text-gray-500 text-sm">{t("noFiscalYearsYet")}</p>
-            <button
-              onClick={() => setShowModal(true)}
-              className="mt-4 inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-blue-600 text-white text-sm font-medium hover:bg-blue-700 transition-colors"
-            >
-              <Plus className="h-4 w-4" />
-              {t("newFiscalYear")}
-            </button>
-          </div>
+          <EmptyState
+            icon={CalendarDays}
+            title={t("noFiscalYearsYet")}
+            action={canCreate("settings") ? (
+              <button
+                onClick={() => setShowModal(true)}
+                className="btn-primary h-10 px-5 rounded-xl inline-flex items-center gap-2 text-sm font-semibold"
+              >
+                <Plus className="h-4 w-4" />
+                {t("newFiscalYear")}
+              </button>
+            ) : undefined}
+          />
         )}
 
         {fiscalYears && fiscalYears.length > 0 && (
@@ -522,20 +515,20 @@ export default function FiscalYearsPage() {
               />
             </Field>
           </div>
-          <p className="text-xs text-gray-400 mb-4">
+          <p className="text-xs text-[color:var(--ink-400)] mb-4">
             * سيتم توليد الفترات الشهرية تلقائياً بين تاريخ البداية والنهاية
           </p>
           <div className="flex gap-3">
             <button
               onClick={() => setShowModal(false)}
-              className="flex-1 border border-gray-300 rounded-lg px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 transition-colors"
+              className="flex-1 btn-ghost rounded-lg px-4 py-2 text-sm"
             >
               {t("cancel")}
             </button>
             <button
               onClick={handleCreate}
               disabled={saving}
-              className="flex-1 bg-blue-600 text-white rounded-lg px-4 py-2 text-sm font-medium hover:bg-blue-700 transition-colors disabled:opacity-50"
+              className="flex-1 btn-primary rounded-lg px-4 py-2 text-sm font-medium disabled:opacity-50"
             >
               {saving ? t("saving") : t("save")}
             </button>

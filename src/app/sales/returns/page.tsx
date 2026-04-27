@@ -3,14 +3,19 @@
 
 import React, { useState } from "react";
 import { useQuery, useMutation } from "convex/react";
+import { useRouter } from "next/navigation";
 import { api } from "../../../../convex/_generated/api";
 import { useI18n } from "@/hooks/useI18n";
 import { useAuth } from "@/hooks/useAuth";
 import { usePermissions } from "@/hooks/usePermissions";
 import { StatusBadge } from "@/components/ui/status-badge";
 import { formatCurrency } from "@/lib/i18n";
-import { RotateCcw, Plus, X, Check, ChevronDown } from "lucide-react";
+import { RotateCcw, Plus, X, Check, ChevronDown, ExternalLink } from "lucide-react";
 import { useAppStore } from "@/store/useAppStore";
+import { PageHeader } from "@/components/ui/page-header";
+import { EmptyState } from "@/components/ui/empty-state";
+import { LoadingState } from "@/components/ui/data-display";
+import { formatDateShort } from "@/lib/utils";
 
 function todayISO() {
   return new Date().toISOString().split("T")[0];
@@ -137,41 +142,39 @@ function NewSalesReturnForm({ onClose }: { onClose: () => void }) {
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
       <div
-        className="bg-white dark:bg-gray-900 rounded-2xl shadow-2xl w-full max-w-3xl max-h-[90vh] overflow-y-auto"
+        className="surface-card rounded-2xl shadow-2xl w-full max-w-3xl max-h-[90vh] overflow-y-auto"
         dir={isRTL ? "rtl" : "ltr"}
       >
         {/* Header */}
-        <div className="flex items-center justify-between p-6 border-b border-gray-200 dark:border-gray-700">
+        <div className="flex items-center justify-between p-6 border-b border-[color:var(--ink-200)]">
           <div className="flex items-center gap-3">
-            <div className="p-2 bg-orange-100 dark:bg-orange-900/30 rounded-xl">
-              <RotateCcw className="w-5 h-5 text-orange-600 dark:text-orange-400" />
+            <div className="p-2 bg-[color:var(--brand-50)] rounded-xl">
+              <RotateCcw className="w-5 h-5 text-[color:var(--brand-700)]" />
             </div>
-            <h2 className="text-xl font-bold text-gray-900 dark:text-white">
+            <h2 className="text-xl font-bold text-[color:var(--ink-900)]">
               {t("newReturn")}
             </h2>
           </div>
-          <button
-            onClick={onClose}
-            className="p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
-          >
-            <X className="w-5 h-5 text-gray-500" />
+          <button onClick={onClose}
+            className="p-2 rounded-lg hover:bg-[color:var(--ink-100)] transition-colors">
+            <X className="w-5 h-5 text-[color:var(--ink-500)]" />
           </button>
         </div>
 
         <form onSubmit={onSubmit} className="p-6 space-y-5">
           {error && (
-            <div className="p-3 rounded-lg bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 text-red-700 dark:text-red-400 text-sm">
+            <div className="p-3 rounded-lg bg-red-50 border border-red-200 text-red-700 text-sm">
               {error}
             </div>
           )}
 
           {/* Invoice Selection */}
           <div>
-            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5">
+            <label className="block text-sm font-medium text-[color:var(--ink-700)] mb-1.5">
               {t("originalInvoice")} *
             </label>
             <select
-              className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white text-sm focus:ring-2 focus:ring-orange-500 focus:border-transparent"
+              className="input-field w-full"
               value={selectedInvoiceId}
               onChange={(e) => setSelectedInvoiceId(e.target.value)}
             >
@@ -187,26 +190,18 @@ function NewSalesReturnForm({ onClose }: { onClose: () => void }) {
           {/* Return Date & Warehouse */}
           <div className="grid grid-cols-2 gap-4">
             <div>
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5">
+              <label className="block text-sm font-medium text-[color:var(--ink-700)] mb-1.5">
                 {t("returnDate")} *
               </label>
-              <input
-                type="date"
-                className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white text-sm focus:ring-2 focus:ring-orange-500 focus:border-transparent"
-                value={returnDate}
-                onChange={(e) => setReturnDate(e.target.value)}
-                required
-              />
+              <input type="date" className="input-field w-full"
+                value={returnDate} onChange={(e) => setReturnDate(e.target.value)} required />
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5">
+              <label className="block text-sm font-medium text-[color:var(--ink-700)] mb-1.5">
                 {t("warehouses")} *
               </label>
-              <select
-                className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white text-sm focus:ring-2 focus:ring-orange-500 focus:border-transparent"
-                value={warehouseId}
-                onChange={(e) => setWarehouseId(e.target.value)}
-              >
+              <select className="input-field w-full"
+                value={warehouseId} onChange={(e) => setWarehouseId(e.target.value)}>
                 <option value="">—</option>
                 {(warehouses ?? []).map((wh: any) => (
                   <option key={wh._id} value={wh._id}>{wh.nameAr}</option>
@@ -217,114 +212,76 @@ function NewSalesReturnForm({ onClose }: { onClose: () => void }) {
 
           {/* Reason */}
           <div>
-            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5">
+            <label className="block text-sm font-medium text-[color:var(--ink-700)] mb-1.5">
               {t("returnReason")}
             </label>
-            <input
-              type="text"
-              className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white text-sm focus:ring-2 focus:ring-orange-500 focus:border-transparent"
-              value={reason}
-              onChange={(e) => setReason(e.target.value)}
-              placeholder={t("returnReason")}
-            />
+            <input type="text" className="input-field w-full"
+              value={reason} onChange={(e) => setReason(e.target.value)}
+              placeholder={t("returnReason")} />
           </div>
 
           {/* Invoice Lines */}
           {selectedInvoiceId && invoiceLines && invoiceLines.length > 0 && (
             <div>
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+              <label className="block text-sm font-medium text-[color:var(--ink-700)] mb-2">
                 {t("returnQuantity")}
               </label>
-              <div className="border border-gray-200 dark:border-gray-700 rounded-xl overflow-hidden">
-                <table className="w-full text-sm">
-                  <thead className="bg-gray-50 dark:bg-gray-800">
+              <div className="rounded-xl overflow-hidden border border-[color:var(--ink-200)]">
+                <table className="data-table">
+                  <thead>
                     <tr>
-                      <th className="px-3 py-2 text-start text-gray-600 dark:text-gray-400 font-medium">{t("items")}</th>
-                      <th className="px-3 py-2 text-center text-gray-600 dark:text-gray-400 font-medium">{t("maxQuantity")}</th>
-                      <th className="px-3 py-2 text-center text-gray-600 dark:text-gray-400 font-medium">{t("sellingPrice")}</th>
-                      <th className="px-3 py-2 text-center text-gray-600 dark:text-gray-400 font-medium">{t("returnQuantity")}</th>
-                      <th className="px-3 py-2 text-end text-gray-600 dark:text-gray-400 font-medium">{t("amount")}</th>
+                      <th>{t("items")}</th>
+                      <th className="text-center">{t("maxQuantity")}</th>
+                      <th className="text-center">{t("sellingPrice")}</th>
+                      <th className="text-center">{t("returnQuantity")}</th>
+                      <th className="text-end">{t("amount")}</th>
                     </tr>
                   </thead>
-                  <tbody className="divide-y divide-gray-100 dark:divide-gray-700">
+                  <tbody>
                     {invoiceLines.map((line: any) => {
                       const qty = parseFloat(returnQtys[line._id] ?? "0") || 0;
                       const lineTotal = qty * (line.unitPrice / 100);
                       return (
-                        <tr key={line._id} className="hover:bg-gray-50 dark:hover:bg-gray-800/50">
-                          <td className="px-3 py-2 text-gray-900 dark:text-white">
-                            {line.item?.nameAr ?? "—"}
-                          </td>
-                          <td className="px-3 py-2 text-center text-gray-600 dark:text-gray-400">
-                            {line.quantity}
-                          </td>
-                          <td className="px-3 py-2 text-center text-gray-600 dark:text-gray-400">
-                            {formatCurrency(line.unitPrice / 100, lang)}
-                          </td>
-                          <td className="px-3 py-2">
-                            <input
-                              type="number"
-                              min="0"
-                              max={line.quantity}
-                              step="1"
-                              className="w-20 mx-auto block text-center px-2 py-1 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white text-sm focus:ring-2 focus:ring-orange-500 focus:border-transparent"
+                        <tr key={line._id}>
+                          <td>{line.item?.nameAr ?? "—"}</td>
+                          <td className="text-center muted">{line.quantity}</td>
+                          <td className="text-center muted">{formatCurrency(line.unitPrice / 100, lang)}</td>
+                          <td className="text-center">
+                            <input type="number" min="0" max={line.quantity} step="1"
+                              className="w-20 mx-auto block text-center input-field py-1 text-sm"
                               value={returnQtys[line._id] ?? ""}
-                              onChange={(e) =>
-                                setReturnQtys((prev) => ({
-                                  ...prev,
-                                  [line._id]: e.target.value,
-                                }))
-                              }
-                              placeholder="0"
-                            />
+                              onChange={(e) => setReturnQtys((prev) => ({ ...prev, [line._id]: e.target.value }))}
+                              placeholder="0" />
                           </td>
-                          <td className="px-3 py-2 text-end font-medium text-gray-900 dark:text-white">
-                            {formatCurrency(lineTotal, lang)}
-                          </td>
+                          <td className="text-end numeric">{formatCurrency(lineTotal, lang)}</td>
                         </tr>
                       );
                     })}
                   </tbody>
                 </table>
               </div>
-
               {/* Grand Total */}
               <div className="mt-3 flex justify-end">
-                <div className="bg-orange-50 dark:bg-orange-900/20 border border-orange-200 dark:border-orange-800 rounded-lg px-4 py-2 flex items-center gap-3">
-                  <span className="text-sm text-orange-700 dark:text-orange-400">{t("grandTotal")}:</span>
-                  <span className="text-lg font-bold text-orange-700 dark:text-orange-400">
-                    {formatCurrency(grandTotal, lang)}
-                  </span>
+                <div className="bg-[color:var(--brand-50)] border border-[color:var(--brand-200)] rounded-lg px-4 py-2 flex items-center gap-3">
+                  <span className="text-sm text-[color:var(--brand-700)]">{t("grandTotal")}:</span>
+                  <span className="text-lg font-bold text-[color:var(--brand-700)]">{formatCurrency(grandTotal, lang)}</span>
                 </div>
               </div>
             </div>
           )}
 
           {selectedInvoiceId && invoiceLines === undefined && (
-            <div className="text-center py-6 text-gray-500 dark:text-gray-400 text-sm">
-              {t("loading")}
-            </div>
+            <div className="text-center py-6 text-[color:var(--ink-400)] text-sm">{t("loading")}</div>
           )}
 
           {/* Actions */}
-          <div className="flex justify-end gap-3 pt-2 border-t border-gray-200 dark:border-gray-700">
-            <button
-              type="button"
-              onClick={onClose}
-              className="px-4 py-2 text-sm font-medium text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
-            >
+          <div className="flex justify-end gap-3 pt-2 border-t border-[color:var(--ink-200)]">
+            <button type="button" onClick={onClose} className="btn-secondary h-9 px-4 rounded-lg text-sm font-medium">
               {t("cancel")}
             </button>
-            <button
-              type="submit"
-              disabled={saving}
-              className="px-5 py-2 text-sm font-medium text-white bg-orange-600 hover:bg-orange-700 disabled:opacity-50 disabled:cursor-not-allowed rounded-lg transition-colors flex items-center gap-2"
-            >
-              {saving ? (
-                <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-              ) : (
-                <Check className="w-4 h-4" />
-              )}
+            <button type="submit" disabled={saving}
+              className="btn-primary h-9 px-5 rounded-lg text-sm font-medium inline-flex items-center gap-2 disabled:opacity-50">
+              {saving ? <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" /> : <Check className="w-4 h-4" />}
               {saving ? t("saving") : t("save")}
             </button>
           </div>
@@ -340,6 +297,7 @@ export default function SalesReturnsPage() {
   const { t, isRTL, lang } = useI18n();
   const { currentUser } = useAuth();
   const { canCreate, canPost } = usePermissions();
+  const router = useRouter();
   const [showForm, setShowForm] = useState(false);
   const [posting, setPosting] = useState<string | null>(null);
   const [postError, setPostError] = useState<Record<string, string>>({});
@@ -372,123 +330,81 @@ export default function SalesReturnsPage() {
 
   return (
     <div className="space-y-5" dir={isRTL ? "rtl" : "ltr"}>
-      {/* Page Header */}
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-3">
-          <div className="p-2.5 bg-orange-100 dark:bg-orange-900/30 rounded-xl">
-            <RotateCcw className="w-6 h-6 text-orange-600 dark:text-orange-400" />
-          </div>
-          <div>
-            <h1 className="text-2xl font-bold text-gray-900 dark:text-white">
-              {t("salesReturns")}
-            </h1>
-            <p className="text-sm text-gray-500 dark:text-gray-400 mt-0.5">
-              {returns ? `${returns.length} ${t("records")}` : t("loading")}
-            </p>
-          </div>
-        </div>
-        {canCreate("sales") && (
-        <button
-          onClick={() => setShowForm(true)}
-          className="flex items-center gap-2 px-4 py-2 bg-orange-600 hover:bg-orange-700 text-white text-sm font-medium rounded-xl transition-colors shadow-sm"
-        >
-          <Plus className="w-4 h-4" />
-          {t("newReturn")}
-        </button>
-        )}
+      <div className="no-print">
+      <PageHeader
+        icon={RotateCcw}
+        title={t("salesReturns")}
+        badge={<span className="text-xs text-[color:var(--ink-400)] font-normal">({returns?.length ?? 0})</span>}
+        actions={canCreate("sales") ? (
+          <button onClick={() => setShowForm(true)}
+            className="btn-primary h-10 px-4 rounded-lg inline-flex items-center gap-2 text-sm font-semibold">
+            <Plus className="h-4 w-4" /> {t("newReturn")}
+          </button>
+        ) : undefined}
+      />
       </div>
 
-      {/* Table */}
-      <div className="bg-white dark:bg-gray-900 rounded-2xl border border-gray-200 dark:border-gray-700 overflow-hidden shadow-sm">
+      <div className="surface-card overflow-hidden">
         {returns === undefined ? (
-          <div className="p-12 text-center text-gray-500 dark:text-gray-400">
-            {t("loading")}
-          </div>
+          <LoadingState label={t("loading")} />
         ) : returns.length === 0 ? (
-          <div className="p-12 text-center">
-            <RotateCcw className="w-12 h-12 text-gray-300 dark:text-gray-600 mx-auto mb-3" />
-            <p className="text-gray-500 dark:text-gray-400">{t("noReturnsYet")}</p>
-            <button
-              onClick={() => setShowForm(true)}
-              className="mt-4 px-4 py-2 text-sm font-medium text-orange-600 dark:text-orange-400 hover:underline"
-            >
-              {t("newReturn")}
-            </button>
-          </div>
+          <EmptyState
+            icon={RotateCcw}
+            title={t("noReturnsYet")}
+            action={canCreate("sales") ? (
+              <button onClick={() => setShowForm(true)}
+                className="btn-primary h-9 px-4 rounded-lg inline-flex items-center gap-2 text-sm font-semibold">
+                <Plus className="h-4 w-4" /> {t("newReturn")}
+              </button>
+            ) : undefined}
+          />
         ) : (
           <div className="overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead className="bg-gray-50 dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700">
+            <table className="data-table">
+              <thead>
                 <tr>
-                  <th className="px-4 py-3 text-start font-semibold text-gray-600 dark:text-gray-300">
-                    {t("returnNumber")}
-                  </th>
-                  <th className="px-4 py-3 text-start font-semibold text-gray-600 dark:text-gray-300">
-                    {t("returnDate")}
-                  </th>
-                  <th className="px-4 py-3 text-start font-semibold text-gray-600 dark:text-gray-300">
-                    {t("originalInvoice")}
-                  </th>
-                  <th className="px-4 py-3 text-start font-semibold text-gray-600 dark:text-gray-300">
-                    {t("customers")}
-                  </th>
-                  <th className="px-4 py-3 text-end font-semibold text-gray-600 dark:text-gray-300">
-                    {t("grandTotal")}
-                  </th>
-                  <th className="px-4 py-3 text-center font-semibold text-gray-600 dark:text-gray-300">
-                    {t("status")}
-                  </th>
-                  <th className="px-4 py-3 text-center font-semibold text-gray-600 dark:text-gray-300">
-                    {t("actions")}
-                  </th>
+                  <th>{t("returnNumber")}</th>
+                  <th>{t("returnDate")}</th>
+                  <th>{t("originalInvoice")}</th>
+                  <th>{t("customers")}</th>
+                  <th className="text-end">{t("grandTotal")}</th>
+                  <th className="text-center">{t("status")}</th>
+                  <th className="text-center">{t("actions")}</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-gray-100 dark:divide-gray-700/50">
+              <tbody>
                 {returns.map((ret: any) => (
-                  <tr
-                    key={ret._id}
-                    className="hover:bg-gray-50 dark:hover:bg-gray-800/50 transition-colors"
-                  >
-                    <td className="px-4 py-3 font-mono font-medium text-gray-900 dark:text-white">
-                      {ret.returnNumber}
-                    </td>
-                    <td className="px-4 py-3 text-gray-600 dark:text-gray-400">
-                      {ret.returnDate}
-                    </td>
-                    <td className="px-4 py-3 font-mono text-gray-600 dark:text-gray-400">
-                      {ret.originalInvoiceNumber}
-                    </td>
-                    <td className="px-4 py-3 text-gray-700 dark:text-gray-300">
-                      {ret.customerName}
-                    </td>
-                    <td className="px-4 py-3 text-end font-semibold text-gray-900 dark:text-white">
-                      {formatCurrency(ret.totalAmount / 100, lang)}
-                    </td>
-                    <td className="px-4 py-3 text-center">
+                  <tr key={ret._id}>
+                    <td className="code">{ret.returnNumber}</td>
+                    <td className="muted">{formatDateShort(ret.returnDate)}</td>
+                    <td className="code">{ret.originalInvoiceNumber}</td>
+                    <td>{ret.customerName}</td>
+                    <td className="text-end numeric">{formatCurrency(ret.totalAmount / 100, lang)}</td>
+                    <td className="text-center">
                       <StatusBadge status={ret.postingStatus} />
                     </td>
-                    <td className="px-4 py-3 text-center">
-                      {ret.postingStatus === "unposted" && canPost("sales") && (
-                        <div className="flex flex-col items-center gap-1">
-                          <button
-                            onClick={() => handlePost(ret._id)}
-                            disabled={posting === ret._id}
-                            className="px-3 py-1.5 text-xs font-medium text-white bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 rounded-lg transition-colors flex items-center gap-1.5"
-                          >
-                            {posting === ret._id ? (
-                              <div className="w-3 h-3 border border-white/30 border-t-white rounded-full animate-spin" />
-                            ) : (
-                              <Check className="w-3 h-3" />
-                            )}
-                            {t("post")}
-                          </button>
-                          {postError[ret._id] && (
-                            <p className="text-xs text-red-500 max-w-[150px] text-center">
-                              {postError[ret._id]}
-                            </p>
-                          )}
-                        </div>
-                      )}
+                    <td className="text-center">
+                      <div className="inline-flex items-center gap-2 justify-center">
+                        {ret.postingStatus === "unposted" && canPost("sales") && (
+                          <div className="flex flex-col items-center gap-1">
+                            <button
+                              onClick={() => handlePost(ret._id)}
+                              disabled={posting === ret._id}
+                              className="px-3 py-1.5 text-xs font-medium text-white bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 rounded-lg transition-colors flex items-center gap-1.5">
+                              {posting === ret._id
+                                ? <div className="w-3 h-3 border border-white/30 border-t-white rounded-full animate-spin" />
+                                : <Check className="w-3 h-3" />}
+                              {t("post")}
+                            </button>
+                            {postError[ret._id] && <p className="text-xs text-red-500 max-w-[150px] text-center">{postError[ret._id]}</p>}
+                          </div>
+                        )}
+                        <button onClick={() => router.push(`/sales/returns/${ret._id}`)}
+                          className="h-8 w-8 inline-flex items-center justify-center rounded-md hover:bg-[color:var(--brand-50)] text-[color:var(--ink-600)]"
+                          title={t("viewDetails")}>
+                          <ExternalLink className="w-4 h-4" />
+                        </button>
+                      </div>
                     </td>
                   </tr>
                 ))}

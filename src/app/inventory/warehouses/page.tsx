@@ -6,6 +6,9 @@ import { useQuery, useMutation } from "convex/react";
 import { api } from "../../../../convex/_generated/api";
 import { Warehouse, Plus, X, Check, Pencil } from "lucide-react";
 import { usePermissions } from "@/hooks/usePermissions";
+import { PageHeader } from "@/components/ui/page-header";
+import { LoadingState } from "@/components/ui/data-display";
+import { EmptyState } from "@/components/ui/empty-state";
 
 // ─── New Warehouse Form ────────────────────────────────────────────────────────
 
@@ -127,9 +130,9 @@ function EditWarehouseRow({ warehouse, onClose }: { warehouse: any; onClose: () 
   };
 
   return (
-    <tr className="border-t border-[color:var(--ink-100)] bg-[color:var(--brand-50)]/30">
-      <td className="px-4 py-2 font-mono text-xs text-[color:var(--brand-700)]">{warehouse.code}</td>
-      <td className="px-4 py-2" colSpan={2}>
+    <tr>
+      <td className="code">{warehouse.code}</td>
+      <td colSpan={2}>
         {error && <div className="text-red-600 text-xs mb-1">{error}</div>}
         <form onSubmit={onSubmit} className="flex items-center gap-2">
           <input type="text" value={nameAr} onChange={(e) => setNameAr(e.target.value)}
@@ -179,27 +182,25 @@ export default function WarehousesPage() {
   };
 
   return (
-    <div className="space-y-5">
+    <div dir={isRTL ? "rtl" : "ltr"} className="space-y-5">
       {toggleError && (
         <div className="bg-red-50 border border-red-200 text-red-700 text-sm rounded-lg p-3">{toggleError}</div>
       )}
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-3">
-          <div className="h-11 w-11 rounded-xl flex items-center justify-center"
-            style={{ background: "var(--brand-50)", color: "var(--brand-700)" }}>
-            <Warehouse className="h-5 w-5" />
-          </div>
-          <div>
-            <h1 className="text-2xl font-bold text-[color:var(--ink-900)]">{t("warehousesTitle")}</h1>
-            <p className="text-xs text-[color:var(--ink-500)] mt-0.5">{(warehouses ?? []).length}</p>
-          </div>
-        </div>
-        {canCreate("inventory") && (
-        <button onClick={() => { setShowForm((v) => !v); setEditingId(null); }}
-          className="btn-primary h-10 px-4 rounded-lg inline-flex items-center gap-2 text-sm font-semibold">
-          <Plus className="h-4 w-4" /> {t("newWarehouse")}
-        </button>
-        )}
+
+      <div className="no-print">
+      <PageHeader
+        icon={Warehouse}
+        title={t("warehousesTitle")}
+        badge={<span className="badge-soft">{(warehouses ?? []).length}</span>}
+        actions={
+          canCreate("inventory") ? (
+            <button onClick={() => { setShowForm((v) => !v); setEditingId(null); }}
+              className="btn-primary h-10 px-4 rounded-lg inline-flex items-center gap-2 text-sm font-semibold">
+              <Plus className="h-4 w-4" /> {t("newWarehouse")}
+            </button>
+          ) : undefined
+        }
+      />
       </div>
 
       {showForm && company && branch && (
@@ -212,29 +213,32 @@ export default function WarehousesPage() {
 
       <div className="surface-card overflow-hidden">
         {loading ? (
-          <div className="p-8 text-center">
-            <div className="animate-spin h-8 w-8 border-2 border-[color:var(--brand-600)] border-t-transparent rounded-full mx-auto mb-3" />
-          </div>
+          <LoadingState label={t("loading")} />
         ) : (warehouses ?? []).length === 0 ? (
-          <div className="py-16 text-center text-[color:var(--ink-400)]">
-            <p className="text-sm">{t("noResults")}</p>
-            {canCreate("inventory") && (
-            <button onClick={() => setShowForm(true)} className="text-sm text-[color:var(--brand-700)] hover:underline mt-1">
-              + {t("newWarehouse")}
-            </button>
-            )}
-          </div>
+          <EmptyState
+            icon={Warehouse}
+            title={t("noResults")}
+            message={t("newWarehouse")}
+            action={
+              canCreate("inventory") ? (
+                <button onClick={() => setShowForm(true)}
+                  className="btn-primary h-9 px-5 rounded-xl inline-flex items-center gap-2 text-sm font-semibold">
+                  <Plus className="h-4 w-4" /> {t("newWarehouse")}
+                </button>
+              ) : undefined
+            }
+          />
         ) : (
           <div className="overflow-x-auto">
-            <table className="w-full zebra-table text-sm">
-              <thead className="bg-[color:var(--ink-50)] text-[color:var(--ink-600)] text-xs uppercase tracking-wider">
+            <table className="data-table">
+              <thead>
                 <tr>
-                  <th className="px-4 py-3 text-start font-semibold">{t("warehouseCode")}</th>
-                  <th className="px-4 py-3 text-start font-semibold">{t("nameAr")}</th>
-                  <th className="px-4 py-3 text-start font-semibold">{t("nameEn")}</th>
-                  <th className="px-4 py-3 text-start font-semibold">{t("warehouseType")}</th>
-                  <th className="px-4 py-3 text-start font-semibold">{t("status")}</th>
-                  <th className="px-4 py-3 text-end font-semibold">{t("actions")}</th>
+                  <th>{t("warehouseCode")}</th>
+                  <th>{t("nameAr")}</th>
+                  <th>{t("nameEn")}</th>
+                  <th>{t("warehouseType")}</th>
+                  <th>{t("status")}</th>
+                  <th className="text-end">{t("actions")}</th>
                 </tr>
               </thead>
               <tbody>
@@ -249,26 +253,26 @@ export default function WarehousesPage() {
                     );
                   }
                   return (
-                    <tr key={w._id} className="border-t border-[color:var(--ink-100)] hover:bg-[color:var(--brand-50)]/40">
-                      <td className="px-4 py-3 font-mono text-xs text-[color:var(--brand-700)]">{w.code}</td>
-                      <td className="px-4 py-3 font-medium text-[color:var(--ink-900)]">{w.nameAr}</td>
-                      <td className="px-4 py-3 text-[color:var(--ink-600)]">{w.nameEn || "—"}</td>
-                      <td className="px-4 py-3 text-[color:var(--ink-600)]">
+                    <tr key={w._id}>
+                      <td className="code">{w.code}</td>
+                      <td>{w.nameAr}</td>
+                      <td className="muted">{w.nameEn || "—"}</td>
+                      <td className="muted">
                         {w.warehouseType === "main" ? t("wtMain") : w.warehouseType === "transit" ? t("wtTransit") : t("wtWaste")}
                       </td>
-                      <td className="px-4 py-3">
+                      <td>
                         <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${w.isActive ? "bg-emerald-50 text-emerald-700" : "bg-[color:var(--ink-100)] text-[color:var(--ink-500)]"}`}>
                           {w.isActive ? t("active") : t("inactive")}
                         </span>
                       </td>
-                      <td className="px-4 py-3 text-end">
+                      <td className="text-end">
                         <div className="inline-flex items-center gap-2">
                           {canEdit("inventory") && (
-                          <button
-                            onClick={() => setEditingId(w._id)}
-                            className="h-7 px-2.5 rounded-md text-xs font-medium border border-[color:var(--ink-200)] text-[color:var(--ink-600)] hover:bg-[color:var(--ink-50)] inline-flex items-center gap-1">
-                            <Pencil className="h-3 w-3" /> {t("edit")}
-                          </button>
+                            <button
+                              onClick={() => setEditingId(w._id)}
+                              className="h-7 px-2.5 rounded-md text-xs font-medium border border-[color:var(--ink-200)] text-[color:var(--ink-600)] hover:bg-[color:var(--ink-50)] inline-flex items-center gap-1">
+                              <Pencil className="h-3 w-3" /> {t("edit")}
+                            </button>
                           )}
                           <button
                             onClick={() => handleToggle(w._id)}

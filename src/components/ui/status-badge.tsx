@@ -83,12 +83,16 @@ export function StatusBadge({ status, type, size = "sm" }: StatusBadgeProps) {
   return (
     <span
       className={cn(
-        "inline-flex items-center rounded-full font-medium",
+        "inline-flex items-center gap-1.5 rounded-full font-medium",
         size === "sm" ? "px-2 py-0.5 text-xs" : "px-3 py-1 text-sm",
         bgColor,
         textColor
       )}
     >
+      <span
+        className="h-1.5 w-1.5 rounded-full shrink-0"
+        style={{ background: "currentColor", opacity: 0.7 }}
+      />
       {label}
     </span>
   );

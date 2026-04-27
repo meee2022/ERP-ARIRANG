@@ -4,14 +4,20 @@ import React, { useState } from "react";
 import { useI18n } from "@/hooks/useI18n";
 import { useQuery } from "convex/react";
 import { api } from "../../../../convex/_generated/api";
-import { Users } from "lucide-react";
+import { Users, Printer } from "lucide-react";
 import { useAppStore } from "@/store/useAppStore";
 import { BUCKET_LABELS } from "@/lib/constants";
+import { LoadingState } from "@/components/ui/data-display";
+import { EmptyState } from "@/components/ui/empty-state";
+import { CompanyPrintHeader } from "@/components/ui/company-print-header";
+import { useCompanySettings } from "@/hooks/useCompanySettings";
+import { PageHeader } from "@/components/ui/page-header";
 
 function todayISO() { return new Date().toISOString().split("T")[0]; }
 
 export default function ARAgingPage() {
   const { t, isRTL, lang, formatCurrency } = useI18n();
+  const { company: printCompany } = useCompanySettings();
   const [asOfDate, setAsOfDate] = useState(todayISO());
 
   const selectedBranch = useAppStore((s) => s.selectedBranch);
@@ -25,15 +31,19 @@ export default function ARAgingPage() {
   const totals = data?.totals ?? { total: 0, current: 0, days30: 0, days60: 0, days90: 0, over90: 0 };
 
   return (
-    <div className="space-y-5">
-      <div className="flex items-center gap-3">
-        <div className="h-11 w-11 rounded-xl flex items-center justify-center" style={{ background: "var(--brand-50)", color: "var(--brand-700)" }}>
-          <Users className="h-5 w-5" />
-        </div>
-        <div>
-          <h1 className="text-2xl font-bold text-[color:var(--ink-900)]">{t("arAgingTitle")}</h1>
-          <p className="text-xs text-[color:var(--ink-500)] mt-0.5">{rows.length} {t("customersCount")}</p>
-        </div>
+    <div className="space-y-5" dir={isRTL ? "rtl" : "ltr"}>
+      <CompanyPrintHeader
+        company={printCompany}
+        isRTL={isRTL}
+        documentTitle={t("arAgingTitle")}
+        periodLine={`${t("asOfDate")}: ${asOfDate}`}
+      />
+      <div className="no-print">
+        <PageHeader
+          icon={Users}
+          title={t("arAgingTitle")}
+          actions={<button onClick={() => window.print()} className="btn-ghost h-9 px-4 rounded-xl inline-flex items-center gap-2 text-sm font-semibold"><Printer className="h-4 w-4" />{t("print")}</button>}
+        />
       </div>
 
       <div className="surface-card p-3 flex items-center gap-3">
@@ -48,32 +58,32 @@ export default function ARAgingPage() {
       </div>
 
       <div className="surface-card overflow-hidden">
-        {loading ? <div className="p-8 text-center"><div className="animate-spin h-8 w-8 border-2 border-[color:var(--brand-600)] border-t-transparent rounded-full mx-auto mb-3" /></div>
-        : rows.length === 0 ? <div className="py-16 text-center text-[color:var(--ink-400)]"><p className="text-sm">{t("noResults")}</p></div>
+        {loading ? <LoadingState label={t("loading")} />
+        : rows.length === 0 ? <EmptyState icon={Users} title={t("noResults")} />
         : (
           <div className="overflow-x-auto">
-            <table className="w-full zebra-table text-sm">
-              <thead className="bg-[color:var(--brand-800)] text-white text-xs uppercase tracking-wider">
+            <table className="data-table">
+              <thead>
                 <tr>
-                  <th className="px-4 py-3 text-start font-semibold">{t("customer")}</th>
-                  <th className="px-4 py-3 text-end font-semibold">{t("total")}</th>
-                  <th className="px-4 py-3 text-end font-semibold">{t("current")}</th>
-                  <th className="px-4 py-3 text-end font-semibold">{BUCKET_LABELS.days1_30[lang]}</th>
-                  <th className="px-4 py-3 text-end font-semibold">{BUCKET_LABELS.days31_60[lang]}</th>
-                  <th className="px-4 py-3 text-end font-semibold">{BUCKET_LABELS.days61_90[lang]}</th>
-                  <th className="px-4 py-3 text-end font-semibold">{BUCKET_LABELS.days91Plus[lang]}</th>
+                  <th>{t("customer")}</th>
+                  <th className="text-end">{t("total")}</th>
+                  <th className="text-end">{t("current")}</th>
+                  <th className="text-end">{BUCKET_LABELS.days1_30[lang]}</th>
+                  <th className="text-end">{BUCKET_LABELS.days31_60[lang]}</th>
+                  <th className="text-end">{BUCKET_LABELS.days61_90[lang]}</th>
+                  <th className="text-end">{BUCKET_LABELS.days91Plus[lang]}</th>
                 </tr>
               </thead>
               <tbody>
                 {rows.map((r: any) => (
-                  <tr key={r.customerId} className="border-t border-[color:var(--ink-100)] hover:bg-[color:var(--brand-50)]/40">
-                    <td className="px-4 py-2.5 font-medium text-[color:var(--ink-900)]">{isRTL ? r.customerName : (r.customerNameEn || r.customerName)}</td>
-                    <td className="px-4 py-2.5 text-end tabular-nums font-semibold">{formatCurrency(r.total)}</td>
-                    <td className="px-4 py-2.5 text-end tabular-nums">{formatCurrency(r.current)}</td>
-                    <td className="px-4 py-2.5 text-end tabular-nums">{formatCurrency(r.days30)}</td>
-                    <td className="px-4 py-2.5 text-end tabular-nums">{formatCurrency(r.days60)}</td>
-                    <td className="px-4 py-2.5 text-end tabular-nums">{formatCurrency(r.days90)}</td>
-                    <td className={`px-4 py-2.5 text-end tabular-nums font-medium ${r.over90 > 0 ? "text-red-600" : ""}`}>{formatCurrency(r.over90)}</td>
+                  <tr key={r.customerId}>
+                    <td className="font-medium">{isRTL ? r.customerName : (r.customerNameEn || r.customerName)}</td>
+                    <td className="numeric text-end font-semibold">{formatCurrency(r.total)}</td>
+                    <td className="numeric text-end">{formatCurrency(r.current)}</td>
+                    <td className="numeric text-end">{formatCurrency(r.days30)}</td>
+                    <td className="numeric text-end">{formatCurrency(r.days60)}</td>
+                    <td className="numeric text-end">{formatCurrency(r.days90)}</td>
+                    <td className={`numeric text-end font-medium ${r.over90 > 0 ? "text-red-600" : ""}`}>{formatCurrency(r.over90)}</td>
                   </tr>
                 ))}
               </tbody>

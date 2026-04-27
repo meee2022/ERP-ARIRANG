@@ -29,7 +29,7 @@ const AuthContext = createContext<AuthContextValue | null>(null);
 // ─── Provider ─────────────────────────────────────────────────────────────────
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
-  const [sessionToken, setSessionToken] = useState<string | null>(null);
+  const [sessionToken, setSessionToken] = useState<string | null | undefined>(undefined);
   const [isLoading, setIsLoading] = useState(true);
 
   const loginMutation = useMutation(api.auth.login);
@@ -39,7 +39,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     const stored = typeof window !== "undefined" ? localStorage.getItem(SESSION_KEY) : null;
     setSessionToken(stored);
-    // isLoading will be set to false once validateSession resolves
+    // isLoading will be set to false once validateSession resolves or if token is null
   }, []);
 
   // Validate stored session via Convex query
@@ -50,6 +50,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   // Determine loading state
   useEffect(() => {
+    if (sessionToken === undefined) {
+      // Haven't checked localStorage yet
+      return;
+    }
     if (sessionToken === null) {
       // No token — not loading, not authenticated
       setIsLoading(false);
@@ -95,7 +99,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         currentUser,
         isAuthenticated: !!currentUser,
         isLoading,
-        sessionToken,
+        sessionToken: sessionToken === undefined ? null : sessionToken,
         login,
         logout,
       }}

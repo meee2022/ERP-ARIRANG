@@ -6,6 +6,12 @@ import { useQuery } from "convex/react";
 import { api } from "../../../../convex/_generated/api";
 import { PieChart as PieChartIcon, Printer, CheckCircle, AlertCircle } from "lucide-react";
 import { useAppStore } from "@/store/useAppStore";
+import { PdfDownloadButton } from "@/components/ui/PdfDownloadButton";
+import { BalanceSheetPdf } from "@/lib/pdf/BalanceSheetPdf";
+import { LoadingState } from "@/components/ui/data-display";
+import { CompanyPrintHeader } from "@/components/ui/company-print-header";
+import { useCompanySettings } from "@/hooks/useCompanySettings";
+import { PageHeader } from "@/components/ui/page-header";
 
 function todayISO() { return new Date().toISOString().split("T")[0]; }
 
@@ -53,6 +59,7 @@ function SubTypeLabel({ subType, isRTL }: { subType: string; isRTL: boolean }) {
 
 export default function BalanceSheetPage() {
   const { t, isRTL, formatCurrency } = useI18n();
+  const { company: printCompany } = useCompanySettings();
   const [asOfDate, setAsOfDate] = useState(todayISO());
   const [branchId, setBranchId] = useState<string>("");
   const [hideZero, setHideZero] = useState(true);
@@ -128,9 +135,9 @@ export default function BalanceSheetPage() {
             </tr>
             {accounts.map((row: any) => (
               <tr key={row.accountId} className="border-t border-[color:var(--ink-100)] hover:bg-[color:var(--brand-50)]/30">
-                <td className="px-4 py-2.5 font-mono text-xs text-[color:var(--brand-700)]">{row.code}</td>
-                <td className="px-4 py-2.5 text-[color:var(--ink-700)]">{accountName(row)}</td>
-                <td className="px-4 py-2.5 text-end tabular-nums text-[color:var(--ink-800)]">{formatCurrency(row.balance)}</td>
+                <td className="px-4 py-2.5 code">{row.code}</td>
+                <td className="px-4 py-2.5">{accountName(row)}</td>
+                <td className="px-4 py-2.5 numeric text-end">{formatCurrency(row.balance)}</td>
               </tr>
             ))}
           </React.Fragment>
@@ -138,7 +145,7 @@ export default function BalanceSheetPage() {
         {extra}
         <tr style={{ background: "var(--brand-50)", borderTop: "2px solid var(--brand-200)" }}>
           <td colSpan={2} className="px-4 py-3 font-bold text-[color:var(--ink-800)]">{t(totalKey as any)}</td>
-          <td className="px-4 py-3 text-end tabular-nums font-bold text-[color:var(--brand-800)]">{formatCurrency(total)}</td>
+          <td className="px-4 py-3 numeric text-end font-bold text-[color:var(--brand-800)]">{formatCurrency(total)}</td>
         </tr>
       </tbody>
       <tbody><tr><td colSpan={3} className="py-2" /></tr></tbody>
@@ -146,29 +153,67 @@ export default function BalanceSheetPage() {
   );
 
   return (
-    <div className="space-y-5">
+    <div dir={isRTL ? "rtl" : "ltr"} className="space-y-5">
+      <CompanyPrintHeader
+        company={printCompany}
+        isRTL={isRTL}
+        documentTitle={t("balanceSheetTitle")}
+        periodLine={`${t("asOfDateLabel")}: ${asOfDate}`}
+      />
+
       {/* Header */}
-      <div className="flex items-center justify-between gap-3 flex-wrap">
-        <div className="flex items-center gap-3">
-          <div className="h-11 w-11 rounded-xl flex items-center justify-center" style={{ background: "var(--brand-50)", color: "var(--brand-700)" }}>
-            <PieChartIcon className="h-5 w-5" />
-          </div>
-          <div>
-            <h1 className="text-2xl font-bold text-[color:var(--ink-900)]">{t("balanceSheetTitle")}</h1>
-            <p className="text-xs text-[color:var(--ink-500)] mt-0.5">{t("reportPostedOnly")}</p>
-          </div>
-        </div>
-        <button
-          onClick={() => window.print()}
-          className="flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-colors no-print print:hidden"
-          style={{ background: "var(--brand-700)", color: "#fff" }}
-        >
-          <Printer className="h-4 w-4" />
-          {t("printReport")}
-        </button>
+      <div className="no-print">
+        <PageHeader
+          icon={PieChartIcon}
+          title={t("balanceSheetTitle")}
+          actions={
+            <>
+              {data && (
+                <PdfDownloadButton
+                  document={
+                    <BalanceSheetPdf data={{
+                      logoUrl: printCompany?.logoUrl ?? undefined,
+                      companyNameEn: printCompany?.nameEn ?? undefined,
+                      companyPhone: printCompany?.phone ?? undefined,
+                      companyName: company ? (isRTL ? company.nameAr : (company.nameEn || company.nameAr)) : "",
+                      asOfDate,
+                      assets:      data.assets,
+                      liabilities: data.liabilities,
+                      equity:      data.equity,
+                      totalAssets:              data.totalAssets              ?? 0,
+                      totalLiabilitiesAndEquity: data.totalLiabilitiesAndEquity ?? 0,
+                      isBalanced:  data.isBalanced ?? false,
+                      isRTL,
+                      labels: {
+                        title:                     t("balanceSheetTitle"),
+                        asOfDate:                  t("asOfDateLabel"),
+                        assets:                    t("assets"),
+                        totalAssets:               t("totalAssets"),
+                        liabilities:               t("liabilities"),
+                        totalLiabilities:          t("totalLiabilities"),
+                        equity:                    t("equitySection"),
+                        totalEquity:               t("totalEquity"),
+                        currentPeriodIncome:       t("currentPeriodIncome"),
+                        totalLiabilitiesAndEquity: t("totalLiabilitiesAndEquity"),
+                        balanced:                  t("balanced"),
+                        unbalanced:                t("unbalanced"),
+                        printedBy:                 t("printedBy"),
+                      },
+                      formatCurrency: (n: number) => new Intl.NumberFormat("en-QA", { style: "currency", currency: "QAR", minimumFractionDigits: 2 }).format(n / 100),
+                    }} />
+                  }
+                  fileName={`balance-sheet-${asOfDate}.pdf`}
+                  label={t("downloadPdf") ?? "PDF"}
+                />
+              )}
+              <button onClick={() => window.print()} className="btn-ghost h-9 px-4 rounded-xl inline-flex items-center gap-2 text-sm font-semibold"><Printer className="h-4 w-4" />{t("printReport")}</button>
+            </>
+          }
+        />
       </div>
 
       {/* Filters */}
+      <div className="no-print">
       <div className="surface-card p-3 flex items-center gap-4 flex-wrap print:hidden">
         <div className="flex items-center gap-1.5">
           <span className="text-xs text-[color:var(--ink-500)]">{t("asOfDateLabel")}:</span>
@@ -189,6 +234,7 @@ export default function BalanceSheetPage() {
           <input type="checkbox" checked={hideZero} onChange={e => setHideZero(e.target.checked)} />
           {t("hideZeroBalances")}
         </label>
+      </div>
       </div>
 
       {/* Balance Check */}
@@ -221,21 +267,14 @@ export default function BalanceSheetPage() {
         </div>
       )}
 
-      {/* Print Header */}
-      <div className="hidden print:block text-center mb-4">
-        <h2 className="text-xl font-bold">{company ? (isRTL ? company.nameAr : (company.nameEn || company.nameAr)) : ""}</h2>
-        <h3 className="text-lg font-semibold mt-1">{t("balanceSheetTitle")}</h3>
-        <p className="text-sm text-gray-600 mt-0.5">{t("asOfDateLabel")}: {asOfDate}</p>
-      </div>
-
       {loading ? (
         <div className="surface-card p-8 text-center">
-          <div className="animate-spin h-8 w-8 border-2 border-[color:var(--brand-600)] border-t-transparent rounded-full mx-auto mb-3" />
+          <LoadingState label={t("loading")} />
         </div>
       ) : (
         <div className="surface-card overflow-hidden">
           <div className="overflow-x-auto">
-            <table className="w-full text-sm">
+            <table className="data-table">
 
               {/* ── ASSETS ── */}
               {renderSection("assets", assetGroups, totalAssets, "totalAssets")}
@@ -251,9 +290,9 @@ export default function BalanceSheetPage() {
                 "totalEquity",
                 // Current period income line injected into equity body
                 <tr className="border-t border-[color:var(--ink-100)]" style={{ background: retainedEarnings >= 0 ? "rgba(16,185,129,0.05)" : "rgba(239,68,68,0.05)" }}>
-                  <td className="px-4 py-2.5 font-mono text-xs text-[color:var(--brand-700)]">—</td>
-                  <td className="px-4 py-2.5 text-[color:var(--ink-700)] italic">{t("currentPeriodIncome")}</td>
-                  <td className={`px-4 py-2.5 text-end tabular-nums font-medium ${retainedEarnings >= 0 ? "text-emerald-700" : "text-red-600"}`}>
+                  <td className="px-4 py-2.5 code">—</td>
+                  <td className="px-4 py-2.5 italic">{t("currentPeriodIncome")}</td>
+                  <td className={`px-4 py-2.5 numeric text-end font-medium ${retainedEarnings >= 0 ? "text-emerald-700" : "text-red-600"}`}>
                     {formatCurrency(retainedEarnings)}
                   </td>
                 </tr>
@@ -263,7 +302,7 @@ export default function BalanceSheetPage() {
               <tbody>
                 <tr style={{ background: "var(--brand-800)" }}>
                   <td colSpan={2} className="px-4 py-3 font-extrabold text-white text-sm">{t("totalLiabilitiesAndEquity")}</td>
-                  <td className="px-4 py-3 text-end tabular-nums font-extrabold text-white">{formatCurrency(totalLiabAndEquity)}</td>
+                  <td className="px-4 py-3 numeric text-end font-extrabold text-white">{formatCurrency(totalLiabAndEquity)}</td>
                 </tr>
               </tbody>
 

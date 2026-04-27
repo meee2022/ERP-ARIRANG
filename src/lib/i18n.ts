@@ -54,6 +54,34 @@ export const translations = {
 
   dashboardSubtitle:  { ar: "نظرة عامة على النشاط المالي", en: "An overview of your financial activity" },
 
+  // ── Dashboard KPIs ────────────────────────────────────
+  kpiAROutstanding:   { ar: "ذمم مدينة مستحقة",   en: "AR Outstanding" },
+  kpiAPOutstanding:   { ar: "ذمم دائنة مستحقة",   en: "AP Outstanding" },
+  kpiCashBalance:     { ar: "الرصيد النقدي",       en: "Cash Balance" },
+  kpiNetCashFlow:     { ar: "صافي التدفق النقدي",  en: "Net Cash Flow" },
+  kpiOverdueInvoices: { ar: "فواتير متأخرة",       en: "Overdue Invoices" },
+  kpiLowStock:        { ar: "أصناف منخفضة المخزون", en: "Low Stock Items" },
+  kpiPendingPurchases:{ ar: "مشتريات معلقة",       en: "Pending Purchases" },
+  kpiPendingAll:      { ar: "مستندات معلقة",       en: "Pending Documents" },
+
+  // ── Dashboard charts ──────────────────────────────────
+  chartSalesTrend:    { ar: "اتجاه المبيعات والتحصيل (7 أيام)", en: "Sales & Receipts Trend (7 days)" },
+  chartCashFlow:      { ar: "التدفق النقدي (7 أيام)",            en: "Cash Flow (7 days)" },
+  chartSalesLabel:    { ar: "مبيعات",      en: "Sales" },
+  chartReceiptsLabel: { ar: "مقبوضات",     en: "Receipts" },
+  chartPaymentsLabel: { ar: "مدفوعات",     en: "Payments" },
+
+  // ── Alert section ─────────────────────────────────────
+  alertsTitle:        { ar: "تنبيهات تحتاج انتباهك", en: "Alerts Requiring Attention" },
+  noAlerts:           { ar: "لا توجد تنبيهات",        en: "No alerts" },
+  overdueInvoice:     { ar: "فاتورة متأخرة السداد",   en: "overdue invoice" },
+  overdueInvoices2:   { ar: "فاتورة متأخرة السداد",   en: "overdue invoices" },
+
+  // ── Delta context ──────────────────────────────────────────────────────────
+  vsYesterday:        { ar: "vs أمس",              en: "vs yesterday" },
+  vsMonthAvg:         { ar: "vs متوسط الشهر",       en: "vs month avg" },
+  deltaNew:           { ar: "جديد",                en: "new" },
+
   customersTitle:     { ar: "العملاء",     en: "Customers" },
 
   suppliersTitle:     { ar: "الموردون",    en: "Suppliers" },
@@ -238,6 +266,8 @@ export const translations = {
 
   loading:        { ar: "جاري التحميل...",       en: "Loading..." },
 
+  filters:        { ar: "الفلاتر",               en: "Filters" },
+
   // ── Search placeholders ───────────────────────────────
 
   searchCustomers:{ ar: "بحث بالاسم أو الكود أو الهاتف...", en: "Search by name, code or phone..." },
@@ -346,12 +376,13 @@ export const translations = {
   // ── Sales/receipts/journal minimal (top-level) ────────
 
   invoiceNo:         { ar: "رقم الفاتورة", en: "Invoice No" },
+  customerInvoiceNo: { ar: "رقم فاتورة العميل", en: "Customer Invoice No" },
 
   receiptNo:         { ar: "رقم السند",    en: "Voucher No" },
 
   journalNo:         { ar: "رقم القيد",    en: "Journal No" },
 
-  customer:          { ar: "العميل",        en: "Customer" },
+  customer:          { ar: "العميل الرئيسي",        en: "Main Customer" },
 
   supplier:          { ar: "المورد",        en: "Supplier" },
 
@@ -448,6 +479,9 @@ export const translations = {
   paymentMethod:     { ar: "طريقة الدفع",        en: "Payment Method" },
 
   pmCash:            { ar: "نقد",                en: "Cash" },
+  pmHand:            { ar: "نقد يدوي",           en: "Hand Cash" },
+  pmMainSafe:        { ar: "الخزنة الرئيسية",    en: "Main Safe" },
+  pmCashSalesSafe:   { ar: "خزنة المبيعات النقدية", en: "Cash Sales Safe" },
 
   pmTransfer:        { ar: "تحويل بنكي",         en: "Bank transfer" },
 
@@ -575,6 +609,8 @@ export const translations = {
   grn: { ar: "استلام البضاعة", en: "Goods Receipts" },
   warehouses: { ar: "المستودعات", en: "Warehouses" },
   stockAdjustments: { ar: "تعديلات المخزون", en: "Stock Adjustments" },
+  openingStock: { ar: "الرصيد الافتتاحي", en: "Opening Stock" },
+  inventoryMovements: { ar: "حركات المخزون", en: "Inventory Movements" },
   trialBalance: { ar: "ميزان المراجعة", en: "Trial Balance" },
   generalLedger: { ar: "دفتر الأستاذ", en: "General Ledger" },
   arAging: { ar: "عمر الذمم - عملاء", en: "AR Aging" },
@@ -617,7 +653,7 @@ export const translations = {
   statusCancelled: { ar: "ملغى", en: "Cancelled" },
   errRequiredFields: { ar: "يرجى تعبئة الحقول المطلوبة", en: "Please fill required fields" },
   total: { ar: "الإجمالي", en: "Total" },
-  branch: { ar: "الفرع", en: "Branch" },
+  branch: { ar: "فرع العميل", en: "Customer Branch" },
 
   // ── Sales Invoice form ────────────────────────────────
   invoiceDate:      { ar: "تاريخ الفاتورة",     en: "Invoice Date" },
@@ -632,6 +668,66 @@ export const translations = {
   saveAsDraft:      { ar: "حفظ كمسودة",          en: "Save as Draft" },
   post:             { ar: "ترحيل",               en: "Post" },
   outlet:           { ar: "منفذ البيع",          en: "Outlet" },
+  salesRep:         { ar: "المندوب",             en: "Sales Rep" },
+  vehicleCode:      { ar: "رقم الباص",           en: "Bus Number" },
+  selectSalesRep:   { ar: "أدخل اسم المندوب",     en: "Enter sales rep name" },
+  enterVehicleCode: { ar: "أدخل رقم الباص",       en: "Enter bus number" },
+  salesReps:        { ar: "المندوبون",           en: "Sales Reps" },
+  vehicles:         { ar: "الباصات",             en: "Vehicles" },
+  salesRepsTitle:   { ar: "إدارة المندوبين",      en: "Sales Reps" },
+  vehiclesTitle:    { ar: "إدارة الباصات",        en: "Vehicles" },
+  newSalesRep:      { ar: "مندوب جديد",          en: "New Sales Rep" },
+  newVehicle:       { ar: "باص جديد",            en: "New Vehicle" },
+  salesRepCode:     { ar: "كود المندوب",         en: "Sales Rep Code" },
+  vehiclePlate:     { ar: "رقم اللوحة",          en: "Plate Number" },
+  vehicleDescription:{ ar: "وصف الباص",          en: "Vehicle Description" },
+  assignedSalesRep: { ar: "المندوب المسؤول",      en: "Assigned Sales Rep" },
+  noSalesRepsYet:   { ar: "لا يوجد مندوبون بعد",  en: "No sales reps yet" },
+  noVehiclesYet:    { ar: "لا توجد باصات بعد",    en: "No vehicles yet" },
+  salesBySalesRep:  { ar: "مبيعات حسب المندوب",   en: "Sales by Sales Rep" },
+  salesByVehicle:   { ar: "مبيعات حسب الباص",     en: "Sales by Vehicle" },
+  salesDetails:     { ar: "تفاصيل المبيعات",      en: "Sales Details" },
+  dailySales:       { ar: "المبيعات اليومية",      en: "Daily Sales" },
+  itemSales:        { ar: "مبيعات الأصناف",        en: "Item Sales" },
+  topSales:         { ar: "أفضل المبيعات",         en: "Top Sales" },
+  salesBySalesRepTitle:{ ar: "تقرير المبيعات حسب المندوب", en: "Sales by Sales Rep" },
+  salesByVehicleTitle:{ ar: "تقرير المبيعات حسب الباص", en: "Sales by Vehicle" },
+  salesDetailsTitle:{ ar: "تقرير تفاصيل المبيعات", en: "Sales Details Report" },
+  dailySalesTitle:  { ar: "تقرير المبيعات اليومية", en: "Daily Sales Report" },
+  itemSalesTitle:   { ar: "تقرير مبيعات الأصناف",   en: "Item Sales Report" },
+  topSalesTitle:    { ar: "تقرير أفضل المبيعات",    en: "Top Sales Report" },
+  quantitySold:     { ar: "الكمية المباعة",         en: "Quantity Sold" },
+  averageSellingPrice:{ ar: "متوسط سعر البيع",      en: "Average Selling Price" },
+  topCustomers:     { ar: "أفضل العملاء",           en: "Top Customers" },
+  topItems:         { ar: "أفضل الأصناف",           en: "Top Items" },
+  topSalesReps:     { ar: "أفضل المندوبين",         en: "Top Sales Reps" },
+  rank:             { ar: "الترتيب",                en: "Rank" },
+  cashSales:        { ar: "مبيعات نقدية",         en: "Cash Sales" },
+  creditSales:      { ar: "مبيعات آجلة",          en: "Credit Sales" },
+  mobileSales:      { ar: "مبيعات الجوال",        en: "Mobile Sales" },
+  mobileSalesTitle: { ar: "إدخال فواتير المندوب",  en: "Mobile Sales Entry" },
+  myDrafts:         { ar: "مسوداتي",              en: "My Drafts" },
+  submittedForReview:{ ar: "مرسلة للمراجعة",      en: "Submitted for Review" },
+  needsEdit:        { ar: "تحتاج تعديل",          en: "Needs Edit" },
+  recentInvoices:   { ar: "آخر الفواتير",         en: "Recent Invoices" },
+  reviewQueue:      { ar: "طابور المراجعة",       en: "Review Queue" },
+  submitForReview:  { ar: "إرسال للمراجعة",       en: "Submit for Review" },
+  reject:           { ar: "رفض",                  en: "Reject" },
+  rejectAndReturn:  { ar: "رفض وإرجاع",           en: "Reject & Return" },
+  approveForPosting:{ ar: "اعتماد للترحيل",       en: "Approve for Posting" },
+  reviewNotes:      { ar: "ملاحظات المراجعة",      en: "Review Notes" },
+  submitted:        { ar: "مُرسلة",               en: "Submitted" },
+  statusRejected:   { ar: "مرفوض",                en: "Rejected" },
+  createdBy:        { ar: "أنشئت بواسطة",         en: "Created By" },
+  mobileQuickEntry: { ar: "إدخال سريع للمندوب",    en: "Mobile quick entry" },
+  invoiceReadyForReview:{ ar: "الفاتورة جاهزة للمراجعة", en: "Invoice ready for review" },
+  noDraftsYet:      { ar: "لا توجد مسودات حتى الآن", en: "No drafts yet" },
+  noRejectedYet:    { ar: "لا توجد فواتير تحتاج تعديل", en: "No rejected invoices" },
+  noSubmittedYet:   { ar: "لا توجد فواتير مرسلة للمراجعة", en: "No submitted invoices" },
+  salesReviewTitle: { ar: "مراجعة فواتير المبيعات", en: "Sales Invoice Review" },
+  submitSuccess:    { ar: "تم إرسال الفاتورة للمراجعة", en: "Invoice submitted for review" },
+  approveSuccess:   { ar: "تم اعتماد الفاتورة",    en: "Invoice approved" },
+  rejectSuccess:    { ar: "تم رفض الفاتورة وإرجاعها", en: "Invoice rejected and returned" },
   selectWarehouse:  { ar: "— اختر مستودعاً —",  en: "— Select warehouse —" },
   selectItem:       { ar: "— اختر صنفاً —",      en: "— Select item —" },
   selectOutlet:     { ar: "— اختر منفذاً —",    en: "— Select outlet —" },
@@ -740,6 +836,52 @@ export const translations = {
 
   // ── Audit Log ─────────────────────────────────────────
   auditLog:          { ar: "سجل التدقيق",        en: "Audit Log" },
+
+  // ── Company Settings ──────────────────────────────────
+  companySettings:      { ar: "إعدادات الشركة",      en: "Company Settings" },
+  companySettingsDesc:  { ar: "إدارة بيانات وهوية الشركة في النظام", en: "Manage company identity and branding across the system" },
+
+  // ── Cost Centers ───────────────────────────────────────────────────────────
+  costCenters:            { ar: "مراكز التكلفة",          en: "Cost Centers" },
+  costCenter:             { ar: "مركز التكلفة",           en: "Cost Center" },
+  costCentersDesc:        { ar: "إدارة مراكز التكلفة",     en: "Manage cost centers" },
+  newCostCenter:          { ar: "مركز تكلفة جديد",        en: "New Cost Center" },
+  editCostCenter:         { ar: "تعديل مركز التكلفة",     en: "Edit Cost Center" },
+  ccCode:                 { ar: "الرمز",                  en: "Code" },
+  ccNameAr:               { ar: "الاسم (عربي)",           en: "Name (Arabic)" },
+  ccNameEn:               { ar: "الاسم (إنجليزي)",        en: "Name (English)" },
+  ccStatus:               { ar: "الحالة",                 en: "Status" },
+  ccActive:               { ar: "نشط",                   en: "Active" },
+  ccArchived:             { ar: "مؤرشف",                  en: "Archived" },
+  ccArchiveConfirm:       { ar: "هل تريد أرشفة مركز التكلفة هذا؟", en: "Archive this cost center?" },
+  ccAllStatuses:          { ar: "الكل",                   en: "All" },
+  ccActiveOnly:           { ar: "النشطة فقط",             en: "Active only" },
+  ccDuplicateCode:        { ar: "الرمز موجود مسبقاً",      en: "Code already exists" },
+  selectCostCenter:       { ar: "اختر مركز تكلفة",        en: "Select Cost Center" },
+  noCostCenter:           { ar: "بدون مركز تكلفة",        en: "No Cost Center" },
+
+  // ── Cost Center Reports ────────────────────────────────────────────────────
+  costCenterMovement:     { ar: "حركة مراكز التكلفة",     en: "Cost Center Movement" },
+  costCenterMovementDesc: { ar: "كل القيود حسب مركز التكلفة", en: "All postings by cost center" },
+  costCenterPL:           { ar: "أرباح وخسائر مراكز التكلفة", en: "Cost Center P&L" },
+  costCenterPLDesc:       { ar: "الإيرادات والمصروفات حسب مركز التكلفة", en: "Revenue and expenses by cost center" },
+  ccTotalRevenue:         { ar: "إجمالي الإيرادات",       en: "Total Revenue" },
+  ccTotalExpenses:        { ar: "إجمالي المصروفات",       en: "Total Expenses" },
+  ccNetResult:            { ar: "صافي النتيجة",           en: "Net Result" },
+  companyLogo:          { ar: "شعار الشركة",          en: "Company Logo" },
+  companyInfo:          { ar: "بيانات الشركة",        en: "Company Information" },
+  companyNameAr:        { ar: "اسم الشركة (عربي)",    en: "Company Name (Arabic)" },
+  companyNameEn:        { ar: "اسم الشركة (إنجليزي)", en: "Company Name (English)" },
+  companyAddress:       { ar: "العنوان",              en: "Address" },
+  uploadLogo:           { ar: "رفع الشعار",           en: "Upload Logo" },
+  clickToUploadLogo:    { ar: "اضغط لرفع الشعار",    en: "Click to upload logo" },
+  logoHint:             { ar: "PNG أو JPG، حجم أقصى 2 ميجا", en: "PNG or JPG, max 2 MB" },
+  invalidImageType:     { ar: "يجب أن يكون الملف صورة", en: "File must be an image" },
+  imageTooLarge:        { ar: "حجم الصورة يتجاوز 2 ميجا", en: "Image exceeds 2 MB" },
+  noCompanyFound:       { ar: "لا توجد بيانات شركة",   en: "No company record found" },
+  printHeaderPreview:   { ar: "معاينة ترويسة الطباعة", en: "Print Header Preview" },
+  sampleDocumentTitle:  { ar: "نموذج: كشف حساب",       en: "Sample: Account Statement" },
+  saved:                { ar: "تم الحفظ",              en: "Saved" },
   auditLogs:         { ar: "سجلات التدقيق",      en: "Audit Logs" },
   actionCreate:      { ar: "إنشاء",              en: "Create" },
   actionPost:        { ar: "ترحيل",              en: "Post" },
@@ -788,6 +930,8 @@ export const translations = {
 
   // ── Legacy Data Section ───────────────────────────────────────────────────────
   navLegacy:              { ar: "بيانات قديمة",             en: "Legacy Data" },
+  navQuickAccess:         { ar: "وصول سريع",                en: "Quick Access" },
+  navSearchPlaceholder:   { ar: "ابحث في القائمة...",        en: "Search menu..." },
   legacyItems:            { ar: "أصناف قديمة",              en: "Legacy Items" },
   legacyRecipes:          { ar: "وصفات قديمة",              en: "Legacy Recipes" },
   legacyInventory:        { ar: "مخزون قديم",               en: "Legacy Inventory" },
@@ -965,7 +1109,7 @@ export const translations = {
   itemName:              { ar: "اسم الصنف",                                  en: "Item Name" },
   discount:              { ar: "الخصم",                                      en: "Discount" },
   serviceCharge:         { ar: "رسوم الخدمة",                                en: "Service Charge" },
-  printedBy:             { ar: "طُبع بواسطة PrimeBalance ERP",              en: "Printed via PrimeBalance ERP" },
+  printedBy:             { ar: "طُبع بواسطة:",              en: "Printed by:" },
 
   // ── Document actions ──────────────────────────────────────────────────────
   approve:               { ar: "اعتماد",            en: "Approve" },
@@ -1013,6 +1157,14 @@ export const translations = {
   purchaseInvoiceTitle:  { ar: "فاتورة مشتريات",               en: "Purchase Invoice" },
   shipTo:                { ar: "شحن إلى",                      en: "Ship To" },
   invoiceTotal:          { ar: "إجمالي الفاتورة",               en: "Invoice Total" },
+  vatNumber:             { ar: "الرقم الضريبي",                  en: "VAT Number" },
+  downloadPdf:           { ar: "تنزيل PDF",                      en: "Download PDF" },
+  salesReturnTitle:      { ar: "مرتجع مبيعات",                   en: "Sales Return" },
+  purchaseReturnTitle:   { ar: "مرتجع مشتريات",                  en: "Purchase Return" },
+  returnTotal:           { ar: "إجمالي المرتجع",                 en: "Return Total" },
+  returnedBy:            { ar: "المُسلِّم",                      en: "Returned By" },
+  viewDetails:           { ar: "عرض التفاصيل",                   en: "View Details" },
+  errMissingInventoryAccounts: { ar: "يرجى تصنيف حسابات المخزون والذمم الدائنة في دليل الحسابات أولاً.", en: "Please classify inventory and payable accounts in the chart of accounts first." },
   authorizedBy:          { ar: "اعتمده",                       en: "Authorized By" },
   grnLines:              { ar: "أصناف الاستلام",                en: "Receipt Lines" },
   documentNotFound:      { ar: "المستند غير موجود",             en: "Document not found" },
@@ -1020,89 +1172,308 @@ export const translations = {
   // ── Fiscal Period badge ───────────────────────────────────────────────────
   currentPeriod:         { ar: "الفترة الحالية",               en: "Current Period" },
   noPeriodOpen:          { ar: "لا توجد فترة مفتوحة",          en: "No open period" },
+
+  // ── Cash Vouchers Print ───────────────────────────────────────────────────
+  cashReceiptVoucher:    { ar: "سند قبض",                      en: "Cash Receipt Voucher" },
+  cashPaymentVoucher:    { ar: "سند صرف",                      en: "Cash Payment Voucher" },
+  voucherNumber:         { ar: "رقم السند",                    en: "Voucher No." },
+  noPermission:          { ar: "لا تملك الصلاحية",             en: "No permission" },
+
+  // ── Customer / Supplier Statements ────────────────────────────────────────
+  customerStatement:     { ar: "كشف حساب عميل",                en: "Customer Statement" },
+  supplierStatement:     { ar: "كشف حساب مورد",                en: "Supplier Statement" },
+  runningBalance:        { ar: "الرصيد الجاري",                en: "Running Balance" },
+  transactionType:       { ar: "نوع المعاملة",                 en: "Type" },
+  statementFrom:         { ar: "من تاريخ",                     en: "From Date" },
+  statementTo:           { ar: "إلى تاريخ",                    en: "To Date" },
+  generateStatement:     { ar: "توليد الكشف",                  en: "Generate Statement" },
+  noTransactions:        { ar: "لا توجد معاملات في هذه الفترة", en: "No transactions in this period" },
+
+  // ── Cash/Bank Movement Report ─────────────────────────────────────────────
+  cashMovementReport:    { ar: "تقرير حركة الصندوق والبنك",   en: "Cash & Bank Movement" },
+  cashMovementDesc:      { ar: "يعرض الحركة اليومية لحساب نقدي أو بنكي مع الأرصدة", en: "Day-by-day movement with opening and closing balance" },
+  net:                   { ar: "الصافي",                        en: "Net" },
+
+  // ── 9A: Operational Type ──────────────────────────────────────────────────
+  operationalType:       { ar: "نوع التشغيل",                  en: "Operational Type" },
+  operationalTypeHint:   { ar: "يُصنّف الحساب في تقارير الكاش والمديونيات بدلاً من الاعتماد على الاسم", en: "Used to classify accounts in cash/AR/AP reports without relying on naming" },
+  opTypeCash:            { ar: "نقد",                           en: "Cash" },
+  opTypeBank:            { ar: "بنك",                          en: "Bank" },
+  opTypeReceivable:      { ar: "ذمم مدينة",                    en: "Trade Receivable" },
+  opTypePayable:         { ar: "ذمم دائنة",                    en: "Trade Payable" },
+  opTypeInventoryAsset:  { ar: "مخزون (أصل)",                  en: "Inventory Asset" },
+  opTypeOther:           { ar: "أخرى",                         en: "Other" },
+
+  // ── Fixed Assets (Phase 19) ────────────────────────────────────────────────
+  navFixedAssets:          { ar: "الأصول الثابتة",                en: "Fixed Assets" },
+  fixedAssets:             { ar: "الأصول الثابتة",                en: "Fixed Assets" },
+  assetRegister:           { ar: "سجل الأصول",                   en: "Asset Register" },
+  depreciationRuns:        { ar: "دورات الإهلاك",                 en: "Depreciation Runs" },
+  assetReports:            { ar: "تقارير الأصول",                 en: "Asset Reports" },
+  assetCode:               { ar: "كود الأصل",                    en: "Asset Code" },
+  purchaseCost:            { ar: "تكلفة الشراء",                  en: "Purchase Cost" },
+  salvageValue:            { ar: "القيمة المتبقية",               en: "Salvage Value" },
+  usefulLife:              { ar: "العمر الإنتاجي",                en: "Useful Life" },
+  usefulLifeMonths:        { ar: "العمر الإنتاجي (شهر)",          en: "Useful Life (months)" },
+  bookValue:               { ar: "القيمة الدفترية",               en: "Book Value" },
+  accumulatedDepreciation: { ar: "الإهلاك المتراكم",              en: "Accumulated Depreciation" },
+  depreciationExpense:     { ar: "مصروف الإهلاك",                 en: "Depreciation Expense" },
+  monthlyDepreciation:     { ar: "الإهلاك الشهري",                en: "Monthly Depreciation" },
+  inServiceDate:           { ar: "تاريخ بدء التشغيل",             en: "In-Service Date" },
+  assetBookValue:          { ar: "القيمة الدفترية للأصول",        en: "Asset Book Value" },
+  depreciationSchedule:    { ar: "جدول الإهلاك",                  en: "Depreciation Schedule" },
+  createDraftRun:          { ar: "إنشاء دورة مسودة",             en: "Create Draft Run" },
+  postRun:                 { ar: "ترحيل الدورة",                  en: "Post Run" },
+  fullyDepreciated:        { ar: "مهلك بالكامل",                  en: "Fully Depreciated" },
+  straightLine:            { ar: "القسط الثابت",                  en: "Straight Line" },
+  assetCategory:           { ar: "فئة الأصل",                    en: "Asset Category" },
+  assetLocation:           { ar: "موقع الأصل",                   en: "Asset Location" },
+  assetStatus:             { ar: "حالة الأصل",                   en: "Asset Status" },
+  newAsset:                { ar: "أصل جديد",                     en: "New Asset" },
+  editAsset:               { ar: "تعديل الأصل",                  en: "Edit Asset" },
+  archiveAsset:            { ar: "أرشفة الأصل",                  en: "Archive Asset" },
+  purchaseDate:            { ar: "تاريخ الشراء",                  en: "Purchase Date" },
+  depreciationMethod:      { ar: "طريقة الإهلاك",                 en: "Depreciation Method" },
+  assetAccount:            { ar: "حساب الأصل",                   en: "Asset Account" },
+  depExpenseAccount:       { ar: "حساب مصروف الإهلاك",           en: "Depreciation Expense Account" },
+  accDepAccount:           { ar: "حساب الإهلاك المتراكم",        en: "Accumulated Depreciation Account" },
+  previewDepreciation:     { ar: "معاينة الإهلاك",                en: "Preview Depreciation" },
+  bookValueBefore:         { ar: "القيمة قبل",                   en: "Book Value Before" },
+  bookValueAfter:          { ar: "القيمة بعد",                   en: "Book Value After" },
+  depreciationAmount:      { ar: "مبلغ الإهلاك",                  en: "Depreciation Amount" },
+  noFixedAssetsYet:        { ar: "لا توجد أصول ثابتة بعد",        en: "No fixed assets yet" },
+  addFirstAsset:           { ar: "إضافة أول أصل",                en: "Add first asset" },
+  noDepreciationRuns:      { ar: "لا توجد دورات إهلاك",           en: "No depreciation runs yet" },
+  runPeriod:               { ar: "الفترة",                        en: "Period" },
+  totalDepreciation:       { ar: "إجمالي الإهلاك",                en: "Total Depreciation" },
+  assetsCount:             { ar: "عدد الأصول",                    en: "Assets Count" },
+  duplicateAssetCode:      { ar: "كود الأصل مستخدم مسبقاً",       en: "Asset code already in use" },
+  duplicateRun:            { ar: "توجد دورة إهلاك لهذه الفترة",   en: "A depreciation run already exists for this period" },
+  missingAssetAccounts:    { ar: "بعض الأصول ليس لها حسابات مرتبطة", en: "Some assets are missing account mappings" },
+  netBookValue:            { ar: "صافي القيمة الدفترية",          en: "Net Book Value" },
+  totalCostLabel:          { ar: "إجمالي التكلفة",                en: "Total Cost" },
+  assetRegisterReport:     { ar: "تقرير سجل الأصول",              en: "Asset Register Report" },
+  depScheduleReport:       { ar: "تقرير جدول الإهلاك",            en: "Depreciation Schedule Report" },
+  assetBookValueReport:    { ar: "تقرير القيمة الدفترية للأصول",  en: "Asset Book Value Summary" },
+  months:                  { ar: "شهر",                           en: "month(s)" },
+
+  // ── HR Module ─────────────────────────────────────────
+  navHR:                    { ar: "الموارد البشرية",  en: "Human Resources" },
+  hrDashboard:              { ar: "لوحة تحكم HR",      en: "HR Dashboard" },
+  employees:                { ar: "الموظفون",           en: "Employees" },
+  employeeRegister:         { ar: "سجل الموظفين",      en: "Employee Register" },
+  employeeProfile:          { ar: "ملف الموظف",        en: "Employee Profile" },
+  addEmployee:              { ar: "إضافة موظف",        en: "Add Employee" },
+  editEmployee:             { ar: "تعديل موظف",        en: "Edit Employee" },
+  employeeCode:             { ar: "كود الموظف",        en: "Employee Code" },
+  // employeeName already defined above
+  department:               { ar: "القسم",             en: "Department" },
+  departments:              { ar: "الأقسام",           en: "Departments" },
+  designation:              { ar: "المسمى الوظيفي",    en: "Designation" },
+  designations:             { ar: "المسميات الوظيفية", en: "Designations" },
+  hireDate:                 { ar: "تاريخ التعيين",     en: "Hire Date" },
+  employmentType:           { ar: "نوع التوظيف",       en: "Employment Type" },
+  fullTime:                 { ar: "دوام كامل",         en: "Full Time" },
+  partTime:                 { ar: "دوام جزئي",         en: "Part Time" },
+  hrContractor:             { ar: "متعاقد",            en: "Contractor" },
+  hrTemporary:              { ar: "مؤقت",              en: "Temporary" },
+  employeeStatus:           { ar: "حالة الموظف",       en: "Employee Status" },
+  // statusActive/statusInactive already defined above (line 758)
+  statusTerminated:         { ar: "منهي الخدمة",       en: "Terminated" },
+  statusOnLeave:            { ar: "في إجازة",          en: "On Leave" },
+  basicSalary:              { ar: "الراتب الأساسي",    en: "Basic Salary" },
+  housingAllowance:         { ar: "بدل السكن",         en: "Housing Allowance" },
+  transportAllowance:       { ar: "بدل النقل",         en: "Transport Allowance" },
+  otherAllowance:           { ar: "بدلات أخرى",        en: "Other Allowances" },
+  salaryBasis:              { ar: "أساس الراتب",       en: "Salary Basis" },
+  salaryMonthly:            { ar: "شهري",              en: "Monthly" },
+  salaryDaily:              { ar: "يومي",              en: "Daily" },
+  salaryHourly:             { ar: "ساعي",              en: "Hourly" },
+  directManager:            { ar: "المدير المباشر",    en: "Direct Manager" },
+  nationality:              { ar: "الجنسية",           en: "Nationality" },
+  nationalId:               { ar: "رقم الهوية",        en: "National ID" },
+  passportNumber:           { ar: "رقم الجواز",        en: "Passport No." },
+  dateOfBirth:              { ar: "تاريخ الميلاد",     en: "Date of Birth" },
+  gender:                   { ar: "الجنس",             en: "Gender" },
+  genderMale:               { ar: "ذكر",               en: "Male" },
+  genderFemale:             { ar: "أنثى",              en: "Female" },
+  terminationDate:          { ar: "تاريخ إنهاء الخدمة", en: "Termination Date" },
+  headcount:                { ar: "إجمالي الموظفين",   en: "Headcount" },
+  attendance:               { ar: "الحضور والانصراف",  en: "Attendance" },
+  attendanceDate:           { ar: "تاريخ الحضور",      en: "Attendance Date" },
+  checkIn:                  { ar: "وقت الحضور",        en: "Check In" },
+  checkOut:                 { ar: "وقت الانصراف",      en: "Check Out" },
+  workedHours:              { ar: "ساعات العمل",        en: "Worked Hours" },
+  overtimeHours:            { ar: "ساعات إضافية",      en: "Overtime Hours" },
+  lateMinutes:              { ar: "دقائق التأخير",      en: "Late Minutes" },
+  attPresent:               { ar: "حاضر",              en: "Present" },
+  attAbsent:                { ar: "غائب",              en: "Absent" },
+  attLate:                  { ar: "متأخر",             en: "Late" },
+  attHalfDay:               { ar: "نصف يوم",           en: "Half Day" },
+  attHoliday:               { ar: "عطلة رسمية",        en: "Holiday" },
+  attWeekend:               { ar: "عطلة أسبوعية",      en: "Weekend" },
+  markAttendance:           { ar: "تسجيل الحضور",      en: "Mark Attendance" },
+  bulkMark:                 { ar: "تسجيل جماعي",       en: "Bulk Mark" },
+  monthlyView:              { ar: "عرض شهري",          en: "Monthly View" },
+  dailyView:                { ar: "عرض يومي",          en: "Daily View" },
+  attendanceSummary:        { ar: "ملخص الحضور",       en: "Attendance Summary" },
+  leaveManagement:          { ar: "إدارة الإجازات",    en: "Leave Management" },
+  leaveType:                { ar: "نوع الإجازة",       en: "Leave Type" },
+  leaveTypes:               { ar: "أنواع الإجازات",   en: "Leave Types" },
+  leaveRequest:             { ar: "طلب إجازة",        en: "Leave Request" },
+  leaveRequests:            { ar: "طلبات الإجازة",    en: "Leave Requests" },
+  leaveBalance:             { ar: "رصيد الإجازة",     en: "Leave Balance" },
+  leaveBalances:            { ar: "أرصدة الإجازات",   en: "Leave Balances" },
+  leaveStartDate:           { ar: "تاريخ بداية الإجازة", en: "Leave Start Date" },
+  leaveEndDate:             { ar: "تاريخ نهاية الإجازة", en: "Leave End Date" },
+  totalDays:                { ar: "إجمالي الأيام",     en: "Total Days" },
+  allocatedDays:            { ar: "الأيام المخصصة",   en: "Allocated Days" },
+  usedDays:                 { ar: "الأيام المستخدمة", en: "Used Days" },
+  pendingDays:              { ar: "الأيام المعلقة",   en: "Pending Days" },
+  remainingDays:            { ar: "الأيام المتبقية",  en: "Remaining Days" },
+  isPaidLeave:              { ar: "إجازة مدفوعة",     en: "Paid Leave" },
+  isUnpaidLeave:            { ar: "إجازة غير مدفوعة", en: "Unpaid Leave" },
+  approveLeave:             { ar: "اعتماد الإجازة",   en: "Approve Leave" },
+  rejectLeave:              { ar: "رفض الإجازة",      en: "Reject Leave" },
+  leaveReason:              { ar: "سبب الإجازة",      en: "Leave Reason" },
+  rejectionReason:          { ar: "سبب الرفض",        en: "Rejection Reason" },
+  pendingApproval:          { ar: "في انتظار الاعتماد", en: "Pending Approval" },
+  leaveApproved:            { ar: "إجازة معتمدة",      en: "Leave Approved" },
+  leaveRejected:            { ar: "إجازة مرفوضة",      en: "Leave Rejected" },
+  leaveCancelled:           { ar: "إجازة ملغاة",       en: "Leave Cancelled" },
+  payroll:                  { ar: "الرواتب",             en: "Payroll" },
+  payrollRun:               { ar: "مسيرة الرواتب",      en: "Payroll Run" },
+  payrollRuns:              { ar: "مسيرات الرواتب",     en: "Payroll Runs" },
+  payslip:                  { ar: "قسيمة الراتب",       en: "Payslip" },
+  createPayrollRun:         { ar: "إنشاء مسيرة رواتب",  en: "Create Payroll Run" },
+  processPayroll:           { ar: "معالجة الرواتب",     en: "Process Payroll" },
+  markAsPaid:               { ar: "تحديد كمدفوع",       en: "Mark as Paid" },
+  payrollStatus:            { ar: "حالة المسيرة",        en: "Payroll Status" },
+  hrSetup:                  { ar: "إعدادات الموارد البشرية", en: "HR Setup" },
+  employeeDirectoryReport:  { ar: "دليل الموظفين",      en: "Employee Directory" },
+  attendanceReport:         { ar: "تقرير الحضور",       en: "Attendance Report" },
+  leaveReport:              { ar: "تقرير الإجازات",     en: "Leave Report" },
+  payrollReport:            { ar: "تقرير الرواتب",      en: "Payroll Report" },
+
+  // ── Production Module ─────────────────────────────────
+  navProduction:            { ar: "الإنتاج",             en: "Production" },
+  productionDashboard:      { ar: "لوحة الإنتاج",       en: "Production Dashboard" },
+  recipes:                  { ar: "وصفات الإنتاج",      en: "Recipes" },
+  productionOrders:         { ar: "أوامر الإنتاج",      en: "Production Orders" },
+  productionCostReport:     { ar: "تقرير تكلفة الإنتاج", en: "Production Cost Report" },
+  migrateRecipes:           { ar: "ترحيل الوصفات",        en: "Migrate Recipes" },
+  recipe:                   { ar: "الوصفة",              en: "Recipe" },
+  recipeCode:               { ar: "كود الوصفة",          en: "Recipe Code" },
+  recipeName:               { ar: "اسم الوصفة",          en: "Recipe Name" },
+  outputItem:               { ar: "المنتج الناتج",       en: "Output Item" },
+  yieldQuantity:            { ar: "كمية الناتج",         en: "Yield Quantity" },
+  yieldUom:                 { ar: "وحدة الناتج",         en: "Yield Unit" },
+  recipeVersion:            { ar: "إصدار الوصفة",        en: "Recipe Version" },
+  ingredients:              { ar: "المكونات",            en: "Ingredients" },
+  ingredient:               { ar: "مكوّن",               en: "Ingredient" },
+  ingredientItem:           { ar: "صنف المكوّن",         en: "Ingredient Item" },
+  ingredientQty:            { ar: "الكمية",              en: "Quantity" },
+  wastePct:                 { ar: "نسبة الهدر %",        en: "Waste %" },
+  grossQty:                 { ar: "الكمية الإجمالية",    en: "Gross Quantity" },
+  totalRecipeCost:          { ar: "إجمالي تكلفة الوصفة", en: "Total Recipe Cost" },
+  costPerUnit:              { ar: "التكلفة لكل وحدة",    en: "Cost per Unit" },
+  addIngredient:            { ar: "إضافة مكوّن",         en: "Add Ingredient" },
+  newRecipe:                { ar: "وصفة جديدة",          en: "New Recipe" },
+  addRecipe:                { ar: "إضافة وصفة",          en: "Add Recipe" },
+  editRecipe:               { ar: "تعديل وصفة",          en: "Edit Recipe" },
+  noRecipesYet:             { ar: "لا توجد وصفات بعد",   en: "No recipes yet" },
+  addFirstRecipe:           { ar: "إضافة أول وصفة",      en: "Add first recipe" },
+  recipesTitle:             { ar: "وصفات الإنتاج",       en: "Production Recipes" },
+  recipesSubtitle:          { ar: "إدارة وصفات الإنتاج وتكاليف المكونات", en: "Manage production recipes and ingredient costs" },
+
+  // Production Orders
+  productionOrder:          { ar: "أمر إنتاج",           en: "Production Order" },
+  orderNumber:              { ar: "رقم الأمر",           en: "Order Number" },
+  plannedQty:               { ar: "الكمية المخططة",      en: "Planned Quantity" },
+  actualQty:                { ar: "الكمية الفعلية",      en: "Actual Quantity" },
+  plannedDate:              { ar: "تاريخ الإنتاج المخطط", en: "Planned Date" },
+  completedDate:            { ar: "تاريخ الإتمام",       en: "Completion Date" },
+  orderStatus:              { ar: "حالة الأمر",           en: "Order Status" },
+  statusPlanned:            { ar: "مخطط",                en: "Planned" },
+  statusInProgress:         { ar: "قيد التنفيذ",         en: "In Progress" },
+  statusCompleted:          { ar: "مكتمل",               en: "Completed" },
+  newOrder:                 { ar: "أمر جديد",            en: "New Order" },
+  addProductionOrder:       { ar: "إضافة أمر إنتاج",     en: "Add Production Order" },
+  editProductionOrder:      { ar: "تعديل أمر إنتاج",     en: "Edit Production Order" },
+  noProductionOrdersYet:    { ar: "لا توجد أوامر إنتاج بعد", en: "No production orders yet" },
+  addFirstOrder:            { ar: "إضافة أول أمر إنتاج",  en: "Add first production order" },
+  productionOrdersTitle:    { ar: "أوامر الإنتاج",        en: "Production Orders" },
+  productionOrdersSubtitle: { ar: "إدارة أوامر الإنتاج ومتابعة التنفيذ", en: "Manage and track production orders" },
+  selectRecipe:             { ar: "اختر وصفة",           en: "Select recipe" },
+
+  // Production cost report
+  productionCostTitle:      { ar: "تقرير تكلفة الإنتاج", en: "Production Cost Report" },
+  productionCostSubtitle:   { ar: "تحليل تكاليف الإنتاج لكل وصفة وأمر", en: "Analyze production costs per recipe and order" },
+  kpiTotalProduced:         { ar: "إجمالي المنتج",        en: "Total Produced" },
+  kpiTotalMaterialCost:     { ar: "إجمالي تكلفة الخامات", en: "Total Material Cost" },
+  kpiAvgCostPerUnit:        { ar: "متوسط التكلفة للوحدة",  en: "Avg Cost / Unit" },
+  kpiOrdersCompleted:       { ar: "أوامر مكتملة",         en: "Orders Completed" },
+  ordersCount:              { ar: "أمر",                  en: "orders" },
 } as const;
 
-// ============================================================
-
-// FORMATTERS  (QAR — Qatari Riyal is the base currency)
-
-// ============================================================
-
-export const BASE_CURRENCY = "QAR" as const;
+// ── Formatter helpers ────────────────────────────────────────────────────────
 
 export function formatCurrency(
-
   value: number | null | undefined,
-
-  lang: Language = "ar",
-
-  opts: { currency?: string; compact?: boolean } = {}
-
+  lang: Language,
+  opts?: { currency?: string; compact?: boolean }
 ): string {
-
-  const n = typeof value === "number" && isFinite(value) ? value : 0;
-
-  const currency = opts.currency ?? BASE_CURRENCY;
-
+  if (value == null) return lang === "ar" ? "—" : "—";
+  const currency = opts?.currency ?? "QAR";
+  const locale   = lang === "ar" ? "ar-QA" : "en-QA";
   try {
-
-    return new Intl.NumberFormat(lang === "ar" ? "ar-QA" : "en-QA", {
-
+    if (opts?.compact && Math.abs(value) >= 1000) {
+      const fmt = new Intl.NumberFormat(locale, {
+        notation: "compact",
+        maximumFractionDigits: 1,
+      }).format(value);
+      return lang === "ar" ? `${fmt} ر.ق` : `QAR ${fmt}`;
+    }
+    return new Intl.NumberFormat(locale, {
       style: "currency",
-
       currency,
-
       minimumFractionDigits: 2,
-
       maximumFractionDigits: 2,
-
-      notation: opts.compact ? "compact" : "standard",
-
-    }).format(n);
-
+    }).format(value);
   } catch {
-
-    const sym = lang === "ar" ? "ر.ق" : "QAR";
-
-    return `${n.toFixed(2)} ${sym}`;
-
+    return String(value);
   }
-
 }
 
-export function formatNumber(value: number | null | undefined, lang: Language = "ar"): string {
-
-  const n = typeof value === "number" && isFinite(value) ? value : 0;
-
-  return new Intl.NumberFormat(lang === "ar" ? "ar-QA" : "en-US").format(n);
-
+export function formatNumber(
+  value: number | null | undefined,
+  lang: Language
+): string {
+  if (value == null) return "—";
+  const locale = lang === "ar" ? "ar-QA" : "en-QA";
+  try {
+    return new Intl.NumberFormat(locale, {
+      minimumFractionDigits: 0,
+      maximumFractionDigits: 2,
+    }).format(value);
+  } catch {
+    return String(value);
+  }
 }
 
-export function formatDate(value: string | number | Date, lang: Language = "ar"): string {
-
-  const d = value instanceof Date ? value : new Date(value);
-
-  return new Intl.DateTimeFormat(lang === "ar" ? "ar-QA" : "en-GB", {
-
-    year: "numeric", month: "short", day: "2-digit",
-
-  }).format(d);
-
+export function formatDate(
+  value: string | number | Date,
+  lang: Language
+): string {
+  try {
+    const d = typeof value === "string" ? new Date(value) : value;
+    const locale = lang === "ar" ? "ar-QA" : "en-QA";
+    return new Intl.DateTimeFormat(locale, {
+      year: "numeric",
+      month: "short",
+      day: "numeric",
+    }).format(d);
+  } catch {
+    return String(value);
+  }
 }
-
-// ============================================================
-
-// Hook-free helper (for utilities that run outside React)
-
-// ============================================================
-
-export function tr(key: TKey, lang: Language): string {
-
-  const entry = translations[key] as { ar: string; en: string } | undefined;
-
-  if (!entry) return key;
-
-  return entry[lang] ?? entry.ar ?? key;
-
-}
-

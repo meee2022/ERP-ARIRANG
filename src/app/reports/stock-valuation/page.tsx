@@ -5,11 +5,17 @@ import React, { useState } from "react";
 import { useI18n } from "@/hooks/useI18n";
 import { useQuery } from "convex/react";
 import { api } from "../../../../convex/_generated/api";
-import { Package } from "lucide-react";
+import { Package, Printer } from "lucide-react";
 import { formatDateShort } from "@/lib/utils";
+import { LoadingState } from "@/components/ui/data-display";
+import { EmptyState } from "@/components/ui/empty-state";
+import { CompanyPrintHeader } from "@/components/ui/company-print-header";
+import { useCompanySettings } from "@/hooks/useCompanySettings";
+import { PageHeader } from "@/components/ui/page-header";
 
 export default function StockValuationPage() {
   const { t, isRTL, formatCurrency } = useI18n();
+  const { company: printCompany } = useCompanySettings();
   const [warehouseFilter, setWarehouseFilter] = useState("");
 
   const companies = useQuery(api.seed.getCompanies, {});
@@ -33,20 +39,20 @@ export default function StockValuationPage() {
   const loading = report === undefined;
 
   return (
-    <div className="space-y-5">
+    <div className="space-y-5" dir={isRTL ? "rtl" : "ltr"}>
+      <CompanyPrintHeader
+        company={printCompany}
+        isRTL={isRTL}
+        documentTitle={t("stockValuationTitle")}
+        periodLine={new Date().toISOString().split("T")[0]}
+      />
       {/* Header */}
-      <div className="flex items-center gap-3">
-        <div className="h-11 w-11 rounded-xl flex items-center justify-center" style={{ background: "var(--brand-50)", color: "var(--brand-700)" }}>
-          <Package className="h-5 w-5" />
-        </div>
-        <div>
-          <h1 className="text-2xl font-bold text-[color:var(--ink-900)]">{t("stockValuationTitle")}</h1>
-          {report && (
-            <p className="text-xs text-[color:var(--ink-500)] mt-0.5">
-              {report.items.length} {t("itemsCount")} — {formatCurrency((report.totalValue ?? 0) / 100)}
-            </p>
-          )}
-        </div>
+      <div className="no-print">
+        <PageHeader
+          icon={Package}
+          title={t("stockValuationTitle")}
+          actions={<button onClick={() => window.print()} className="btn-ghost h-9 px-4 rounded-xl inline-flex items-center gap-2 text-sm font-semibold"><Printer className="h-4 w-4" />{t("print")}</button>}
+        />
       </div>
 
       {/* Filters */}
@@ -81,48 +87,40 @@ export default function StockValuationPage() {
       {/* Table */}
       <div className="surface-card overflow-hidden">
         {loading ? (
-          <div className="p-8 text-center">
-            <div className="animate-spin h-8 w-8 border-2 border-[color:var(--brand-600)] border-t-transparent rounded-full mx-auto mb-3" />
-            <p className="text-sm text-[color:var(--ink-400)]">{t("loading")}</p>
-          </div>
+          <LoadingState label={t("loading")} />
         ) : !report || report.items.length === 0 ? (
-          <div className="py-16 text-center text-[color:var(--ink-400)]">
-            <Package className="h-10 w-10 mx-auto mb-3 opacity-30" />
-            <p className="text-sm">{t("noResults")}</p>
-          </div>
+          <EmptyState icon={Package} title={t("noResults")} />
         ) : (
           <div className="overflow-x-auto">
-            <table className="w-full zebra-table text-sm">
-              <thead className="bg-[color:var(--ink-50)] text-[color:var(--ink-600)] text-xs uppercase tracking-wider">
+            <table className="data-table">
+              <thead>
                 <tr>
-                  <th className="px-4 py-3 text-start font-semibold">{t("itemCode")}</th>
-                  <th className="px-4 py-3 text-start font-semibold">{t("item")}</th>
-                  <th className="px-4 py-3 text-start font-semibold">{t("warehouse")}</th>
-                  <th className="px-4 py-3 text-end font-semibold">{t("quantity")}</th>
-                  <th className="px-4 py-3 text-end font-semibold">{t("avgCost")}</th>
-                  <th className="px-4 py-3 text-end font-semibold">{t("totalValue")}</th>
-                  <th className="px-4 py-3 text-start font-semibold">{t("lastUpdated")}</th>
+                  <th>{t("itemCode")}</th>
+                  <th>{t("item")}</th>
+                  <th>{t("warehouse")}</th>
+                  <th className="text-end">{t("quantity")}</th>
+                  <th className="text-end">{t("avgCost")}</th>
+                  <th className="text-end">{t("totalValue")}</th>
+                  <th>{t("lastUpdated")}</th>
                 </tr>
               </thead>
               <tbody>
                 {report.items.map((row: any, i: number) => (
-                  <tr key={i} className="border-t border-[color:var(--ink-100)] hover:bg-[color:var(--brand-50)]/40">
-                    <td className="px-4 py-3 font-mono text-xs text-[color:var(--brand-700)]">{row.itemCode}</td>
-                    <td className="px-4 py-3 text-[color:var(--ink-700)]">
-                      {isRTL ? row.itemNameAr : (row.itemNameEn || row.itemNameAr)}
-                    </td>
-                    <td className="px-4 py-3 text-[color:var(--ink-600)]">{row.warehouseNameAr}</td>
-                    <td className="px-4 py-3 text-end tabular-nums font-semibold">{row.quantity.toFixed(3)}</td>
-                    <td className="px-4 py-3 text-end tabular-nums">{formatCurrency((row.avgCost ?? 0) / 100)}</td>
-                    <td className="px-4 py-3 text-end tabular-nums font-semibold">{formatCurrency((row.totalValue ?? 0) / 100)}</td>
-                    <td className="px-4 py-3 text-[color:var(--ink-400)] text-xs">{formatDateShort(row.lastUpdated)}</td>
+                  <tr key={i}>
+                    <td className="code">{row.itemCode}</td>
+                    <td>{isRTL ? row.itemNameAr : (row.itemNameEn || row.itemNameAr)}</td>
+                    <td className="muted">{row.warehouseNameAr}</td>
+                    <td className="numeric text-end font-semibold">{row.quantity.toFixed(3)}</td>
+                    <td className="numeric text-end">{formatCurrency((row.avgCost ?? 0) / 100)}</td>
+                    <td className="numeric text-end font-semibold">{formatCurrency((row.totalValue ?? 0) / 100)}</td>
+                    <td className="muted text-xs">{formatDateShort(row.lastUpdated)}</td>
                   </tr>
                 ))}
               </tbody>
               <tfoot>
-                <tr className="border-t-2 border-[color:var(--ink-200)] bg-[color:var(--ink-50)]">
-                  <td colSpan={5} className="px-4 py-3 font-semibold text-[color:var(--ink-700)]">{t("total")}</td>
-                  <td className="px-4 py-3 text-end font-bold tabular-nums text-[color:var(--ink-900)]">
+                <tr className="row-total">
+                  <td colSpan={5}>{t("total")}</td>
+                  <td className="numeric text-end font-bold">
                     {formatCurrency((report.totalValue ?? 0) / 100)}
                   </td>
                   <td />

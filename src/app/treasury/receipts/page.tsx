@@ -7,10 +7,15 @@ import { useQuery, useMutation } from "convex/react";
 import { api } from "../../../../convex/_generated/api";
 import { formatDateShort } from "@/lib/utils";
 import { StatusBadge } from "@/components/ui/status-badge";
-import { Plus, Eye, X, Check, Search, Wallet } from "lucide-react";
+import { Plus, Eye, X, Check, Search, Wallet, WalletCards, CheckCircle2, Scale, Calendar, Filter, Clock } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
 import { usePermissions } from "@/hooks/usePermissions";
 import { useAppStore } from "@/store/useAppStore";
+import { PageHeader } from "@/components/ui/page-header";
+import { FilterPanel, FilterField } from "@/components/ui/filter-panel";
+import { CostCenterSelect } from "@/components/ui/cost-center-select";
+import { SummaryStrip, LoadingState } from "@/components/ui/data-display";
+import { EmptyState } from "@/components/ui/empty-state";
 
 function todayISO() { return new Date().toISOString().split("T")[0]; }
 function startOfMonthISO() {
@@ -41,6 +46,7 @@ function NewReceiptForm({ onClose }: { onClose: () => void }) {
     amount: "",
     paymentMethod: "cash",
     reference: "",
+    costCenterId: "",
     notes: "",
   });
   const [saving, setSaving] = useState(false);
@@ -72,6 +78,7 @@ function NewReceiptForm({ onClose }: { onClose: () => void }) {
         exchangeRate: 1,
         paymentMethod: form.paymentMethod as any,
         reference: form.reference || undefined,
+        costCenterId: form.costCenterId ? (form.costCenterId as any) : undefined,
         notes: form.notes || undefined,
         createdBy: defaultUser._id,
       });
@@ -136,6 +143,10 @@ function NewReceiptForm({ onClose }: { onClose: () => void }) {
           <input value={form.reference} onChange={(e) => set("reference", e.target.value)} className="input-field h-9" />
         </div>
         <div>
+          <label className="block text-xs font-medium text-[color:var(--ink-600)] mb-1">{t("costCenter")}</label>
+          <CostCenterSelect companyId={company?._id} value={form.costCenterId} onChange={(v) => set("costCenterId", v)} />
+        </div>
+        <div>
           <label className="block text-xs font-medium text-[color:var(--ink-600)] mb-1">{t("notes")}</label>
           <input value={form.notes} onChange={(e) => set("notes", e.target.value)} className="input-field h-9" />
         </div>
@@ -150,10 +161,119 @@ function NewReceiptForm({ onClose }: { onClose: () => void }) {
   );
 }
 
+// ─── Premium Stat Component ─────────────────────────────────────────────────────
+
+function ReceiptStatCard({ title, value, icon: Icon, color }: any) {
+  return (
+    <div className={`relative overflow-hidden rounded-xl bg-white shadow-sm border p-4 hover:shadow-md transition-all duration-300 group flex-1`}>
+      <div className={`absolute inset-0 bg-gradient-to-br ${color} opacity-0 group-hover:opacity-5 transition-opacity duration-300`} />
+      <div className="relative flex items-center gap-3">
+        <div className={`w-11 h-11 rounded-xl flex items-center justify-center shadow-sm bg-gradient-to-br ${color} text-white`}>
+          <Icon className="h-5 w-5" />
+        </div>
+        <div>
+          <div className="text-xs text-gray-500 font-medium uppercase tracking-wide">{title}</div>
+          <div className="text-xl font-bold text-gray-900 tabular-nums">{value}</div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function ReceiptLifecycleActions({ receipt, userId, companyId }: { receipt: any; userId: string | undefined; companyId: string | undefined }) {
+  const { t } = useI18n();
+  const [loadingAction, setLoadingAction] = useState<"delete" | "cancel" | "reverse" | null>(null);
+  const [err, setErr] = useState("");
+  const removeDraft = useMutation(api.treasury.deleteDraftCashReceiptVoucher);
+  const cancelReceipt = useMutation(api.treasury.cancelCashReceiptVoucher);
+  const reverseReceipt = useMutation(api.treasury.reverseCashReceiptVoucher);
+  const today = new Date().toISOString().split("T")[0];
+  const openPeriod = useQuery(
+    api.helpers.getOpenPeriod,
+    companyId ? { companyId: companyId as any, date: today } : "skip"
+  );
+
+  if (!userId) return null;
+
+  const handleDelete = async () => {
+    if (!window.confirm("سيتم حذف مسودة سند القبض نهائيًا. هل تريد المتابعة؟")) return;
+    setLoadingAction("delete");
+    setErr("");
+    try {
+      await removeDraft({ voucherId: receipt._id, userId: userId as any });
+    } catch (e: any) {
+      setErr(e.message ?? t("delete"));
+    } finally {
+      setLoadingAction(null);
+    }
+  };
+
+  const handleCancel = async () => {
+    if (!window.confirm("سيتم إلغاء سند القبض قبل الترحيل. هل تريد المتابعة؟")) return;
+    setLoadingAction("cancel");
+    setErr("");
+    try {
+      await cancelReceipt({ voucherId: receipt._id, userId: userId as any });
+    } catch (e: any) {
+      setErr(e.message ?? t("cancel"));
+    } finally {
+      setLoadingAction(null);
+    }
+  };
+
+  const handleReverse = async () => {
+    if (!openPeriod) { setErr(t("errNoPeriod")); return; }
+    if (!window.confirm("سيتم إنشاء عكس محاسبي لسند القبض المرحل. هل تريد المتابعة؟")) return;
+    setLoadingAction("reverse");
+    setErr("");
+    try {
+      await reverseReceipt({
+        voucherId: receipt._id,
+        userId: userId as any,
+        reversalDate: today,
+        reversalPeriodId: openPeriod._id,
+      });
+    } catch (e: any) {
+      setErr(e.message ?? t("reverse"));
+    } finally {
+      setLoadingAction(null);
+    }
+  };
+
+  return (
+    <div className="inline-flex flex-col items-end gap-1">
+      {err ? <span className="text-xs text-red-600 max-w-[220px] text-end leading-tight">{err}</span> : null}
+      <div className="inline-flex items-center gap-1">
+        {receipt.documentStatus === "draft" && receipt.postingStatus === "unposted" ? (
+          <button onClick={handleDelete} disabled={loadingAction !== null} className="h-7 px-3 rounded-md text-xs font-semibold inline-flex items-center gap-1 bg-red-50 text-red-700 hover:bg-red-100 border border-red-200 disabled:opacity-60">
+            {loadingAction === "delete" ? t("loading") : t("delete")}
+          </button>
+        ) : null}
+        {receipt.postingStatus === "unposted" && receipt.documentStatus === "approved" ? (
+          <button onClick={handleCancel} disabled={loadingAction !== null} className="h-7 px-3 rounded-md text-xs font-semibold inline-flex items-center gap-1 bg-amber-50 text-amber-700 hover:bg-amber-100 border border-amber-200 disabled:opacity-60">
+            {loadingAction === "cancel" ? t("loading") : t("cancel")}
+          </button>
+        ) : null}
+        {receipt.postingStatus === "posted" ? (
+          <button onClick={handleReverse} disabled={loadingAction !== null || !openPeriod} className="h-7 px-3 rounded-md text-xs font-semibold inline-flex items-center gap-1 bg-slate-100 text-slate-700 hover:bg-slate-200 border border-slate-200 disabled:opacity-60">
+            {loadingAction === "reverse" ? t("loading") : t("reverse")}
+          </button>
+        ) : null}
+      </div>
+    </div>
+  );
+}
+
+// ─── Main Page ────────────────────────────────────────────────────────────────
+
+import { useSearchParams } from "next/navigation";
+
 export default function ReceiptsPage() {
   const { t, isRTL, formatCurrency } = useI18n();
   const { canCreate, canPost } = usePermissions();
-  const [showForm, setShowForm] = useState(false);
+  const { currentUser: defaultUser } = useAuth();
+  const searchParams = useSearchParams();
+  const [showForm, setShowForm] = useState(searchParams.get("new") === "true");
   const [fromDate, setFromDate] = useState(startOfMonthISO());
   const [toDate, setToDate] = useState(todayISO());
   const [postingStatus, setPostingStatus] = useState("");
@@ -191,105 +311,162 @@ export default function ReceiptsPage() {
   };
 
   return (
-    <div className="space-y-5">
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-3">
-          <div className="h-11 w-11 rounded-xl flex items-center justify-center" style={{ background: "var(--brand-50)", color: "var(--brand-700)" }}>
-            <Wallet className="h-5 w-5" />
-          </div>
-          <div>
-            <h1 className="text-2xl font-bold text-[color:var(--ink-900)]">{t("cashReceiptsTitle")}</h1>
-            <p className="text-xs text-[color:var(--ink-500)] mt-0.5">{filtered.length} {t("receiptCount")}</p>
-          </div>
-        </div>
-        {canCreate("treasury") && (
-        <button onClick={() => setShowForm((v) => !v)} className="btn-primary h-10 px-4 rounded-lg inline-flex items-center gap-2 text-sm font-semibold">
-          <Plus className="h-4 w-4" /> {t("newReceipt")}
-        </button>
-        )}
+    <div dir={isRTL ? "rtl" : "ltr"} className="space-y-5">
+      <div className="no-print">
+      <PageHeader
+        icon={Wallet}
+        title={t("cashReceiptsTitle")}
+        badge={<span className="text-xs text-[color:var(--ink-400)] font-normal">({filtered.length})</span>}
+        actions={canCreate("treasury") ? (
+          <button onClick={() => setShowForm((v) => !v)} className="btn-primary h-10 px-4 rounded-lg inline-flex items-center gap-2 text-sm font-semibold">
+            <Plus className="h-4 w-4" /> {t("newReceipt")}
+          </button>
+        ) : undefined}
+      />
       </div>
 
       {showForm && <NewReceiptForm onClose={() => setShowForm(false)} />}
 
-      <div className="surface-card p-3 flex items-center gap-3 flex-wrap">
-        <div className="flex items-center gap-1.5">
-          <span className="text-xs text-[color:var(--ink-500)]">{t("fromDate")}:</span>
-          <input type="date" value={fromDate} onChange={(e) => setFromDate(e.target.value)} className="input-field h-9 w-auto" />
+      {/* Modern Filter Strip - Box Design */}
+      <div className="bg-white rounded-lg border border-gray-200 p-3 flex flex-wrap items-end gap-3 w-full">
+        <button className="h-10 px-3 border border-gray-200 rounded-md flex items-center gap-2 text-sm font-medium text-gray-700 hover:bg-gray-50 transition-colors">
+          <Filter className="h-4 w-4" /> {t("filters")}
+        </button>
+
+        <div className="flex flex-col gap-1">
+          <label className="text-[10px] font-bold text-gray-500 uppercase">{t("fromDate")}</label>
+          <div className="relative">
+            <Calendar className={`absolute top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400 ${isRTL ? "right-3" : "left-3"}`} />
+            <input type="date" value={fromDate} onChange={(e) => setFromDate(e.target.value)}
+              className={`h-10 ${isRTL ? "pr-9 pl-3" : "pl-9 pr-3"} border border-gray-200 rounded-md text-sm text-gray-700 focus:outline-none focus:border-gray-400 w-[160px]`} />
+          </div>
         </div>
-        <div className="flex items-center gap-1.5">
-          <span className="text-xs text-[color:var(--ink-500)]">{t("toDate")}:</span>
-          <input type="date" value={toDate} onChange={(e) => setToDate(e.target.value)} className="input-field h-9 w-auto" />
+        
+        <div className="flex flex-col gap-1">
+          <label className="text-[10px] font-bold text-gray-500 uppercase">{t("toDate")}</label>
+          <div className="relative">
+            <Calendar className={`absolute top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400 ${isRTL ? "right-3" : "left-3"}`} />
+            <input type="date" value={toDate} onChange={(e) => setToDate(e.target.value)}
+              className={`h-10 ${isRTL ? "pr-9 pl-3" : "pl-9 pr-3"} border border-gray-200 rounded-md text-sm text-gray-700 focus:outline-none focus:border-gray-400 w-[160px]`} />
+          </div>
         </div>
-        <select value={postingStatus} onChange={(e) => setPostingStatus(e.target.value)} className="input-field h-9 w-auto">
-          <option value="">{t("allStatuses")}</option>
-          <option value="unposted">{t("statusUnposted")}</option>
-          <option value="posted">{t("statusPosted")}</option>
-          <option value="reversed">{t("statusReversed")}</option>
-        </select>
-        <select value={allocationStatus} onChange={(e) => setAllocationStatus(e.target.value)} className="input-field h-9 w-auto">
-          <option value="">{t("allStatuses")}</option>
-          <option value="unallocated">{t("statusUnallocated")}</option>
-          <option value="partial">{t("statusPartial")}</option>
-          <option value="fully_allocated">{t("statusFull")}</option>
-        </select>
-        <div className="relative flex-1 min-w-[200px]">
-          <Search className={`absolute top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-[color:var(--ink-400)] ${isRTL ? "right-3" : "left-3"}`} />
-          <input type="text" value={search} onChange={(e) => setSearch(e.target.value)} placeholder={t("searchPlaceholder")}
-            className={`input-field h-9 ${isRTL ? "pr-9" : "pl-9"}`} />
+
+        <div className="flex flex-col gap-1">
+          <label className="text-[10px] font-bold text-gray-500 uppercase">{t("postingStatus")}</label>
+          <select value={postingStatus} onChange={(e) => setPostingStatus(e.target.value)}
+            className="h-10 px-3 border border-gray-200 rounded-md text-sm text-gray-700 focus:outline-none focus:border-gray-400 min-w-[140px] bg-white cursor-pointer appearance-none">
+            <option value="">{t("all")}</option>
+            <option value="unposted">{t("statusUnposted")}</option>
+            <option value="posted">{t("statusPosted")}</option>
+            <option value="reversed">{t("statusReversed")}</option>
+          </select>
+        </div>
+        
+        <div className="flex flex-col gap-1">
+          <label className="text-[10px] font-bold text-gray-500 uppercase">{t("allocationStatus")}</label>
+          <select value={allocationStatus} onChange={(e) => setAllocationStatus(e.target.value)}
+            className="h-10 px-3 border border-gray-200 rounded-md text-sm text-gray-700 focus:outline-none focus:border-gray-400 min-w-[140px] bg-white cursor-pointer appearance-none">
+            <option value="">{t("all")}</option>
+            <option value="unallocated">{t("statusUnallocated")}</option>
+            <option value="partial">{t("statusPartial")}</option>
+            <option value="fully_allocated">{t("statusFull")}</option>
+          </select>
+        </div>
+
+        <div className={`flex-1 min-w-[200px] ${isRTL ? "mr-auto" : "ml-auto"}`}>
+          <div className="relative">
+            <Search className={`absolute top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400 ${isRTL ? "right-3" : "left-3"}`} />
+            <input 
+              type="text" 
+              value={search} 
+              onChange={(e) => setSearch(e.target.value)}
+              placeholder={t("searchPlaceholder")}
+              className={`w-full h-10 ${isRTL ? "pr-9 pl-3" : "pl-9 pr-3"} border border-gray-200 rounded-md text-sm text-gray-700 focus:outline-none focus:border-gray-400`} 
+            />
+          </div>
         </div>
       </div>
 
-      <div className="surface-card p-3 flex items-center gap-6 text-sm">
-        <div><span className="text-[color:var(--ink-500)]">{t("receiptCount")}: </span><span className="font-semibold">{filtered.length}</span></div>
-        <div><span className="text-[color:var(--ink-500)]">{t("totalReceipts")}: </span><span className="font-semibold tabular-nums">{formatCurrency(totalAmount)}</span></div>
-        <div><span className="text-[color:var(--ink-500)]">{t("posted")}: </span><span className="font-semibold tabular-nums text-emerald-700">{formatCurrency(postedAmount)}</span></div>
+      {/* Premium KPI Cards - Modern Design */}
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+        <ReceiptStatCard 
+          title={isRTL ? "عدد السندات" : "Receipt Count"} 
+          value={filtered.length} 
+          icon={Wallet}
+          color="from-blue-500 to-blue-600"
+        />
+        <ReceiptStatCard 
+          title={isRTL ? "إجمالي المبالغ" : "Total Amount"} 
+          value={formatCurrency(totalAmount)} 
+          icon={WalletCards}
+          color="from-green-500 to-green-600"
+        />
+        <ReceiptStatCard 
+          title={isRTL ? "المرحل" : "Posted"} 
+          value={formatCurrency(postedAmount)} 
+          icon={CheckCircle2}
+          color="from-emerald-500 to-emerald-600"
+        />
+        <ReceiptStatCard 
+          title={isRTL ? "المعلق" : "Unposted"} 
+          value={formatCurrency(totalAmount - postedAmount)} 
+          icon={Clock}
+          color="from-amber-500 to-amber-600"
+        />
       </div>
 
-      <div className="surface-card overflow-hidden">
+      <div className="bg-white rounded-2xl shadow-[0_2px_10px_rgba(0,0,0,0.04)] border border-[color:var(--ink-100)] overflow-hidden">
         {loading ? (
-          <div className="p-8 text-center text-[color:var(--ink-400)]">
-            <div className="animate-spin h-8 w-8 border-2 border-[color:var(--brand-600)] border-t-transparent rounded-full mx-auto mb-3" />
-            <p className="text-sm">{t("loading")}</p>
-          </div>
+          <LoadingState label={t("loading")} />
         ) : filtered.length === 0 ? (
-          <div className="py-16 text-center text-[color:var(--ink-400)]">
-            <p className="text-sm">{t("noResults")}</p>
-            {canCreate("treasury") && (
-            <button onClick={() => setShowForm(true)} className="text-sm text-[color:var(--brand-700)] hover:underline mt-1">+ {t("newReceipt")}</button>
-            )}
-          </div>
+          <EmptyState
+            title={t("noResults")}
+            action={canCreate("treasury") ? (
+              <button onClick={() => setShowForm(true)}
+                className="btn-primary h-10 px-5 rounded-xl inline-flex items-center gap-2 text-sm font-semibold">
+                <Plus className="h-4 w-4" /> {t("newReceipt")}
+              </button>
+            ) : undefined}
+          />
         ) : (
           <div className="overflow-x-auto">
-            <table className="w-full zebra-table text-sm">
-              <thead className="bg-[color:var(--ink-50)] text-[color:var(--ink-600)] text-xs uppercase tracking-wider">
-                <tr>
-                  <th className="px-4 py-3 text-start font-semibold">{t("receiptNo")}</th>
-                  <th className="px-4 py-3 text-start font-semibold">{t("date")}</th>
-                  <th className="px-4 py-3 text-start font-semibold">{t("receivedFrom")}</th>
-                  <th className="px-4 py-3 text-end font-semibold">{t("amount")}</th>
-                  <th className="px-4 py-3 text-start font-semibold">{t("paymentMethod")}</th>
-                  <th className="px-4 py-3 text-start font-semibold">{t("status")}</th>
-                  <th className="px-4 py-3 text-start font-semibold">{t("status")}</th>
-                  <th className="px-4 py-3 text-end font-semibold">{t("actions")}</th>
+            <table className="w-full text-sm text-left border-collapse" dir={isRTL ? "rtl" : "ltr"}>
+              <thead>
+                <tr className="bg-gray-50/50 border-b border-gray-100">
+                  <th className="px-6 py-4 text-[10px] font-bold text-gray-400 uppercase tracking-widest">{t("receiptNo")}</th>
+                  <th className="px-6 py-4 text-[10px] font-bold text-gray-400 uppercase tracking-widest">{t("date")}</th>
+                  <th className="px-6 py-4 text-[10px] font-bold text-gray-400 uppercase tracking-widest">{t("receivedFrom")}</th>
+                  <th className="px-6 py-4 text-[10px] font-bold text-gray-400 uppercase tracking-widest text-end">{t("amount")}</th>
+                  <th className="px-6 py-4 text-[10px] font-bold text-gray-400 uppercase tracking-widest">{t("paymentMethod")}</th>
+                  <th className="px-6 py-4 text-[10px] font-bold text-gray-400 uppercase tracking-widest">{t("allocationStatus")}</th>
+                  <th className="px-6 py-4 text-[10px] font-bold text-gray-400 uppercase tracking-widest">{t("postingStatus")}</th>
+                  <th className="px-6 py-4 text-[10px] font-bold text-gray-400 uppercase tracking-widest text-end">{t("actions")}</th>
                 </tr>
               </thead>
-              <tbody>
+              <tbody className="divide-y divide-gray-50">
                 {filtered.map((r: any) => (
-                  <tr key={r._id} className="border-t border-[color:var(--ink-100)] hover:bg-[color:var(--brand-50)]/40">
-                    <td className="px-4 py-3 font-mono text-xs text-[color:var(--brand-700)]">{r.voucherNumber}</td>
-                    <td className="px-4 py-3 text-[color:var(--ink-600)]">{formatDateShort(r.voucherDate)}</td>
-                    <td className="px-4 py-3 text-[color:var(--ink-700)]">
-                      <div>{r.receivedFrom}</div>
-                      {r.customerName && <div className="text-xs text-[color:var(--ink-400)]">{r.customerName}</div>}
+                  <tr key={r._id} className="group hover:bg-gray-50/80 transition-all duration-200">
+                    <td className="px-6 py-4">
+                      <span className="inline-flex items-center px-2 py-0.5 rounded text-[11px] font-bold bg-gray-100 text-gray-600 border border-gray-200">
+                        {r.voucherNumber}
+                      </span>
                     </td>
-                    <td className="px-4 py-3 text-end font-semibold tabular-nums">{formatCurrency(r.amount)}</td>
-                    <td className="px-4 py-3 text-[color:var(--ink-600)]">{PM[r.paymentMethod] ?? r.paymentMethod}</td>
-                    <td className="px-4 py-3"><StatusBadge status={r.allocationStatus} type="allocation" /></td>
-                    <td className="px-4 py-3"><StatusBadge status={r.postingStatus} type="posting" /></td>
-                    <td className="px-4 py-3 text-end">
-                      <button className="h-8 w-8 inline-flex items-center justify-center rounded-md hover:bg-[color:var(--ink-100)] text-[color:var(--ink-500)]" title={t("view")}>
-                        <Eye className="h-4 w-4" />
-                      </button>
+                    <td className="px-6 py-4 text-xs text-gray-500 font-medium">{formatDateShort(r.voucherDate)}</td>
+                    <td className="px-6 py-4">
+                      <div className="font-bold text-gray-900 text-sm">{r.receivedFrom}</div>
+                      {r.customerName && <div className="text-[10px] text-gray-400 font-medium mt-0.5">{r.customerName}</div>}
+                    </td>
+                    <td className="px-6 py-4 text-end tabular-nums font-bold text-gray-900 text-sm">{formatCurrency(r.amount)}</td>
+                    <td className="px-6 py-4 text-xs text-gray-500 font-medium">{PM[r.paymentMethod] ?? r.paymentMethod}</td>
+                    <td className="px-6 py-4"><StatusBadge status={r.allocationStatus} type="allocation" /></td>
+                    <td className="px-6 py-4"><StatusBadge status={r.postingStatus} type="posting" /></td>
+                    <td className="px-6 py-4 text-end">
+                      <div className="flex items-center justify-end gap-1 opacity-0 group-hover:opacity-100 transition-opacity duration-200">
+                        <ReceiptLifecycleActions receipt={r} userId={defaultUser?._id} companyId={company?._id} />
+                        <button className="h-8 w-8 rounded-lg bg-white border border-gray-200 text-gray-400 hover:text-blue-600 hover:border-blue-200 hover:shadow-sm flex items-center justify-center transition-all" title={t("view")}>
+                          <Eye className="h-4 w-4" />
+                        </button>
+                      </div>
                     </td>
                   </tr>
                 ))}

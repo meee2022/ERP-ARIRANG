@@ -6,8 +6,11 @@ import { useI18n } from "@/hooks/useI18n";
 import { BranchPicker } from "./BranchPicker";
 import { PeriodBadge } from "./PeriodBadge";
 
+import { useAuth } from "@/hooks/useAuth";
+
 export function Header() {
   const { t, lang, toggleLanguage, isRTL } = useI18n();
+  const { currentUser } = useAuth();
   const toggleSidebarCollapsed = useAppStore((s) => s.toggleSidebarCollapsed);
 
   return (
@@ -19,7 +22,13 @@ export function Header() {
       <button
         type="button"
         aria-label={t("toggleSidebar")}
-        onClick={toggleSidebarCollapsed}
+        onClick={() => {
+          if (window.innerWidth < 1024) {
+            useAppStore.getState().toggleSidebar();
+          } else {
+            toggleSidebarCollapsed();
+          }
+        }}
         className="h-9 w-9 rounded-lg flex items-center justify-center text-[color:var(--ink-600)] hover:text-[color:var(--brand-700)] hover:bg-[color:var(--ink-50)] transition-colors"
       >
         <Menu className="h-[18px] w-[18px]" />
@@ -80,13 +89,19 @@ export function Header() {
               background: "linear-gradient(135deg, var(--brand-600), var(--brand-800))",
             }}
           >
-            <User className="h-4 w-4" />
+            {currentUser?.name ? (
+              <span className="uppercase">{currentUser.name.charAt(0)}</span>
+            ) : (
+              <User className="h-4 w-4" />
+            )}
           </div>
           <div className="hidden md:block leading-tight">
             <div className="text-[13px] font-semibold text-[color:var(--ink-900)]">
-              {t("adminUser")}
+              {currentUser?.name || t("adminUser")}
             </div>
-            <div className="text-[11px] text-[color:var(--ink-500)]">admin@demo.local</div>
+            <div className="text-[11px] text-[color:var(--ink-500)]">
+              {currentUser?.email || "admin@demo.local"}
+            </div>
           </div>
         </div>
       </div>

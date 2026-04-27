@@ -1,6 +1,33 @@
 ﻿import { query } from "./_generated/server";
 import { v } from "convex/values";
 
+// ─── CASH ACCOUNTS LIST ───────────────────────────────────────────────────────
+// Priority: operationalType === "cash" | "bank"  (explicit, set by user)
+// Fallback: name-based heuristic for accounts without operationalType set yet.
+export const listCashAndBankAccounts = query({
+  args: { companyId: v.id("companies") },
+  handler: async (ctx, { companyId }) => {
+    const all = await ctx.db
+      .query("accounts")
+      .withIndex("by_company", (q) => q.eq("companyId", companyId))
+      .filter((q) => q.eq(q.field("isActive"), true))
+      .collect();
+
+    return all.filter((a) => {
+      const opType = (a as any).operationalType ?? "";
+      // ① Explicit flag — always include
+      if (opType === "cash" || opType === "bank") return true;
+      // ② Fallback: name heuristic (supports legacy data without flag)
+      const name = (a.nameAr ?? "").toLowerCase();
+      const nameEn = ((a as any).nameEn ?? "").toLowerCase();
+      return (
+        name.includes("صندوق") || name.includes("نقد") || name.includes("بنك") ||
+        nameEn.includes("cash") || nameEn.includes("bank")
+      );
+    });
+  },
+});
+
 // ─── TRIAL BALANCE ────────────────────────────────────────────────────────────
 
 export const getTrialBalance = query({
@@ -344,6 +371,470 @@ export const getSupplierStatement = query({
   },
 });
 
+export const getSalesDetailsReport = query({
+  args: {
+    fromDate: v.string(),
+    toDate: v.string(),
+    branchId: v.optional(v.id("branches")),
+    customerId: v.optional(v.id("customers")),
+    salesRepId: v.optional(v.id("salesReps")),
+    vehicleId: v.optional(v.id("deliveryVehicles")),
+    paymentMethod: v.optional(v.string()),
+    postingStatus: v.optional(v.union(v.literal("unposted"), v.literal("posted"), v.literal("reversed"))),
+    reviewStatus: v.optional(v.union(v.literal("draft"), v.literal("submitted"), v.literal("rejected"), v.literal("approved"))),
+  },
+  handler: async (ctx, args) => {
+    let invoices = await ctx.db.query("salesInvoices").collect();
+
+    invoices = invoices.filter(
+      (invoice) =>
+        invoice.invoiceDate >= args.fromDate &&
+        invoice.invoiceDate <= args.toDate &&
+        (!args.branchId || invoice.branchId === args.branchId) &&
+        (!args.customerId || invoice.customerId === args.customerId) &&
+        (!args.salesRepId || invoice.salesRepId === args.salesRepId) &&
+        (!args.vehicleId || invoice.vehicleId === args.vehicleId) &&
+        (!args.paymentMethod || invoice.paymentMethod === args.paymentMethod) &&
+        (!args.postingStatus || invoice.postingStatus === args.postingStatus) &&
+        (!args.reviewStatus || (invoice.reviewStatus ?? "draft") === args.reviewStatus)
+    );
+
+    invoices.sort((a, b) => {
+      if (a.invoiceDate === b.invoiceDate) return String(a.invoiceNumber).localeCompare(String(b.invoiceNumber));
+      return b.invoiceDate.localeCompare(a.invoiceDate);
+    });
+
+    const rows = await Promise.all(
+      invoices.map(async (invoice) => {
+        const customer = invoice.customerId ? await ctx.db.get(invoice.customerId) : null;
+        const branch = await ctx.db.get(invoice.branchId);
+        const salesRep = invoice.salesRepId ? await ctx.db.get(invoice.salesRepId) : null;
+        const vehicle = invoice.vehicleId ? await ctx.db.get(invoice.vehicleId) : null;
+        const creator = await ctx.db.get(invoice.createdBy);
+
+        return {
+          _id: invoice._id,
+          invoiceNumber: invoice.invoiceNumber,
+          externalInvoiceNumber: invoice.externalInvoiceNumber ?? null,
+          invoiceDate: invoice.invoiceDate,
+          invoiceType: invoice.invoiceType,
+          paymentMethod: invoice.paymentMethod ?? null,
+          customerNameAr: customer?.nameAr ?? "—",
+          customerNameEn: customer?.nameEn ?? null,
+          branchNameAr: branch?.nameAr ?? "—",
+          branchNameEn: branch?.nameEn ?? null,
+          salesRepNameAr: salesRep?.nameAr ?? invoice.salesRepName ?? null,
+          salesRepNameEn: salesRep?.nameEn ?? null,
+          vehicleCode: vehicle?.code ?? invoice.vehicleCode ?? null,
+          vehicleDescriptionAr: vehicle?.descriptionAr ?? null,
+          vehicleDescriptionEn: vehicle?.descriptionEn ?? null,
+          subtotal: invoice.subtotal ?? 0,
+          discountAmount: invoice.discountAmount ?? 0,
+          vatAmount: invoice.vatAmount ?? 0,
+          serviceCharge: invoice.serviceCharge ?? 0,
+          totalAmount: invoice.totalAmount ?? 0,
+          cashReceived: invoice.cashReceived ?? 0,
+          cardReceived: invoice.cardReceived ?? 0,
+          creditAmount: invoice.creditAmount ?? 0,
+          documentStatus: invoice.documentStatus,
+          reviewStatus: invoice.reviewStatus ?? "draft",
+          postingStatus: invoice.postingStatus,
+          paymentStatus: invoice.paymentStatus,
+          createdByName: creator?.name ?? "—",
+        };
+      })
+    );
+
+    return {
+      rows,
+      totals: {
+        invoiceCount: rows.length,
+        subtotal: rows.reduce((sum, row) => sum + row.subtotal, 0),
+        discountAmount: rows.reduce((sum, row) => sum + row.discountAmount, 0),
+        vatAmount: rows.reduce((sum, row) => sum + row.vatAmount, 0),
+        serviceCharge: rows.reduce((sum, row) => sum + row.serviceCharge, 0),
+        totalAmount: rows.reduce((sum, row) => sum + row.totalAmount, 0),
+        cashReceived: rows.reduce((sum, row) => sum + row.cashReceived, 0),
+        cardReceived: rows.reduce((sum, row) => sum + row.cardReceived, 0),
+        creditAmount: rows.reduce((sum, row) => sum + row.creditAmount, 0),
+      },
+    };
+  },
+});
+
+export const getDailySalesReport = query({
+  args: {
+    fromDate: v.string(),
+    toDate: v.string(),
+    branchId: v.optional(v.id("branches")),
+    salesRepId: v.optional(v.id("salesReps")),
+    vehicleId: v.optional(v.id("deliveryVehicles")),
+  },
+  handler: async (ctx, args) => {
+    let invoices = await ctx.db.query("salesInvoices").collect();
+
+    invoices = invoices.filter(
+      (invoice) =>
+        invoice.invoiceDate >= args.fromDate &&
+        invoice.invoiceDate <= args.toDate &&
+        (!args.branchId || invoice.branchId === args.branchId) &&
+        (!args.salesRepId || invoice.salesRepId === args.salesRepId) &&
+        (!args.vehicleId || invoice.vehicleId === args.vehicleId)
+    );
+
+    const grouped = new Map<
+      string,
+      {
+        date: string;
+        invoiceCount: number;
+        grossSales: number;
+        discountAmount: number;
+        netSales: number;
+        postedSales: number;
+        draftSales: number;
+        submittedCount: number;
+        approvedCount: number;
+      }
+    >();
+
+    for (const invoice of invoices) {
+      const key = invoice.invoiceDate;
+      if (!grouped.has(key)) {
+        grouped.set(key, {
+          date: invoice.invoiceDate,
+          invoiceCount: 0,
+          grossSales: 0,
+          discountAmount: 0,
+          netSales: 0,
+          postedSales: 0,
+          draftSales: 0,
+          submittedCount: 0,
+          approvedCount: 0,
+        });
+      }
+
+      const row = grouped.get(key)!;
+      row.invoiceCount += 1;
+      row.grossSales += invoice.subtotal ?? 0;
+      row.discountAmount += invoice.discountAmount ?? 0;
+      row.netSales += invoice.totalAmount ?? 0;
+      if (invoice.postingStatus === "posted") row.postedSales += invoice.totalAmount ?? 0;
+      if (invoice.documentStatus === "draft") row.draftSales += invoice.totalAmount ?? 0;
+      if ((invoice.reviewStatus ?? "draft") === "submitted") row.submittedCount += 1;
+      if ((invoice.reviewStatus ?? "draft") === "approved" || invoice.documentStatus === "approved") row.approvedCount += 1;
+    }
+
+    const rows = Array.from(grouped.values()).sort((a, b) => a.date.localeCompare(b.date));
+
+    return {
+      rows,
+      totals: {
+        dayCount: rows.length,
+        invoiceCount: rows.reduce((sum, row) => sum + row.invoiceCount, 0),
+        grossSales: rows.reduce((sum, row) => sum + row.grossSales, 0),
+        discountAmount: rows.reduce((sum, row) => sum + row.discountAmount, 0),
+        netSales: rows.reduce((sum, row) => sum + row.netSales, 0),
+        postedSales: rows.reduce((sum, row) => sum + row.postedSales, 0),
+      },
+    };
+  },
+});
+
+export const getItemSalesReport = query({
+  args: {
+    fromDate: v.string(),
+    toDate: v.string(),
+    branchId: v.optional(v.id("branches")),
+  },
+  handler: async (ctx, args) => {
+    let invoices = await ctx.db.query("salesInvoices").collect();
+    invoices = invoices.filter(
+      (invoice) =>
+        invoice.invoiceDate >= args.fromDate &&
+        invoice.invoiceDate <= args.toDate &&
+        (!args.branchId || invoice.branchId === args.branchId)
+    );
+
+    const bucket = new Map<string, any>();
+
+    for (const invoice of invoices) {
+      const lines = await ctx.db
+        .query("salesInvoiceLines")
+        .withIndex("by_invoice", (q) => q.eq("invoiceId", invoice._id))
+        .collect();
+
+      for (const line of lines) {
+        const item = await ctx.db.get(line.itemId);
+        const key = String(line.itemId);
+        if (!bucket.has(key)) {
+          bucket.set(key, {
+            itemId: line.itemId,
+            itemCode: item?.code ?? "—",
+            itemNameAr: item?.nameAr ?? "—",
+            itemNameEn: item?.nameEn ?? null,
+            quantitySold: 0,
+            grossSales: 0,
+            netSales: 0,
+            invoiceCount: 0,
+          });
+        }
+
+        const row = bucket.get(key);
+        const lineGross = (line.quantity ?? 0) * (line.unitPrice ?? 0);
+        row.quantitySold += line.quantity ?? 0;
+        row.grossSales += lineGross;
+        row.netSales += line.lineTotal ?? lineGross;
+        row.invoiceCount += 1;
+      }
+    }
+
+    const rows = Array.from(bucket.values())
+      .map((row) => ({
+        ...row,
+        averageSellingPrice: row.quantitySold > 0 ? Math.round(row.netSales / row.quantitySold) : 0,
+      }))
+      .sort((a, b) => b.netSales - a.netSales);
+
+    return {
+      rows,
+      totals: {
+        itemCount: rows.length,
+        quantitySold: rows.reduce((sum, row) => sum + row.quantitySold, 0),
+        grossSales: rows.reduce((sum, row) => sum + row.grossSales, 0),
+        netSales: rows.reduce((sum, row) => sum + row.netSales, 0),
+      },
+    };
+  },
+});
+
+export const getTopSalesReport = query({
+  args: {
+    fromDate: v.string(),
+    toDate: v.string(),
+    branchId: v.optional(v.id("branches")),
+  },
+  handler: async (ctx, args) => {
+    let invoices = await ctx.db.query("salesInvoices").collect();
+    invoices = invoices.filter(
+      (invoice) =>
+        invoice.invoiceDate >= args.fromDate &&
+        invoice.invoiceDate <= args.toDate &&
+        (!args.branchId || invoice.branchId === args.branchId)
+    );
+
+    const customerMap = new Map<string, any>();
+    const itemMap = new Map<string, any>();
+    const salesRepMap = new Map<string, any>();
+
+    for (const invoice of invoices) {
+      if (invoice.customerId) {
+        const customer = await ctx.db.get(invoice.customerId);
+        const key = String(invoice.customerId);
+        if (!customerMap.has(key)) {
+          customerMap.set(key, {
+            id: invoice.customerId,
+            code: customer?.code ?? "—",
+            nameAr: customer?.nameAr ?? "—",
+            nameEn: customer?.nameEn ?? null,
+            invoiceCount: 0,
+            totalSales: 0,
+          });
+        }
+        const row = customerMap.get(key);
+        row.invoiceCount += 1;
+        row.totalSales += invoice.totalAmount ?? 0;
+      }
+
+      if (invoice.salesRepId || invoice.salesRepName) {
+        const salesRep = invoice.salesRepId ? await ctx.db.get(invoice.salesRepId) : null;
+        const key = String(invoice.salesRepId ?? invoice.salesRepName);
+        if (!salesRepMap.has(key)) {
+          salesRepMap.set(key, {
+            id: invoice.salesRepId ?? null,
+            code: salesRep?.code ?? null,
+            nameAr: salesRep?.nameAr ?? invoice.salesRepName ?? "—",
+            nameEn: salesRep?.nameEn ?? null,
+            invoiceCount: 0,
+            totalSales: 0,
+          });
+        }
+        const row = salesRepMap.get(key);
+        row.invoiceCount += 1;
+        row.totalSales += invoice.totalAmount ?? 0;
+      }
+
+      const lines = await ctx.db
+        .query("salesInvoiceLines")
+        .withIndex("by_invoice", (q) => q.eq("invoiceId", invoice._id))
+        .collect();
+
+      for (const line of lines) {
+        const item = await ctx.db.get(line.itemId);
+        const key = String(line.itemId);
+        if (!itemMap.has(key)) {
+          itemMap.set(key, {
+            id: line.itemId,
+            code: item?.code ?? "—",
+            nameAr: item?.nameAr ?? "—",
+            nameEn: item?.nameEn ?? null,
+            quantitySold: 0,
+            totalSales: 0,
+          });
+        }
+        const row = itemMap.get(key);
+        row.quantitySold += line.quantity ?? 0;
+        row.totalSales += line.lineTotal ?? 0;
+      }
+    }
+
+    return {
+      topCustomers: Array.from(customerMap.values()).sort((a, b) => b.totalSales - a.totalSales).slice(0, 10),
+      topItems: Array.from(itemMap.values()).sort((a, b) => b.totalSales - a.totalSales).slice(0, 10),
+      topSalesReps: Array.from(salesRepMap.values()).sort((a, b) => b.totalSales - a.totalSales).slice(0, 10),
+      totals: {
+        customerCount: customerMap.size,
+        itemCount: itemMap.size,
+        salesRepCount: salesRepMap.size,
+        totalSales: invoices.reduce((sum, invoice) => sum + (invoice.totalAmount ?? 0), 0),
+      },
+    };
+  },
+});
+
+export const getSalesBySalesRep = query({
+  args: {
+    fromDate: v.string(),
+    toDate: v.string(),
+    branchId: v.optional(v.id("branches")),
+  },
+  handler: async (ctx, args) => {
+    let invoices = await ctx.db
+      .query("salesInvoices")
+      .filter((q) => q.eq(q.field("postingStatus"), "posted"))
+      .collect();
+
+    invoices = invoices.filter(
+      (invoice) =>
+        invoice.invoiceDate >= args.fromDate &&
+        invoice.invoiceDate <= args.toDate &&
+        (!args.branchId || invoice.branchId === args.branchId)
+    );
+
+    const grouped = new Map<string, any>();
+
+    for (const invoice of invoices) {
+      const key = invoice.salesRepId ?? `manual:${invoice.salesRepName ?? "unassigned"}`;
+      if (!grouped.has(key)) {
+        let salesRep = null;
+        if (invoice.salesRepId) {
+          salesRep = await ctx.db.get(invoice.salesRepId);
+        }
+        grouped.set(key, {
+          salesRepId: invoice.salesRepId ?? null,
+          salesRepCode: salesRep?.code ?? null,
+          salesRepNameAr: salesRep?.nameAr ?? invoice.salesRepName ?? "غير محدد",
+          salesRepNameEn: salesRep?.nameEn ?? invoice.salesRepName ?? "Unassigned",
+          invoiceCount: 0,
+          totalSales: 0,
+          cashSales: 0,
+          creditSales: 0,
+        });
+      }
+
+      const row = grouped.get(key)!;
+      row.invoiceCount += 1;
+      row.totalSales += invoice.totalAmount ?? 0;
+      if (invoice.invoiceType === "cash_sale" || invoice.invoiceType === "mixed_sale") {
+        row.cashSales += invoice.totalAmount ?? 0;
+      }
+      if (invoice.invoiceType === "credit_sale" || invoice.invoiceType === "mixed_sale") {
+        row.creditSales += invoice.creditAmount ?? 0;
+      }
+    }
+
+    const rows = Array.from(grouped.values()).sort((a, b) =>
+      String(a.salesRepNameAr).localeCompare(String(b.salesRepNameAr))
+    );
+
+    return {
+      rows,
+      totals: {
+        invoiceCount: rows.reduce((sum, row) => sum + row.invoiceCount, 0),
+        totalSales: rows.reduce((sum, row) => sum + row.totalSales, 0),
+        cashSales: rows.reduce((sum, row) => sum + row.cashSales, 0),
+        creditSales: rows.reduce((sum, row) => sum + row.creditSales, 0),
+      },
+    };
+  },
+});
+
+export const getSalesByVehicle = query({
+  args: {
+    fromDate: v.string(),
+    toDate: v.string(),
+    branchId: v.optional(v.id("branches")),
+  },
+  handler: async (ctx, args) => {
+    let invoices = await ctx.db
+      .query("salesInvoices")
+      .filter((q) => q.eq(q.field("postingStatus"), "posted"))
+      .collect();
+
+    invoices = invoices.filter(
+      (invoice) =>
+        invoice.invoiceDate >= args.fromDate &&
+        invoice.invoiceDate <= args.toDate &&
+        (!args.branchId || invoice.branchId === args.branchId)
+    );
+
+    const grouped = new Map<string, any>();
+
+    for (const invoice of invoices) {
+      const key = invoice.vehicleId ?? `manual:${invoice.vehicleCode ?? "unassigned"}`;
+      if (!grouped.has(key)) {
+        let vehicle = null;
+        if (invoice.vehicleId) {
+          vehicle = await ctx.db.get(invoice.vehicleId);
+        }
+        grouped.set(key, {
+          vehicleId: invoice.vehicleId ?? null,
+          vehicleCode: vehicle?.code ?? invoice.vehicleCode ?? "—",
+          vehicleDescriptionAr: vehicle?.descriptionAr ?? "غير محدد",
+          vehicleDescriptionEn: vehicle?.descriptionEn ?? "Unassigned",
+          invoiceCount: 0,
+          totalSales: 0,
+          cashSales: 0,
+          creditSales: 0,
+        });
+      }
+
+      const row = grouped.get(key)!;
+      row.invoiceCount += 1;
+      row.totalSales += invoice.totalAmount ?? 0;
+      if (invoice.invoiceType === "cash_sale" || invoice.invoiceType === "mixed_sale") {
+        row.cashSales += invoice.totalAmount ?? 0;
+      }
+      if (invoice.invoiceType === "credit_sale" || invoice.invoiceType === "mixed_sale") {
+        row.creditSales += invoice.creditAmount ?? 0;
+      }
+    }
+
+    const rows = Array.from(grouped.values()).sort((a, b) =>
+      String(a.vehicleCode).localeCompare(String(b.vehicleCode))
+    );
+
+    return {
+      rows,
+      totals: {
+        invoiceCount: rows.reduce((sum, row) => sum + row.invoiceCount, 0),
+        totalSales: rows.reduce((sum, row) => sum + row.totalSales, 0),
+        cashSales: rows.reduce((sum, row) => sum + row.cashSales, 0),
+        creditSales: rows.reduce((sum, row) => sum + row.creditSales, 0),
+      },
+    };
+  },
+});
+
 // ─── AR AGING ─────────────────────────────────────────────────────────────────
 
 export const getARaging = query({
@@ -389,8 +880,18 @@ export const getARaging = query({
         (asOf.getTime() - dueDate.getTime()) / (1000 * 60 * 60 * 24)
       );
 
-      const outstanding_amount = inv.creditAmount;
-
+      // Compute actual outstanding: creditAmount minus total non-reversed allocations
+      let outstanding_amount = inv.creditAmount;
+      if (inv.paymentStatus === "partial") {
+        const allocs = await ctx.db
+          .query("receiptAllocations")
+          .withIndex("by_invoice", (q) => q.eq("invoiceId", inv._id))
+          .filter((q) => q.eq(q.field("isReversed"), false))
+          .collect();
+        const paid = allocs.reduce((s, a) => s + a.allocatedAmount, 0);
+        outstanding_amount = Math.max(0, inv.creditAmount - paid);
+      }
+      if (outstanding_amount <= 0) continue;
       const customerId = inv.customerId ?? "unknown";
       if (!customerTotals.has(customerId)) {
         const customer = inv.customerId ? await ctx.db.get(inv.customerId) : null;
@@ -470,8 +971,19 @@ export const getAPaging = query({
       const daysPastDue = Math.floor(
         (asOf.getTime() - dueDate.getTime()) / (1000 * 60 * 60 * 24)
       );
-      const outstandingAmount = inv.totalAmount;
 
+      // Compute actual outstanding: totalAmount minus total non-reversed payment allocations
+      let outstandingAmount = inv.totalAmount;
+      if (inv.paymentStatus === "partial") {
+        const allocs = await ctx.db
+          .query("paymentAllocations")
+          .withIndex("by_invoice", (q) => q.eq("invoiceId", inv._id))
+          .filter((q) => q.eq(q.field("isReversed"), false))
+          .collect();
+        const paid = allocs.reduce((s, a) => s + a.allocatedAmount, 0);
+        outstandingAmount = Math.max(0, inv.totalAmount - paid);
+      }
+      if (outstandingAmount <= 0) continue;
       if (!supplierTotals.has(inv.supplierId)) {
         const supplier = await ctx.db.get(inv.supplierId);
         supplierTotals.set(inv.supplierId, {
@@ -1187,6 +1699,100 @@ export const getChequeRegister = query({
 
     enriched.sort((a, b) => a.dueDate.localeCompare(b.dueDate));
     return enriched;
+  },
+});
+
+// ─── CASH / BANK MOVEMENT REPORT ─────────────────────────────────────────────
+// Journal-line-based: matches Trial Balance & General Ledger exactly.
+// Retrieves all posted journal lines for the given account, then:
+//   - Lines before fromDate   → opening balance
+//   - Lines within the period → daily movement table
+
+export const getCashMovementReport = query({
+  args: {
+    companyId: v.id("companies"),
+    accountId: v.id("accounts"),
+    fromDate:  v.string(),
+    toDate:    v.string(),
+  },
+  handler: async (ctx, { companyId, accountId, fromDate, toDate }) => {
+    const account = await ctx.db.get(accountId);
+
+    // All journal lines for this account (by_account index)
+    const allLines = await ctx.db
+      .query("journalLines")
+      .withIndex("by_account", (q) => q.eq("accountId", accountId))
+      .collect();
+
+    // Enrich with entry details (date, postingStatus, companyId) — batch
+    const entryIds = [...new Set(allLines.map((l) => l.entryId))];
+    const entryMap = new Map<string, { entryDate: string; postingStatus: string; companyId: string }>();
+    await Promise.all(
+      entryIds.map(async (id) => {
+        const e = await ctx.db.get(id);
+        if (e) entryMap.set(String(id), { entryDate: e.entryDate, postingStatus: e.postingStatus, companyId: String(e.companyId) });
+      })
+    );
+
+    // Keep only posted lines that belong to this company
+    const postedLines = allLines.filter((l) => {
+      const e = entryMap.get(String(l.entryId));
+      return e && e.postingStatus === "posted" && e.companyId === String(companyId);
+    });
+
+    // Use normalBalance from schema — debit-normal = asset/expense accounts
+    // This replaces the old code.startsWith("1") heuristic.
+    const isDebitNormal = account?.normalBalance === "debit";
+
+    // Compute net movement: debit increases asset accounts, credit decreases
+    const netOf = (l: { debit: number; credit: number }) =>
+      isDebitNormal ? l.debit - l.credit : l.credit - l.debit;
+
+    // Opening balance = net of all lines before fromDate
+    const beforeLines = postedLines.filter((l) => {
+      const e = entryMap.get(String(l.entryId));
+      return e && e.entryDate < fromDate;
+    });
+    const openingBalance = beforeLines.reduce((s, l) => s + netOf(l), 0);
+
+    // Period lines
+    const periodLines = postedLines.filter((l) => {
+      const e = entryMap.get(String(l.entryId));
+      return e && e.entryDate >= fromDate && e.entryDate <= toDate;
+    });
+
+    // Build day map
+    const dayMap = new Map<string, { debit: number; credit: number }>();
+    for (const l of periodLines) {
+      const date = entryMap.get(String(l.entryId))!.entryDate;
+      if (!dayMap.has(date)) dayMap.set(date, { debit: 0, credit: 0 });
+      const d = dayMap.get(date)!;
+      d.debit  += l.debit;
+      d.credit += l.credit;
+    }
+
+    const sortedDays = [...dayMap.keys()].sort();
+    let running = openingBalance;
+    const rows = sortedDays.map((date) => {
+      const { debit, credit } = dayMap.get(date)!;
+      const net = isDebitNormal ? debit - credit : credit - debit;
+      running += net;
+      return { date, debit, credit, net, balance: running };
+    });
+
+    const totalDebit  = periodLines.reduce((s, l) => s + l.debit,  0);
+    const totalCredit = periodLines.reduce((s, l) => s + l.credit, 0);
+    const closingBalance = running;
+
+    return {
+      accountNameAr: account?.nameAr ?? "",
+      accountCode:   (account as any)?.code ?? "",
+      openingBalance,
+      rows,
+      totalDebit,
+      totalCredit,
+      closingBalance,
+    };
   },
 });
 

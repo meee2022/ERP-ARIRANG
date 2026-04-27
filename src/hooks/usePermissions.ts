@@ -46,8 +46,8 @@ const ROLE_PERMISSIONS: Record<AppRole, PermissionMap> = {
     finance: ALL_PERMISSIONS,
     treasury: ALL_PERMISSIONS,
     reports: ALL_PERMISSIONS,
-    purchases: ["view", "create", "post"],
-    sales: ["view"],
+    purchases: ALL_PERMISSIONS,
+    sales: ["view", "edit", "post"],
     inventory: ["view"],
     settings: ["view"],
     users: [],
@@ -65,9 +65,9 @@ const ROLE_PERMISSIONS: Record<AppRole, PermissionMap> = {
   },
 
   sales: {
-    sales: ALL_PERMISSIONS,
-    reports: ["view"],
-    inventory: ["view"],
+    sales: ["view", "create", "edit", "delete"],
+    reports: [],
+    inventory: [],
     purchases: [],
     treasury: [],
     finance: [],
@@ -77,8 +77,8 @@ const ROLE_PERMISSIONS: Record<AppRole, PermissionMap> = {
 
   warehouse: {
     inventory: ALL_PERMISSIONS,
-    purchases: ["view", "create"],
-    reports: ["view"],
+    purchases: ["view", "create", "edit"],
+    reports: [],
     sales: [],
     treasury: [],
     finance: [],

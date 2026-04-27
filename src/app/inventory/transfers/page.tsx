@@ -11,6 +11,20 @@ import { ArrowLeftRight, Plus, X, Check, Trash2, Search, Send } from "lucide-rea
 import { useAuth } from "@/hooks/useAuth";
 import { usePermissions } from "@/hooks/usePermissions";
 import { useAppStore } from "@/store/useAppStore";
+import { PageHeader } from "@/components/ui/page-header";
+import { FilterPanel, FilterField } from "@/components/ui/filter-panel";
+import { LoadingState } from "@/components/ui/data-display";
+import { EmptyState } from "@/components/ui/empty-state";
+import { Calendar, Filter } from "lucide-react";
+
+function TransferStatCard({ title, value }: any) {
+  return (
+    <div className="bg-white rounded-lg p-3 border border-green-600 flex-1">
+      <div className="text-[10px] font-bold text-green-700 uppercase mb-1">{title}</div>
+      <div className="text-lg font-bold text-gray-900 tabular-nums">{value}</div>
+    </div>
+  );
+}
 
 function todayISO() { return new Date().toISOString().split("T")[0]; }
 function startOfMonthISO() {
@@ -223,6 +237,47 @@ function PostTransferButton({ transfer, userId }: { transfer: any; userId: strin
   );
 }
 
+// ─── Delete Transfer Button ────────────────────────────────────────────────────
+
+function DeleteTransferButton({ transfer, userId }: { transfer: any; userId: string | undefined }) {
+  const { t, isRTL } = useI18n();
+  const [loading, setLoading] = useState(false);
+  const [err, setErr] = useState("");
+  const remove = useMutation(api.inventory.deleteStockTransfer);
+
+  // Only show for draft transfers that are not posted
+  if (transfer.postingStatus === "posted") return null;
+  if (transfer.documentStatus !== "draft") return null;
+  if (!userId) return null;
+
+  const handle = async () => {
+    const confirmed = window.confirm(
+      isRTL 
+        ? `هل تريد حذف تحويل المخزون ${transfer.movementNumber}؟`
+        : `Delete stock transfer ${transfer.movementNumber}?`
+    );
+    if (!confirmed) return;
+
+    setLoading(true); setErr("");
+    try { 
+      await remove({ movementId: transfer._id, userId: userId as any }); 
+    }
+    catch (e: any) { setErr(e.message); }
+    finally { setLoading(false); }
+  };
+
+  return (
+    <div className="inline-flex flex-col items-end gap-1">
+      {err && <span className="text-xs text-red-600 max-w-[180px] text-end">{err}</span>}
+      <button onClick={handle} disabled={loading}
+        className="h-7 px-3 rounded-md text-xs font-semibold inline-flex items-center gap-1 bg-red-50 text-red-700 hover:bg-red-100 border border-red-200 disabled:opacity-60">
+        <Trash2 className="h-3.5 w-3.5" />
+        {loading ? t("deleting") : t("delete")}
+      </button>
+    </div>
+  );
+}
+
 // ─── Main Page ─────────────────────────────────────────────────────────────────
 
 export default function TransfersPage() {
@@ -245,9 +300,11 @@ export default function TransfersPage() {
     api.inventory.getInventoryMovements,
     company
       ? {
+          companyId: company._id,
           movementType: "transfer_out",
           fromDate: fromDate || undefined,
           toDate: toDate || undefined,
+          branchId: branchArg as any,
         }
       : "skip"
   );
@@ -260,86 +317,117 @@ export default function TransfersPage() {
   });
 
   return (
-    <div className="space-y-5">
+    <div dir={isRTL ? "rtl" : "ltr"} className="space-y-5">
       {/* Header */}
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-3">
-          <div className="h-11 w-11 rounded-xl flex items-center justify-center" style={{ background: "var(--brand-50)", color: "var(--brand-700)" }}>
-            <ArrowLeftRight className="h-5 w-5" />
-          </div>
-          <div>
-            <h1 className="text-2xl font-bold text-[color:var(--ink-900)]">{t("stockTransfersTitle")}</h1>
-            <p className="text-xs text-[color:var(--ink-500)] mt-0.5">{filtered.length}</p>
-          </div>
-        </div>
-        {canCreate("inventory") && (
-          <button onClick={() => setShowForm(v => !v)}
-            className="btn-primary h-10 px-4 rounded-lg inline-flex items-center gap-2 text-sm font-semibold">
-            <Plus className="h-4 w-4" /> {t("newTransfer")}
-          </button>
-        )}
+      <div className="no-print">
+      <PageHeader
+        icon={ArrowLeftRight}
+        title={t("stockTransfersTitle")}
+        badge={<span className="badge-soft">{filtered.length}</span>}
+        actions={
+          canCreate("inventory") ? (
+            <button onClick={() => setShowForm(v => !v)}
+              className="btn-primary h-10 px-4 rounded-lg inline-flex items-center gap-2 text-sm font-semibold">
+              <Plus className="h-4 w-4" /> {t("newTransfer")}
+            </button>
+          ) : undefined
+        }
+      />
       </div>
 
       {showForm && <NewTransferForm onClose={() => setShowForm(false)} />}
 
-      {/* Filters */}
-      <div className="surface-card p-3 flex items-center gap-3 flex-wrap">
-        <div className="flex items-center gap-1.5">
-          <span className="text-xs text-[color:var(--ink-500)]">{t("fromDate")}:</span>
-          <input type="date" value={fromDate} onChange={e => setFromDate(e.target.value)} className="input-field h-9 w-auto" />
+      {/* Modern Filter Strip - Box Design */}
+      <div className="bg-white rounded-lg border border-gray-200 p-3 flex flex-wrap items-end gap-3 w-full">
+        <button className="h-10 px-3 border border-gray-200 rounded-md flex items-center gap-2 text-sm font-medium text-gray-700 hover:bg-gray-50 transition-colors">
+          <Filter className="h-4 w-4" /> {t("filters")}
+        </button>
+
+        <div className="flex flex-col gap-1">
+          <label className="text-[10px] font-bold text-gray-500 uppercase">{t("fromDate")}</label>
+          <div className="relative">
+            <Calendar className={`absolute top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400 ${isRTL ? "right-3" : "left-3"}`} />
+            <input type="date" value={fromDate} onChange={(e) => setFromDate(e.target.value)}
+              className={`h-10 ${isRTL ? "pr-9 pl-3" : "pl-9 pr-3"} border border-gray-200 rounded-md text-sm text-gray-700 focus:outline-none focus:border-gray-400 w-[160px]`} />
+          </div>
         </div>
-        <div className="flex items-center gap-1.5">
-          <span className="text-xs text-[color:var(--ink-500)]">{t("toDate")}:</span>
-          <input type="date" value={toDate} onChange={e => setToDate(e.target.value)} className="input-field h-9 w-auto" />
+        
+        <div className="flex flex-col gap-1">
+          <label className="text-[10px] font-bold text-gray-500 uppercase">{t("toDate")}</label>
+          <div className="relative">
+            <Calendar className={`absolute top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400 ${isRTL ? "right-3" : "left-3"}`} />
+            <input type="date" value={toDate} onChange={(e) => setToDate(e.target.value)}
+              className={`h-10 ${isRTL ? "pr-9 pl-3" : "pl-9 pr-3"} border border-gray-200 rounded-md text-sm text-gray-700 focus:outline-none focus:border-gray-400 w-[160px]`} />
+          </div>
         </div>
-        <div className="relative flex-1 min-w-[200px]">
-          <Search className={`absolute top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-[color:var(--ink-400)] ${isRTL ? "right-3" : "left-3"}`} />
-          <input type="text" value={search} onChange={e => setSearch(e.target.value)}
-            placeholder={t("searchPlaceholder")}
-            className={`input-field h-9 ${isRTL ? "pr-9" : "pl-9"}`} />
+
+        <div className={`flex-1 min-w-[200px] ${isRTL ? "mr-auto" : "ml-auto"}`}>
+          <div className="relative">
+            <Search className={`absolute top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400 ${isRTL ? "right-3" : "left-3"}`} />
+            <input 
+              type="text" 
+              value={search} 
+              onChange={(e) => setSearch(e.target.value)}
+              placeholder={t("searchPlaceholder")}
+              className={`w-full h-10 ${isRTL ? "pr-9 pl-3" : "pl-9 pr-3"} border border-gray-200 rounded-md text-sm text-gray-700 focus:outline-none focus:border-gray-400`} 
+            />
+          </div>
         </div>
       </div>
 
-      {/* Table */}
-      <div className="surface-card overflow-hidden">
+      {/* Premium KPI Cards - Grouped Design */}
+      <div className="bg-white border border-gray-200 rounded-lg p-3 flex flex-col md:flex-row gap-4 w-full">
+        <TransferStatCard title={t("transferCount")} value={filtered.length} />
+        <TransferStatCard title={t("draft")} value={filtered.filter(m => m.documentStatus === "draft").length} />
+        <TransferStatCard title={t("posted")} value={filtered.filter(m => m.postingStatus === "posted").length} />
+      </div>
+
+      <div className="bg-white rounded-2xl shadow-[0_2px_10px_rgba(0,0,0,0.04)] border border-[color:var(--ink-100)] overflow-hidden">
         {loading ? (
-          <div className="p-8 text-center">
-            <div className="animate-spin h-8 w-8 border-2 border-[color:var(--brand-600)] border-t-transparent rounded-full mx-auto mb-3" />
-            <p className="text-sm text-[color:var(--ink-400)]">{t("loading")}</p>
-          </div>
+          <LoadingState label={t("loading")} />
         ) : filtered.length === 0 ? (
-          <div className="py-16 text-center text-[color:var(--ink-400)]">
-            <ArrowLeftRight className="h-10 w-10 mx-auto mb-3 opacity-30" />
-            <p className="text-sm">{t("noResults")}</p>
-            {canCreate("inventory") && (
-              <button onClick={() => setShowForm(true)} className="text-sm text-[color:var(--brand-700)] hover:underline mt-1">
-                + {t("newTransfer")}
-              </button>
-            )}
-          </div>
+          <EmptyState
+            icon={ArrowLeftRight}
+            title={t("noResults")}
+            action={
+              canCreate("inventory") ? (
+                <button onClick={() => setShowForm(true)}
+                  className="btn-primary h-10 px-5 rounded-xl inline-flex items-center gap-2 text-sm font-semibold">
+                  <Plus className="h-4 w-4" /> {t("newTransfer")}
+                </button>
+              ) : undefined
+            }
+          />
         ) : (
           <div className="overflow-x-auto">
-            <table className="w-full zebra-table text-sm">
-              <thead className="bg-[color:var(--ink-50)] text-[color:var(--ink-600)] text-xs uppercase tracking-wider">
-                <tr>
-                  <th className="px-4 py-3 text-start font-semibold">{t("transferNo")}</th>
-                  <th className="px-4 py-3 text-start font-semibold">{t("date")}</th>
-                  <th className="px-4 py-3 text-start font-semibold">{t("fromWarehouse")}</th>
-                  <th className="px-4 py-3 text-start font-semibold">{t("toWarehouse")}</th>
-                  <th className="px-4 py-3 text-start font-semibold">{t("status")}</th>
-                  <th className="px-4 py-3 text-end font-semibold">{t("actions")}</th>
+            <table className="w-full text-sm text-left border-collapse" dir={isRTL ? "rtl" : "ltr"}>
+              <thead>
+                <tr className="bg-gray-50/50 border-b border-gray-100">
+                  <th className="px-6 py-4 text-[10px] font-bold text-gray-400 uppercase tracking-widest">{t("transferNo")}</th>
+                  <th className="px-6 py-4 text-[10px] font-bold text-gray-400 uppercase tracking-widest">{t("date")}</th>
+                  <th className="px-6 py-4 text-[10px] font-bold text-gray-400 uppercase tracking-widest">{t("fromWarehouse")}</th>
+                  <th className="px-6 py-4 text-[10px] font-bold text-gray-400 uppercase tracking-widest">{t("toWarehouse")}</th>
+                  <th className="px-6 py-4 text-[10px] font-bold text-gray-400 uppercase tracking-widest">{t("status")}</th>
+                  <th className="px-6 py-4 text-[10px] font-bold text-gray-400 uppercase tracking-widest text-end">{t("actions")}</th>
                 </tr>
               </thead>
-              <tbody>
+              <tbody className="divide-y divide-gray-50">
                 {filtered.map((m: any) => (
-                  <tr key={m._id} className="border-t border-[color:var(--ink-100)] hover:bg-[color:var(--brand-50)]/40">
-                    <td className="px-4 py-3 font-mono text-xs text-[color:var(--brand-700)]">{m.movementNumber}</td>
-                    <td className="px-4 py-3 text-[color:var(--ink-600)]">{formatDateShort(m.movementDate)}</td>
-                    <td className="px-4 py-3 text-[color:var(--ink-700)]">{m.warehouseName ?? "—"}</td>
-                    <td className="px-4 py-3 text-[color:var(--ink-600)]">{m.destinationWarehouseName ?? "—"}</td>
-                    <td className="px-4 py-3"><StatusBadge status={m.postingStatus} type="posting" /></td>
-                    <td className="px-4 py-3 text-end">
-                      {canPost("inventory") && <PostTransferButton transfer={m} userId={currentUser?._id} />}
+                  <tr key={m._id} className="group hover:bg-gray-50/80 transition-all duration-200">
+                    <td className="px-6 py-4">
+                      <span className="inline-flex items-center px-2 py-0.5 rounded text-[11px] font-bold bg-gray-100 text-gray-600 border border-gray-200">
+                        {m.movementNumber}
+                      </span>
+                    </td>
+                    <td className="px-6 py-4 text-xs text-gray-500 font-medium">{formatDateShort(m.movementDate)}</td>
+                    <td className="px-6 py-4 font-bold text-gray-900 text-sm">{isRTL ? m.warehouseName : (m.warehouseNameEn || m.warehouseName) ?? "—"}</td>
+                    <td className="px-6 py-4 text-xs text-gray-500 font-medium">{isRTL ? m.destinationWarehouseName : (m.destinationWarehouseNameEn || m.destinationWarehouseName) ?? "—"}</td>
+                    <td className="px-6 py-4"><StatusBadge status={m.postingStatus} type="posting" /></td>
+                    <td className="px-6 py-4 text-end">
+                      <div className="flex items-center justify-end opacity-0 group-hover:opacity-100 transition-opacity duration-200">
+                        {canPost("inventory") && <PostTransferButton transfer={m} userId={currentUser?._id} />}
+                        {<DeleteTransferButton transfer={m} userId={currentUser?._id} />}
+                      </div>
                     </td>
                   </tr>
                 ))}

@@ -6,12 +6,19 @@ import { useQuery } from "convex/react";
 import { api } from "../../../../convex/_generated/api";
 import { TrendingUp, Printer } from "lucide-react";
 import { useAppStore } from "@/store/useAppStore";
+import { PdfDownloadButton } from "@/components/ui/PdfDownloadButton";
+import { IncomeStatementPdf } from "@/lib/pdf/IncomeStatementPdf";
+import { LoadingState } from "@/components/ui/data-display";
+import { CompanyPrintHeader } from "@/components/ui/company-print-header";
+import { useCompanySettings } from "@/hooks/useCompanySettings";
+import { PageHeader } from "@/components/ui/page-header";
 
 function startOfYearISO() { return `${new Date().getFullYear()}-01-01`; }
 function todayISO() { return new Date().toISOString().split("T")[0]; }
 
 export default function IncomeStatementPage() {
   const { t, isRTL, formatCurrency } = useI18n();
+  const { company: printCompany } = useCompanySettings();
   const [startDate, setStartDate] = useState(startOfYearISO());
   const [endDate, setEndDate] = useState(todayISO());
   const [branchId, setBranchId] = useState<string>("");
@@ -47,29 +54,62 @@ export default function IncomeStatementPage() {
   const accountName = (row: any) => isRTL ? row.nameAr : (row.nameEn || row.nameAr);
 
   return (
-    <div className="space-y-5">
+    <div dir={isRTL ? "rtl" : "ltr"} className="space-y-5">
+      <CompanyPrintHeader
+        company={printCompany}
+        isRTL={isRTL}
+        documentTitle={t("incomeStatementTitle")}
+        periodLine={`${startDate} — ${endDate}`}
+      />
+
       {/* Header */}
-      <div className="flex items-center justify-between gap-3 flex-wrap">
-        <div className="flex items-center gap-3">
-          <div className="h-11 w-11 rounded-xl flex items-center justify-center" style={{ background: "var(--brand-50)", color: "var(--brand-700)" }}>
-            <TrendingUp className="h-5 w-5" />
-          </div>
-          <div>
-            <h1 className="text-2xl font-bold text-[color:var(--ink-900)]">{t("incomeStatementTitle")}</h1>
-            <p className="text-xs text-[color:var(--ink-500)] mt-0.5">{t("reportPostedOnly")}</p>
-          </div>
-        </div>
-        <button
-          onClick={() => window.print()}
-          className="no-print flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-colors"
-          style={{ background: "var(--brand-700)", color: "#fff" }}
-        >
-          <Printer className="h-4 w-4" />
-          {t("printReport")}
-        </button>
+      <div className="no-print">
+        <PageHeader
+          icon={TrendingUp}
+          title={t("incomeStatementTitle")}
+          actions={
+            <>
+              {data && (
+                <PdfDownloadButton
+                  document={
+                    <IncomeStatementPdf data={{
+                      logoUrl: printCompany?.logoUrl ?? undefined,
+                      companyNameEn: printCompany?.nameEn ?? undefined,
+                      companyPhone: printCompany?.phone ?? undefined,
+                      companyName: company ? (isRTL ? company.nameAr : (company.nameEn || company.nameAr)) : "",
+                      startDate, endDate,
+                      revenueAccounts: (data.revenueAccounts ?? []).filter((r: any) => !hideZero || r.balance !== 0),
+                      expenseAccounts: (data.expenseAccounts ?? []).filter((r: any) => !hideZero || r.balance !== 0),
+                      totalRevenue:  data.totalRevenue  ?? 0,
+                      totalExpenses: data.totalExpenses ?? 0,
+                      netIncome:     data.netIncome     ?? 0,
+                      isRTL,
+                      labels: {
+                        title:         t("incomeStatementTitle"),
+                        period:        `${startDate} → ${endDate}`,
+                        revenue:       t("revenues"),
+                        totalRevenue:  t("totalRevenue"),
+                        expenses:      t("expenses"),
+                        totalExpenses: t("totalExpenses"),
+                        netIncome:     t("netIncome"),
+                        netLoss:       t("netLoss"),
+                        printedBy:     t("printedBy"),
+                      },
+                      formatCurrency: (n: number) => new Intl.NumberFormat("en-QA", { style: "currency", currency: "QAR", minimumFractionDigits: 2 }).format(n / 100),
+                    }} />
+                  }
+                  fileName={`income-statement-${startDate}-${endDate}.pdf`}
+                  label={t("downloadPdf") ?? "PDF"}
+                />
+              )}
+              <button onClick={() => window.print()} className="btn-ghost h-9 px-4 rounded-xl inline-flex items-center gap-2 text-sm font-semibold"><Printer className="h-4 w-4" />{t("printReport")}</button>
+            </>
+          }
+        />
       </div>
 
       {/* Filters */}
+      <div className="no-print">
       <div className="surface-card p-3 flex items-center gap-4 flex-wrap print:hidden">
         <div className="flex items-center gap-1.5">
           <span className="text-xs text-[color:var(--ink-500)]">{t("fromDate")}:</span>
@@ -95,22 +135,16 @@ export default function IncomeStatementPage() {
           {t("hideZeroBalances")}
         </label>
       </div>
-
-      {/* Report Print Header */}
-      <div className="hidden print:block text-center mb-4">
-        <h2 className="text-xl font-bold">{company ? (isRTL ? company.nameAr : (company.nameEn || company.nameAr)) : ""}</h2>
-        <h3 className="text-lg font-semibold mt-1">{t("incomeStatementTitle")}</h3>
-        <p className="text-sm text-gray-600 mt-0.5">{t("fromDate")}: {startDate} — {t("toDate")}: {endDate}</p>
       </div>
 
       {loading ? (
         <div className="surface-card p-8 text-center">
-          <div className="animate-spin h-8 w-8 border-2 border-[color:var(--brand-600)] border-t-transparent rounded-full mx-auto mb-3" />
+          <LoadingState label={t("loading")} />
         </div>
       ) : (
         <div className="surface-card overflow-hidden">
           <div className="overflow-x-auto">
-            <table className="w-full text-sm">
+            <table className="data-table">
 
               {/* ── REVENUE ── */}
               <thead>
@@ -130,9 +164,9 @@ export default function IncomeStatementPage() {
                   <tr><td colSpan={3} className="px-4 py-4 text-center text-[color:var(--ink-400)] text-sm">{t("noResults")}</td></tr>
                 ) : revenueAccounts.map((row: any) => (
                   <tr key={row.accountId} className="border-t border-[color:var(--ink-100)] hover:bg-[color:var(--brand-50)]/30">
-                    <td className="px-4 py-2.5 font-mono text-xs text-[color:var(--brand-700)]">{row.code}</td>
-                    <td className="px-4 py-2.5 text-[color:var(--ink-700)]">{accountName(row)}</td>
-                    <td className="px-4 py-2.5 text-end tabular-nums text-[color:var(--ink-800)]">{formatCurrency(row.balance)}</td>
+                    <td className="px-4 py-2.5 code">{row.code}</td>
+                    <td className="px-4 py-2.5">{accountName(row)}</td>
+                    <td className="px-4 py-2.5 numeric text-end">{formatCurrency(row.balance)}</td>
                   </tr>
                 ))}
               </tbody>
@@ -141,7 +175,7 @@ export default function IncomeStatementPage() {
               <tbody>
                 <tr style={{ background: "var(--brand-50)", borderTop: "2px solid var(--brand-200)" }}>
                   <td colSpan={2} className="px-4 py-3 font-bold text-[color:var(--ink-800)]">{t("totalRevenue")}</td>
-                  <td className="px-4 py-3 text-end tabular-nums font-bold text-[color:var(--brand-800)]">{formatCurrency(totalRevenue)}</td>
+                  <td className="px-4 py-3 numeric text-end font-bold text-[color:var(--brand-800)]">{formatCurrency(totalRevenue)}</td>
                 </tr>
               </tbody>
 
@@ -166,9 +200,9 @@ export default function IncomeStatementPage() {
                   <tr><td colSpan={3} className="px-4 py-4 text-center text-[color:var(--ink-400)] text-sm">{t("noResults")}</td></tr>
                 ) : expenseAccounts.map((row: any) => (
                   <tr key={row.accountId} className="border-t border-[color:var(--ink-100)] hover:bg-[color:var(--brand-50)]/30">
-                    <td className="px-4 py-2.5 font-mono text-xs text-[color:var(--brand-700)]">{row.code}</td>
-                    <td className="px-4 py-2.5 text-[color:var(--ink-700)]">{accountName(row)}</td>
-                    <td className="px-4 py-2.5 text-end tabular-nums text-[color:var(--ink-800)]">{formatCurrency(row.balance)}</td>
+                    <td className="px-4 py-2.5 code">{row.code}</td>
+                    <td className="px-4 py-2.5">{accountName(row)}</td>
+                    <td className="px-4 py-2.5 numeric text-end">{formatCurrency(row.balance)}</td>
                   </tr>
                 ))}
               </tbody>
@@ -177,7 +211,7 @@ export default function IncomeStatementPage() {
               <tbody>
                 <tr style={{ background: "var(--brand-50)", borderTop: "2px solid var(--brand-200)" }}>
                   <td colSpan={2} className="px-4 py-3 font-bold text-[color:var(--ink-800)]">{t("totalExpenses")}</td>
-                  <td className="px-4 py-3 text-end tabular-nums font-bold text-[color:var(--brand-800)]">{formatCurrency(totalExpenses)}</td>
+                  <td className="px-4 py-3 numeric text-end font-bold text-[color:var(--brand-800)]">{formatCurrency(totalExpenses)}</td>
                 </tr>
               </tbody>
 
@@ -190,7 +224,7 @@ export default function IncomeStatementPage() {
                   <td colSpan={2} className="px-4 py-4 font-extrabold text-base" style={{ color: isProfit ? "rgb(5,150,105)" : "rgb(220,38,38)" }}>
                     {isProfit ? t("netIncome") : t("netLoss")}
                   </td>
-                  <td className="px-4 py-4 text-end tabular-nums font-extrabold text-base" style={{ color: isProfit ? "rgb(5,150,105)" : "rgb(220,38,38)" }}>
+                  <td className="px-4 py-4 numeric text-end font-extrabold text-base" style={{ color: isProfit ? "rgb(5,150,105)" : "rgb(220,38,38)" }}>
                     {formatCurrency(Math.abs(netIncome))}
                   </td>
                 </tr>

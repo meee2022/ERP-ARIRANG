@@ -9,6 +9,10 @@ import { ArrowLeftRight, Plus, X, Check } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
 import { usePermissions } from "@/hooks/usePermissions";
 import { useAppStore } from "@/store/useAppStore";
+import { PageHeader } from "@/components/ui/page-header";
+import { FilterPanel, FilterField } from "@/components/ui/filter-panel";
+import { LoadingState } from "@/components/ui/data-display";
+import { EmptyState } from "@/components/ui/empty-state";
 
 function startOfMonthISO() { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}-01`; }
 function todayISO() { return new Date().toISOString().split("T")[0]; }
@@ -230,79 +234,77 @@ export default function BankTransfersPage() {
   });
 
   return (
-    <div className="space-y-5">
+    <div dir={isRTL ? "rtl" : "ltr"} className="space-y-5">
       {/* Header */}
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-3">
-          <div className="h-11 w-11 rounded-xl flex items-center justify-center" style={{ background: "var(--brand-50)", color: "var(--brand-700)" }}>
-            <ArrowLeftRight className="h-5 w-5" />
-          </div>
-          <div>
-            <h1 className="text-2xl font-bold text-[color:var(--ink-900)]">{t("bankTransfersTitle")}</h1>
-            <p className="text-xs text-[color:var(--ink-500)] mt-0.5">{data.length}</p>
-          </div>
-        </div>
-        {canCreate("treasury") && (
-        <button
-          onClick={() => setShowForm((v) => !v)}
-          className="btn-primary h-10 px-4 rounded-lg inline-flex items-center gap-2 text-sm font-semibold"
-        >
-          <Plus className="h-4 w-4" /> {t("newBankTransfer")}
-        </button>
-        )}
+      <div className="no-print">
+      <PageHeader
+        icon={ArrowLeftRight}
+        title={t("bankTransfersTitle")}
+        subtitle={String(data.length)}
+        actions={
+          canCreate("treasury") ? (
+            <button
+              onClick={() => setShowForm((v) => !v)}
+              className="btn-primary h-10 px-4 rounded-lg inline-flex items-center gap-2 text-sm font-semibold"
+            >
+              <Plus className="h-4 w-4" /> {t("newBankTransfer")}
+            </button>
+          ) : undefined
+        }
+      />
       </div>
 
       {/* Inline Form */}
       {showForm && <NewBankTransferForm onClose={() => setShowForm(false)} />}
 
       {/* Filter Bar */}
-      <div className="surface-card p-3 flex items-center gap-3 flex-wrap">
-        <div className="flex items-center gap-1.5">
-          <span className="text-xs text-[color:var(--ink-500)]">{t("fromDate")}:</span>
+      <FilterPanel>
+        <FilterField label={t("fromDate")}>
           <input type="date" value={fromDate} onChange={e => setFromDate(e.target.value)} className="input-field h-9 w-auto" />
-        </div>
-        <div className="flex items-center gap-1.5">
-          <span className="text-xs text-[color:var(--ink-500)]">{t("toDate")}:</span>
+        </FilterField>
+        <FilterField label={t("toDate")}>
           <input type="date" value={toDate} onChange={e => setToDate(e.target.value)} className="input-field h-9 w-auto" />
-        </div>
-      </div>
+        </FilterField>
+      </FilterPanel>
 
       {/* Table */}
       <div className="surface-card overflow-hidden">
         {loading ? (
-          <div className="p-8 text-center">
-            <div className="animate-spin h-8 w-8 border-2 border-[color:var(--brand-600)] border-t-transparent rounded-full mx-auto mb-3" />
-          </div>
+          <LoadingState label={t("loading")} />
         ) : data.length === 0 ? (
-          <div className="py-16 text-center text-[color:var(--ink-400)]">
-            <p className="text-sm">{t("noResults")}</p>
-            {canCreate("treasury") && (
-            <button onClick={() => setShowForm(true)} className="text-sm text-[color:var(--brand-700)] hover:underline mt-1">
-              + {t("newBankTransfer")}
-            </button>
-            )}
-          </div>
+          <EmptyState
+            icon={ArrowLeftRight}
+            title={t("noResults")}
+            action={
+              canCreate("treasury") ? (
+                <button onClick={() => setShowForm(true)}
+                  className="btn-primary h-9 px-5 rounded-xl inline-flex items-center gap-2 text-sm font-semibold">
+                  <Plus className="h-4 w-4" /> {t("newBankTransfer")}
+                </button>
+              ) : undefined
+            }
+          />
         ) : (
           <div className="overflow-x-auto">
-            <table className="w-full zebra-table text-sm">
-              <thead className="bg-[color:var(--ink-50)] text-[color:var(--ink-600)] text-xs uppercase tracking-wider">
+            <table className="data-table">
+              <thead>
                 <tr>
-                  <th className="px-4 py-3 text-start font-semibold">{t("reference")}</th>
-                  <th className="px-4 py-3 text-start font-semibold">{t("date")}</th>
-                  <th className="px-4 py-3 text-start font-semibold">{t("fromAccount")}</th>
-                  <th className="px-4 py-3 text-start font-semibold">{t("toAccount")}</th>
-                  <th className="px-4 py-3 text-end font-semibold">{t("amount")}</th>
-                  <th className="px-4 py-3 text-start font-semibold">{t("status")}</th>
+                  <th>{t("reference")}</th>
+                  <th>{t("date")}</th>
+                  <th>{t("fromAccount")}</th>
+                  <th>{t("toAccount")}</th>
+                  <th className="text-end">{t("amount")}</th>
+                  <th>{t("status")}</th>
                 </tr>
               </thead>
               <tbody>
                 {data.map((tr: any) => (
                   <tr key={tr._id} className="border-t border-[color:var(--ink-100)] hover:bg-[color:var(--brand-50)]/40">
-                    <td className="px-4 py-2.5 font-mono text-xs text-[color:var(--brand-700)]">{tr.transferNumber}</td>
-                    <td className="px-4 py-2.5 text-[color:var(--ink-600)]">{formatDateShort(tr.transferDate)}</td>
-                    <td className="px-4 py-2.5 text-[color:var(--ink-600)]">{accountMap[tr.fromAccountId] ?? tr.fromAccountId}</td>
-                    <td className="px-4 py-2.5 text-[color:var(--ink-600)]">{accountMap[tr.toAccountId] ?? tr.toAccountId}</td>
-                    <td className="px-4 py-2.5 text-end font-semibold tabular-nums">{formatCurrency(tr.amount / 100)}</td>
+                    <td className="px-4 py-2.5"><span className="code">{tr.transferNumber}</span></td>
+                    <td className="px-4 py-2.5 muted">{formatDateShort(tr.transferDate)}</td>
+                    <td className="px-4 py-2.5 muted">{accountMap[tr.fromAccountId] ?? tr.fromAccountId}</td>
+                    <td className="px-4 py-2.5 muted">{accountMap[tr.toAccountId] ?? tr.toAccountId}</td>
+                    <td className="px-4 py-2.5 numeric text-end">{formatCurrency(tr.amount / 100)}</td>
                     <td className="px-4 py-2.5">
                       <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${tr.postingStatus === "posted" ? "bg-emerald-50 text-emerald-700" : "bg-[color:var(--ink-100)] text-[color:var(--ink-600)]"}`}>
                         {t(tr.postingStatus === "posted" ? "statusPosted" : "statusDraft")}
