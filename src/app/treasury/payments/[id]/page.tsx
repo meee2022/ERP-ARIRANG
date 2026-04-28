@@ -2,6 +2,7 @@
 "use client";
 
 import React from "react";
+import { formatCurrency } from "@/lib/i18n";
 import { useParams, useRouter } from "next/navigation";
 import { useQuery } from "convex/react";
 import { api } from "../../../../../convex/_generated/api";
@@ -36,7 +37,7 @@ export default function PaymentVoucherPage() {
       style: "currency",
       currency: "QAR",
       minimumFractionDigits: 2,
-    }).format(n / 100);
+    }).format(n);
 
   const BackIcon = isRTL ? ArrowRight : ArrowLeft;
 

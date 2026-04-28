@@ -399,7 +399,22 @@ export default function TransfersPage() {
             }
           />
         ) : (
-          <div className="overflow-x-auto">
+          <>
+          <div className="mobile-list p-3 space-y-2.5">
+            {filtered.map((m: any) => (
+              <div key={m._id} className="record-card">
+                <div className="flex items-start justify-between gap-2">
+                  <div className="min-w-0 flex-1">
+                    <span className="font-mono text-[11px] font-bold px-2 py-0.5 rounded bg-[var(--ink-100)] text-[var(--ink-600)] inline-block mb-1">{m.transferNumber}</span>
+                    <p className="text-[13px] font-semibold text-[var(--ink-800)]">{m.fromWarehouseName} → {m.toWarehouseName}</p>
+                    <p className="text-[11px] text-[var(--ink-400)] mt-0.5">{m.transferDate}</p>
+                  </div>
+                  <StatusBadge status={m.postingStatus} type="posting" />
+                </div>
+              </div>
+            ))}
+          </div>
+          <div className="desktop-table overflow-x-auto">
             <table className="w-full text-sm text-left border-collapse" dir={isRTL ? "rtl" : "ltr"}>
               <thead>
                 <tr className="bg-gray-50/50 border-b border-gray-100">
@@ -434,6 +449,7 @@ export default function TransfersPage() {
               </tbody>
             </table>
           </div>
+          </>
         )}
       </div>
     </div>

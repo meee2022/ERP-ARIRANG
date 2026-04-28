@@ -81,7 +81,7 @@ function NewPurchaseReturnForm({ onClose }: { onClose: () => void }) {
 
   const grandTotal = (invoiceLines ?? []).reduce((sum: number, line: any) => {
     const qty = parseFloat(returnQtys[line._id] ?? "0") || 0;
-    return sum + qty * (line.unitPrice / 100);
+    return sum + qty * (line.unitPrice);
   }, 0);
 
   const onSubmit = async (e: React.FormEvent) => {
@@ -175,7 +175,7 @@ function NewPurchaseReturnForm({ onClose }: { onClose: () => void }) {
               <option value="">{t("selectInvoice")}</option>
               {(postedInvoices ?? []).map((inv: any) => (
                 <option key={inv._id} value={inv._id}>
-                  {inv.invoiceNumber} — {inv.supplierName} ({formatCurrency(inv.totalAmount / 100, lang)})
+                  {inv.invoiceNumber} — {inv.supplierName} ({formatCurrency(inv.totalAmount, lang)})
                 </option>
               ))}
             </select>
@@ -234,12 +234,12 @@ function NewPurchaseReturnForm({ onClose }: { onClose: () => void }) {
                   <tbody>
                     {invoiceLines.map((line: any) => {
                       const qty = parseFloat(returnQtys[line._id] ?? "0") || 0;
-                      const lineTotal = qty * (line.unitPrice / 100);
+                      const lineTotal = qty * (line.unitPrice);
                       return (
                         <tr key={line._id}>
                           <td>{line.item?.nameAr ?? line.description ?? line.account?.nameAr ?? "—"}</td>
                           <td className="text-center muted">{line.quantity}</td>
-                          <td className="text-center muted">{formatCurrency(line.unitPrice / 100, lang)}</td>
+                          <td className="text-center muted">{formatCurrency(line.unitPrice, lang)}</td>
                           <td className="text-center">
                             <input type="number" min="0" max={line.quantity} step="1"
                               className="w-20 mx-auto block text-center input-field py-1 text-sm"
@@ -383,7 +383,7 @@ export default function PurchaseReturnsPage() {
                     <td className="muted">{formatDateShort(ret.returnDate)}</td>
                     <td className="code">{ret.originalInvoiceNumber}</td>
                     <td>{ret.supplierName}</td>
-                    <td className="numeric text-end">{formatCurrency(ret.totalAmount / 100, lang)}</td>
+                    <td className="numeric text-end">{formatCurrency(ret.totalAmount, lang)}</td>
                     <td><StatusBadge status={ret.postingStatus} /></td>
                     <td>
                       <div className="flex items-center gap-2">

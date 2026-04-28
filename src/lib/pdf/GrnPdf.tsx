@@ -27,10 +27,10 @@ export function GrnPdf({ data }: { data: GrnPdfData }) {
   const pdfLines: PdfLine[] = data.lines.map((l, i) => ({
     idx: i + 1, code: l.itemCode,
     name: isRTL ? l.itemNameAr : (l.itemNameEn || l.itemNameAr),
-    quantity: l.quantity, unitPrice: l.unitCost / 100, lineTotal: l.totalCost / 100,
+    quantity: l.quantity, unitPrice: l.unitCost, lineTotal: l.totalCost,
   }));
 
-  const totalValue = data.lines.reduce((s, l) => s + l.totalCost, 0) / 100;
+  const totalValue = data.lines.reduce((s, l) => s + l.totalCost, 0);
 
   return (
     <Document title={`${labels.title} - ${data.grnNumber}`}>

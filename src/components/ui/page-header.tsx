@@ -1,13 +1,6 @@
 /**
  * PageHeader — unified page title / subtitle / actions area.
- * Used at the top of every main page.
- *
- * Props:
- *   icon        — Lucide icon component (optional)
- *   title       — h1 text
- *   subtitle    — small descriptor text
- *   actions     — slot for buttons / badges on the right
- *   badge       — a small pill appended after the title (e.g. record count)
+ * Mobile-first: on small screens the actions wrap below the title.
  */
 import React from "react";
 
@@ -19,6 +12,8 @@ interface PageHeaderProps {
   actions?: React.ReactNode;
   badge?: React.ReactNode;
   className?: string;
+  /** If true, action buttons stretch full-width on mobile */
+  mobileFullActions?: boolean;
 }
 
 export function PageHeader({
@@ -29,31 +24,36 @@ export function PageHeader({
   actions,
   badge,
   className = "",
+  mobileFullActions = false,
 }: PageHeaderProps) {
   return (
-    <div className={`flex flex-wrap items-start justify-between gap-4 ${className}`}>
-      {/* left: icon + text */}
-      <div className="flex items-center gap-3 min-w-0">
+    <div className={`flex flex-wrap items-start justify-between gap-3 ${className}`}>
+      {/* Left: icon + title */}
+      <div className="flex items-center gap-3 min-w-0 flex-1">
         {Icon && (
           <div
             className="shrink-0 h-10 w-10 rounded-xl flex items-center justify-center"
             style={{
               background: `color-mix(in srgb, ${iconColor} 10%, white)`,
-              border: `1px solid color-mix(in srgb, ${iconColor} 16%, transparent)`,
+              border: `1px solid color-mix(in srgb, ${iconColor} 18%, transparent)`,
             }}
           >
-            <Icon className="h-5 w-5" style={{ color: iconColor }} />
+            <Icon className="h-[18px] w-[18px]" style={{ color: iconColor }} />
           </div>
         )}
         <div className="min-w-0">
           <div className="flex items-center gap-2 flex-wrap">
-            <h1 className="text-[22px] font-bold tracking-tight text-[color:var(--ink-900)] leading-tight">
+            <h1 className="text-[20px] sm:text-[22px] font-bold tracking-tight text-[color:var(--ink-900)] leading-tight">
               {title}
             </h1>
-            {badge}
+            {badge && (
+              <span className="text-[12px] text-[color:var(--ink-400)] font-normal">
+                {badge}
+              </span>
+            )}
           </div>
           {subtitle && (
-            <p className="text-xs text-[color:var(--ink-500)] mt-0.5 leading-relaxed">
+            <p className="text-[11.5px] text-[color:var(--ink-500)] mt-0.5 leading-relaxed">
               {subtitle}
             </p>
           )}

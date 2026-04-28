@@ -75,10 +75,10 @@ export function IncomeStatementPdf({ data }: { data: IncomeStatementPdfData }) {
     ...data.revenueAccounts.map((a) => ({
       code: a.code,
       label: isRTL ? a.nameAr : (a.nameEn || a.nameAr),
-      amount: a.balance / 100,
+      amount: a.balance,
       level: 2,
     })),
-    { label: labels.totalRevenue, amount: data.totalRevenue / 100, level: 0, isTotal: true },
+    { label: labels.totalRevenue, amount: data.totalRevenue, level: 0, isTotal: true },
   ];
 
   // Build tree nodes for Expenses
@@ -87,10 +87,10 @@ export function IncomeStatementPdf({ data }: { data: IncomeStatementPdfData }) {
     ...data.expenseAccounts.map((a) => ({
       code: a.code,
       label: isRTL ? a.nameAr : (a.nameEn || a.nameAr),
-      amount: a.balance / 100,
+      amount: a.balance,
       level: 2,
     })),
-    { label: labels.totalExpenses, amount: data.totalExpenses / 100, level: 0, isTotal: true },
+    { label: labels.totalExpenses, amount: data.totalExpenses, level: 0, isTotal: true },
   ];
 
   return (
@@ -111,15 +111,15 @@ export function IncomeStatementPdf({ data }: { data: IncomeStatementPdfData }) {
         <View style={[S.kpiRow, { flexDirection: dir }]}>
           <View style={[S.kpiBox, { backgroundColor: "#f0fdf4", borderColor: "#86efac" }]}>
             <Text style={S.kpiLabel}>{labels.totalRevenue}</Text>
-            <Text style={[S.kpiValue, { color: "#166534" }]}>{formatCurrency(data.totalRevenue / 100)}</Text>
+            <Text style={[S.kpiValue, { color: "#166534" }]}>{formatCurrency(data.totalRevenue)}</Text>
           </View>
           <View style={[S.kpiBox, { backgroundColor: "#fff1f2", borderColor: "#fca5a5" }]}>
             <Text style={S.kpiLabel}>{labels.totalExpenses}</Text>
-            <Text style={[S.kpiValue, { color: "#991b1b" }]}>{formatCurrency(data.totalExpenses / 100)}</Text>
+            <Text style={[S.kpiValue, { color: "#991b1b" }]}>{formatCurrency(data.totalExpenses)}</Text>
           </View>
           <View style={[S.kpiBox, { backgroundColor: isProfit ? "#eff6ff" : "#fff7ed", borderColor: isProfit ? "#93c5fd" : "#fdba74" }]}>
             <Text style={S.kpiLabel}>{isProfit ? labels.netIncome : labels.netLoss}</Text>
-            <Text style={[S.kpiValue, { color: isProfit ? "#1d4ed8" : "#c2410c" }]}>{formatCurrency(Math.abs(data.netIncome) / 100)}</Text>
+            <Text style={[S.kpiValue, { color: isProfit ? "#1d4ed8" : "#c2410c" }]}>{formatCurrency(Math.abs(data.netIncome))}</Text>
           </View>
         </View>
 
@@ -139,7 +139,7 @@ export function IncomeStatementPdf({ data }: { data: IncomeStatementPdfData }) {
             {isProfit ? labels.netIncome : labels.netLoss}
           </Text>
           <Text style={[S.netValue, { color: isProfit ? BRAND : "#c2410c", textAlign: end }]}>
-            {isProfit ? "" : "("}{formatCurrency(Math.abs(data.netIncome) / 100)}{isProfit ? "" : ")"}
+            {isProfit ? "" : "("}{formatCurrency(Math.abs(data.netIncome))}{isProfit ? "" : ")"}
           </Text>
         </View>
 

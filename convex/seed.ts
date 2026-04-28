@@ -2023,3 +2023,56 @@ export const seedEmployeesFromJSON = mutation({
     };
   },
 });
+
+// ─── Add Direct Expenses accounts ────────────────────────────────────────────
+export const addDirectExpensesAccounts = mutation({
+  args: { companyId: v.id("companies") },
+  handler: async (ctx, args) => {
+    const now = Date.now();
+    const accounts = [
+      { code: "5100", nameAr: "المصاريف المباشرة", nameEn: "Direct Expenses", accountType: "expense" as const, accountSubType: "direct_expense", normalBalance: "debit" as const, isPostable: false },
+      { code: "5102", nameAr: "مواد خام مستهلكة", nameEn: "Raw Materials Consumed", accountType: "expense" as const, accountSubType: "direct_expense", normalBalance: "debit" as const, isPostable: true },
+      { code: "5103", nameAr: "أجور عمالة مباشرة", nameEn: "Direct Labor Wages", accountType: "expense" as const, accountSubType: "direct_expense", normalBalance: "debit" as const, isPostable: true },
+      { code: "5104", nameAr: "مصاريف التغليف", nameEn: "Packaging Expenses", accountType: "expense" as const, accountSubType: "direct_expense", normalBalance: "debit" as const, isPostable: true },
+      { code: "5105", nameAr: "مصاريف الإنتاج المتنوعة", nameEn: "Miscellaneous Production Expenses", accountType: "expense" as const, accountSubType: "direct_expense", normalBalance: "debit" as const, isPostable: true },
+      { code: "5106", nameAr: "مصاريف الطاقة والمرافق (إنتاج)", nameEn: "Production Utilities & Energy", accountType: "expense" as const, accountSubType: "direct_expense", normalBalance: "debit" as const, isPostable: true },
+    ];
+
+    const results: string[] = [];
+    let parentId: any = undefined;
+
+    for (const acc of accounts) {
+      const existing = await ctx.db
+        .query("accounts")
+        .withIndex("by_company_code", (q) => q.eq("companyId", args.companyId).eq("code", acc.code))
+        .first();
+      if (existing) {
+        if (acc.code === "5100") parentId = existing._id;
+        results.push(`SKIP ${acc.code} already exists`);
+        continue;
+      }
+      const newId = await ctx.db.insert("accounts", {
+        companyId: args.companyId, code: acc.code, nameAr: acc.nameAr, nameEn: acc.nameEn,
+        accountType: acc.accountType, accountSubType: acc.accountSubType,
+        normalBalance: acc.normalBalance, isPostable: acc.isPostable,
+        ...(acc.code !== "5100" && parentId ? { parentId } : {}),
+        isActive: true, requiresCostCenter: false, requiresSubAccount: false, createdAt: now,
+      });
+      if (acc.code === "5100") parentId = newId;
+      results.push(`CREATED ${acc.code} ${acc.nameEn}`);
+    }
+    if (parentId) {
+      for (const acc of accounts) {
+        if (acc.code === "5100") continue;
+        const child = await ctx.db.query("accounts")
+          .withIndex("by_company_code", (q) => q.eq("companyId", args.companyId).eq("code", acc.code))
+          .first();
+        if (child && !child.parentId) {
+          await ctx.db.patch(child._id, { parentId } as any);
+          results.push(`LINKED ${acc.code} to 5100`);
+        }
+      }
+    }
+    return { results, count: results.filter(r => r.startsWith("CREATED")).length };
+  },
+});

@@ -214,7 +214,27 @@ export default function SuppliersPage() {
         {filtered.length === 0 ? (
           <EmptyState icon={Truck} title={lbl("لا يوجد موردون", "No suppliers")} />
         ) : (
-          <div className="overflow-x-auto">
+          <>
+          <div className="mobile-list p-3 space-y-2.5">
+            {filtered.map((s: any) => (
+              <div key={s._id} className="record-card cursor-pointer" onClick={() => openDrawer(s, "info")}>
+                <div className="flex items-start justify-between gap-3 mb-2">
+                  <div className="min-w-0 flex-1">
+                    <span className="font-mono text-[11px] font-bold px-2 py-0.5 rounded bg-[var(--ink-100)] text-[var(--ink-600)] inline-block mb-1">{s.code}</span>
+                    <p className="text-[14px] font-bold text-[var(--ink-900)]">{s.nameAr}</p>
+                    {s.nameEn && s.nameEn !== s.nameAr && <p className="text-[11.5px] text-[var(--ink-500)]">{s.nameEn}</p>}
+                    {s.mobile && <p className="text-[11.5px] text-[var(--ink-400)] mt-0.5">{s.mobile}</p>}
+                  </div>
+                  <div className="shrink-0">
+                    <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full border ${s.isActive ? "bg-green-50 text-green-700 border-green-200" : "bg-gray-50 text-gray-400 border-gray-200"}`}>
+                      {s.isActive ? "نشط" : "غير نشط"}
+                    </span>
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+          <div className="desktop-table overflow-x-auto">
             <table className="data-table">
               <thead>
                 <tr>
@@ -271,6 +291,7 @@ export default function SuppliersPage() {
               </tbody>
             </table>
           </div>
+          </>
         )}
       </div>
 
@@ -691,11 +712,11 @@ function InvoicesTab({ supplier, formatCurrency, formatDate, lbl }: any) {
       <div className="grid grid-cols-2 gap-3">
         <div className="p-3 rounded-xl border border-gray-100">
           <div className="text-[10px] text-gray-400 uppercase tracking-wide mb-0.5">{lbl("إجمالي", "Total")}</div>
-          <div className="text-lg font-bold text-gray-900">{formatCurrency(stats.total / 100)}</div>
+          <div className="text-lg font-bold text-gray-900">{formatCurrency(stats.total)}</div>
         </div>
         <div className="p-3 rounded-xl border border-gray-100">
           <div className="text-[10px] text-gray-400 uppercase tracking-wide mb-0.5">{lbl("مستحق", "Unpaid")}</div>
-          <div className="text-lg font-bold text-red-600">{formatCurrency(stats.unpaid / 100)}</div>
+          <div className="text-lg font-bold text-red-600">{formatCurrency(stats.unpaid)}</div>
         </div>
       </div>
 
@@ -718,7 +739,7 @@ function InvoicesTab({ supplier, formatCurrency, formatDate, lbl }: any) {
                   </div>
                   <div className="text-xs text-gray-400 mt-0.5">{formatDate(inv.invoiceDate)}</div>
                 </div>
-                <div className="text-sm font-bold text-gray-900">{formatCurrency(inv.totalAmount / 100)}</div>
+                <div className="text-sm font-bold text-gray-900">{formatCurrency(inv.totalAmount)}</div>
               </div>
             );
           })}

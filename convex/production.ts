@@ -965,3 +965,55 @@ export const productionCostSummary = query({
     };
   },
 });
+
+// ─── RECIPE COST AUTO-RECALCULATION ──────────────────────────────────────────
+/** Refreshes unitCost on every recipeLine using current weighted-average stock
+ *  cost. Returns a summary of how many lines were updated. */
+export const recalculateAllRecipeCosts = mutation({
+  args: { companyId: v.id("companies") },
+  handler: async (ctx, args) => {
+    // Load all recipes for this company
+    const recipes = await ctx.db
+      .query("recipes")
+      .withIndex("by_company", (q) => q.eq("companyId", args.companyId))
+      .collect();
+
+    // Load ALL stock balances (to get avgCost per item)
+    const allStockBalances = await ctx.db.query("stockBalance").collect();
+
+    // Build itemId -> avgCost map (average across all warehouses, weighted by qty)
+    const costMap = new Map<string, number>();
+    const totalQtyMap = new Map<string, number>();
+    for (const sb of allStockBalances) {
+      const key = sb.itemId as string;
+      const prev = costMap.get(key) ?? 0;
+      const prevQty = totalQtyMap.get(key) ?? 0;
+      const newQty  = prevQty + sb.quantity;
+      costMap.set(key, newQty > 0 ? (prev * prevQty + sb.avgCost * sb.quantity) / newQty : sb.avgCost);
+      totalQtyMap.set(key, newQty);
+    }
+
+    let updatedLines = 0;
+    let updatedRecipes = 0;
+
+    for (const recipe of recipes) {
+      const lines = await ctx.db
+        .query("recipeLines")
+        .withIndex("by_recipe", (q) => q.eq("recipeId", recipe._id))
+        .collect();
+
+      let changed = false;
+      for (const line of lines) {
+        const newCost = costMap.get(line.itemId as string) ?? line.unitCost ?? 0;
+        if (Math.abs((line.unitCost ?? 0) - newCost) > 0.0001) {
+          await ctx.db.patch(line._id, { unitCost: newCost });
+          updatedLines++;
+          changed = true;
+        }
+      }
+      if (changed) updatedRecipes++;
+    }
+
+    return { updatedRecipes, updatedLines, totalRecipes: recipes.length };
+  },
+});

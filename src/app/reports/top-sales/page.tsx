@@ -51,7 +51,7 @@ function TopSection({ title, rows, type, isRTL, t, formatCurrency }: any) {
                       : (isRTL ? row.nameAr : (row.nameEn || row.nameAr))}
                 </td>
                 <td className="numeric text-end">{type === "item" ? row.quantitySold : row.invoiceCount}</td>
-                <td className="numeric text-end font-semibold">{formatCurrency(row.totalSales / 100)}</td>
+                <td className="numeric text-end font-semibold">{formatCurrency(row.totalSales)}</td>
               </tr>
             ))}
           </tbody>
@@ -86,7 +86,7 @@ export default function TopSalesPage() {
             { label: t("topCustomers"), value: String(totals.customerCount), borderColor: "var(--brand-600)", accent: "var(--ink-900)" },
             { label: t("topItems"), value: String(totals.itemCount), borderColor: "#0ea5e9", accent: "#0f172a" },
             { label: t("topSalesReps"), value: String(totals.salesRepCount), borderColor: "#f59e0b", accent: "#92400e" },
-            { label: t("totalSales"), value: formatCurrency(totals.totalSales / 100), borderColor: "#16a34a", accent: "#166534" },
+            { label: t("totalSales"), value: formatCurrency(totals.totalSales), borderColor: "#16a34a", accent: "#166534" },
           ]
         : [],
     [totals, t, formatCurrency]

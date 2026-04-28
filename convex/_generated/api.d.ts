@@ -12,6 +12,7 @@ import type * as accounts from "../accounts.js";
 import type * as admin from "../admin.js";
 import type * as auditLog from "../auditLog.js";
 import type * as auth from "../auth.js";
+import type * as backup from "../backup.js";
 import type * as branches from "../branches.js";
 import type * as company from "../company.js";
 import type * as costCenters from "../costCenters.js";
@@ -38,6 +39,7 @@ import type * as lib_crypto from "../lib/crypto.js";
 import type * as lib_fiscalControl from "../lib/fiscalControl.js";
 import type * as lib_permissions from "../lib/permissions.js";
 import type * as lib_posting from "../lib/posting.js";
+import type * as postingRules from "../postingRules.js";
 import type * as production from "../production.js";
 import type * as productionItemsSeed from "../productionItemsSeed.js";
 import type * as purchaseInvoices from "../purchaseInvoices.js";
@@ -48,10 +50,12 @@ import type * as salesMasters from "../salesMasters.js";
 import type * as salesReturns from "../salesReturns.js";
 import type * as seed from "../seed.js";
 import type * as seedDemoItems from "../seedDemoItems.js";
+import type * as seedStaff from "../seedStaff.js";
 import type * as supplierItems from "../supplierItems.js";
 import type * as suppliers from "../suppliers.js";
 import type * as treasury from "../treasury.js";
 import type * as users from "../users.js";
+import type * as wastage from "../wastage.js";
 
 import type {
   ApiFromModules,
@@ -64,6 +68,7 @@ declare const fullApi: ApiFromModules<{
   admin: typeof admin;
   auditLog: typeof auditLog;
   auth: typeof auth;
+  backup: typeof backup;
   branches: typeof branches;
   company: typeof company;
   costCenters: typeof costCenters;
@@ -90,6 +95,7 @@ declare const fullApi: ApiFromModules<{
   "lib/fiscalControl": typeof lib_fiscalControl;
   "lib/permissions": typeof lib_permissions;
   "lib/posting": typeof lib_posting;
+  postingRules: typeof postingRules;
   production: typeof production;
   productionItemsSeed: typeof productionItemsSeed;
   purchaseInvoices: typeof purchaseInvoices;
@@ -100,10 +106,12 @@ declare const fullApi: ApiFromModules<{
   salesReturns: typeof salesReturns;
   seed: typeof seed;
   seedDemoItems: typeof seedDemoItems;
+  seedStaff: typeof seedStaff;
   supplierItems: typeof supplierItems;
   suppliers: typeof suppliers;
   treasury: typeof treasury;
   users: typeof users;
+  wastage: typeof wastage;
 }>;
 
 /**

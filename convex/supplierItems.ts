@@ -157,3 +157,70 @@ export const linkItem = mutation({
     await ctx.db.patch(supplierItemId, { itemId, isUnresolved: false });
   },
 });
+
+// ─── SUPPLIER PRICE COMPARISON ────────────────────────────────────────────────
+export const getSupplierPriceComparison = query({
+  args: { companyId: v.id("companies") },
+  handler: async (ctx, args) => {
+    const [allItems, allSupplierItems, allSuppliers] = await Promise.all([
+      ctx.db.query("items")
+        .withIndex("by_company", (q) => q.eq("companyId", args.companyId))
+        .collect(),
+      ctx.db.query("supplierItems")
+        .withIndex("by_company", (q) => q.eq("companyId", args.companyId))
+        .collect(),
+      ctx.db.query("suppliers")
+        .withIndex("by_company", (q) => q.eq("companyId", args.companyId))
+        .collect(),
+    ]);
+
+    const supplierMap = new Map(allSuppliers.map((s) => [s._id as string, s]));
+    const itemMap     = new Map(allItems.map((i) => [i._id as string, i]));
+
+    // Group supplierItems by itemId
+    const grouped = new Map<string, any[]>();
+    for (const si of allSupplierItems) {
+      const key = si.itemId as string;
+      if (!grouped.has(key)) grouped.set(key, []);
+      grouped.get(key)!.push({
+        supplierId:   si.supplierId,
+        supplierName: supplierMap.get(si.supplierId as string)?.nameAr
+                   ?? supplierMap.get(si.supplierId as string)?.nameEn
+                   ?? "—",
+        lastPrice:    si.lastPrice    ?? 0,
+        refPrice:     (si as any).refPrice     ?? si.lastPrice ?? 0,
+        leadDays:     (si as any).leadTimeDays ?? null,
+        currency:     (si as any).currencyCode ?? "QAR",
+      });
+    }
+
+    // Build result — only items with 2+ suppliers (for comparison)
+    const result = [];
+    for (const [itemId, suppliers] of grouped.entries()) {
+      if (suppliers.length === 0) continue;
+      const item = itemMap.get(itemId);
+      if (!item || !item.isActive) continue;
+
+      suppliers.sort((a: any, b: any) => a.lastPrice - b.lastPrice);
+      const minPrice = suppliers[0].lastPrice;
+      const maxPrice = suppliers[suppliers.length - 1].lastPrice;
+      const saving   = maxPrice > 0 ? ((maxPrice - minPrice) / maxPrice) * 100 : 0;
+
+      result.push({
+        itemId,
+        code:      item.code,
+        nameAr:    item.nameAr,
+        nameEn:    item.nameEn ?? item.nameAr,
+        avgCost:   (item as any).avgCost ?? 0,
+        suppliers,
+        minPrice,
+        maxPrice,
+        savingPct: Math.round(saving * 10) / 10,
+        supplierCount: suppliers.length,
+      });
+    }
+
+    result.sort((a, b) => b.supplierCount - a.supplierCount || b.savingPct - a.savingPct);
+    return result;
+  },
+});

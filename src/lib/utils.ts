@@ -8,11 +8,67 @@ export function cn(...inputs: ClassValue[]): string {
   return twMerge(clsx(inputs));
 }
 
+// ─── FRIENDLY ERROR MESSAGES ──────────────────────────────────────────────────
+
+/**
+ * Converts raw Convex/server errors into clean, user-friendly messages.
+ * Strips out technical noise like request IDs, table names, stack traces.
+ */
+export function friendlyError(err: unknown, isRTL = true): string {
+  const raw = err instanceof Error ? err.message : String(err ?? "");
+
+  // Already-clean short messages (our own thrown errors)
+  if (raw.length < 120 && !raw.includes("[CONVEX") && !raw.includes("ArgumentValidation")) {
+    return raw;
+  }
+
+  // Known Convex validation patterns → friendly message
+  if (raw.includes("ArgumentValidationError")) {
+    if (raw.includes("bankAccounts"))
+      return isRTL ? "يرجى اختيار حساب بنكي صحيح من قائمة الحسابات البنكية" : "Please select a valid bank account";
+    if (raw.includes("accounts"))
+      return isRTL ? "يرجى اختيار حساب محاسبي صحيح" : "Please select a valid GL account";
+    if (raw.includes("customers"))
+      return isRTL ? "يرجى اختيار عميل صحيح" : "Please select a valid customer";
+    if (raw.includes("suppliers"))
+      return isRTL ? "يرجى اختيار مورد صحيح" : "Please select a valid supplier";
+    if (raw.includes("required") || raw.includes("missing"))
+      return isRTL ? "يرجى تعبئة جميع الحقول المطلوبة" : "Please fill in all required fields";
+    return isRTL ? "بيانات غير صحيحة، يرجى مراجعة الحقول" : "Invalid data, please check the fields";
+  }
+
+  // Known business logic errors
+  if (raw.includes("DUPLICATE_CODE"))
+    return isRTL ? "الكود مستخدم مسبقاً، يرجى اختيار كود آخر" : "This code is already in use";
+  if (raw.includes("period") || raw.includes("Period"))
+    return isRTL ? "لا توجد فترة محاسبية مفتوحة لهذا التاريخ" : "No open accounting period for this date";
+  if (raw.includes("posted") || raw.includes("مرحل"))
+    return isRTL ? "هذا المستند مرحل ولا يمكن تعديله" : "This document is already posted";
+  if (raw.includes("balance") || raw.includes("insufficient"))
+    return isRTL ? "الرصيد غير كافٍ" : "Insufficient balance";
+
+  // Fallback: strip Convex noise and show what remains
+  const cleaned = raw
+    .replace(/\[CONVEX [^\]]+\]/g, "")
+    .replace(/\[Request ID:[^\]]+\]/g, "")
+    .replace(/Server Error /g, "")
+    .replace(/ArgumentValidationError:/g, "")
+    .replace(/Called by client/g, "")
+    .replace(/Path:\s*\S+/g, "")
+    .replace(/Found ID "[^"]*" from table `[^`]*`[^.]*\./g, "")
+    .replace(/which does not match[^.]*\./g, "")
+    .trim();
+
+  return cleaned.length > 5 && cleaned.length < 200
+    ? cleaned
+    : (isRTL ? "حدث خطأ غير متوقع، يرجى المحاولة مرة أخرى" : "An unexpected error occurred, please try again");
+}
+
 // ─── CURRENCY FORMATTING ──────────────────────────────────────────────────────
 
 /**
- * Formats a monetary value stored as integer * 100 for display.
- * @param amount - value stored as integer * 100 (e.g. 150075 = 1500.75)
+ * Formats a monetary value in QAR for display.
+ * @param amount - value in QAR (e.g. 1500.75)
  * @param currency - ISO currency code, defaults to "QAR"
  * @param locale - "ar" for Arabic locale, "en" for English
  */
@@ -21,7 +77,7 @@ export function formatCurrency(
   currency: string = "QAR",
   locale: "ar" | "en" = "ar"
 ): string {
-  const value = amount / 100;
+  const value = amount;
   const localeStr = locale === "ar" ? "ar-QA" : "en-QA";
   try {
     return new Intl.NumberFormat(localeStr, {

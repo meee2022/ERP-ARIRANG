@@ -341,7 +341,7 @@ export const updateLegacyRecipe = mutation({
     if (!existing) throw new Error("Record not found");
 
     const { id, ...fields } = args;
-    await ctx.db.patch(id, { ...fields, updatedAt: nowISO(), updatedBy: "admin" });
+    await ctx.db.patch(id, { ...fields } as any);
 
     await logAudit(ctx, companyId, userId, "update_legacy_recipe", "legacy_recipe", id, {
       before: { reviewStatus: existing.reviewStatus, fgName: existing.fgName, mappedOutputItemId: (existing as any).mappedOutputItemId },
@@ -378,7 +378,7 @@ export const updateLegacyInventoryRow = mutation({
     if (!existing) throw new Error("Record not found");
 
     const { id, ...fields } = args;
-    await ctx.db.patch(id, { ...fields, updatedAt: nowISO(), updatedBy: "admin" });
+    await ctx.db.patch(id, { ...fields } as any);
 
     await logAudit(ctx, companyId, userId, "update_legacy_inventory_row", "legacy_inventory", id, {
       before: { reviewStatus: existing.reviewStatus, itemCode: existing.itemCode, mappedWarehouseId: (existing as any).mappedWarehouseId, mappedItemId: (existing as any).mappedItemId },
@@ -408,7 +408,7 @@ export const updateLegacyPLRow = mutation({
     if (!existing) throw new Error("Record not found");
 
     const { id, ...fields } = args;
-    await ctx.db.patch(id, { ...fields, updatedAt: nowISO(), updatedBy: "admin" });
+    await ctx.db.patch(id, { ...fields } as any);
 
     await logAudit(ctx, companyId, userId, "update_legacy_pl_row", "legacy_pl", id, {
       before: { reviewStatus: existing.reviewStatus, metricName: existing.metricName, mappedAccountId: (existing as any).mappedAccountId },
@@ -442,7 +442,7 @@ export const updateLegacyStaffRow = mutation({
     if (!existing) throw new Error("Record not found");
 
     const { id, ...fields } = args;
-    await ctx.db.patch(id, { ...fields, updatedAt: nowISO(), updatedBy: "admin" });
+    await ctx.db.patch(id, { ...fields } as any);
 
     await logAudit(ctx, companyId, userId, "update_legacy_staff_row", "legacy_staff", id, {
       before: { reviewStatus: existing.reviewStatus, employeeName: existing.employeeName, mappedUserId: (existing as any).mappedUserId },

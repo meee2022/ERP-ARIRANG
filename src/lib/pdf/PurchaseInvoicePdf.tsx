@@ -34,13 +34,13 @@ export function PurchaseInvoicePdf({ data }: { data: PurchaseInvoicePdfData }) {
     code: l.itemCode,
     name: isRTL ? l.itemNameAr : (l.itemNameEn || l.itemNameAr),
     quantity: l.quantity,
-    unitPrice: l.unitPrice / 100,
-    lineTotal: l.lineTotal / 100,
+    unitPrice: l.unitPrice,
+    lineTotal: l.lineTotal,
   }));
 
-  const subtotal = data.lines.reduce((s, l) => s + l.lineTotal, 0) / 100;
-  const vat      = data.vatAmount / 100;
-  const total    = data.totalAmount / 100;
+  const subtotal = data.lines.reduce((s, l) => s + l.lineTotal, 0);
+  const vat      = data.vatAmount;
+  const total    = data.totalAmount;
 
   return (
     <Document title={`${labels.title} - ${data.invoiceNumber}`}>

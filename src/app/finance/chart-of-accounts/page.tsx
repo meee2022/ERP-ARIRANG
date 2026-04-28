@@ -433,6 +433,7 @@ export default function ChartOfAccountsPage() {
   const [filterType, setFilterType] = useState<string>("");
   const [selectedAccount, setSelectedAccount] = useState<any>(null);
   const [showNewModal, setShowNewModal] = useState(false);
+  const [seedingExpenses, setSeedingExpenses] = useState(false);
 
   const companies  = useQuery(api.seed.getCompanies, {});
   const company    = companies?.[0];
@@ -440,6 +441,26 @@ export default function ChartOfAccountsPage() {
   const accounts   = (rawAccounts ?? []).filter((a: any) => !filterType || a.accountType === filterType);
   const rootAccounts = accounts.filter((a: any) => !a.parentId);
   const loading    = rawAccounts === undefined;
+  const addDirectExpenses = useMutation(api.seed.addDirectExpensesAccounts);
+
+  const handleAddDirectExpenses = async () => {
+    if (!company) return;
+    setSeedingExpenses(true);
+    try {
+      const result = await addDirectExpenses({ companyId: company._id });
+      const created = (result as any).count ?? 0;
+      alert(isRTL
+        ? `تم إضافة ${created} حساب مصاريف مباشرة بنجاح`
+        : `Added ${created} Direct Expenses accounts successfully`);
+    } catch (e: any) {
+      alert(e.message);
+    } finally {
+      setSeedingExpenses(false);
+    }
+  };
+
+  // Show seed button only if 5100 doesn't exist yet
+  const hasDirectExpenses = (rawAccounts ?? []).some((a: any) => a.code === "5100");
 
   return (
     <div dir={isRTL ? "rtl" : "ltr"} className="flex flex-col h-[calc(100vh-120px)] space-y-4">
@@ -459,12 +480,26 @@ export default function ChartOfAccountsPage() {
           count={(rawAccounts ?? []).length}
           actions={
             canCreate("finance") ? (
-              <button
-                onClick={() => setShowNewModal(true)}
-                className="btn-primary h-9 px-4 rounded-xl inline-flex items-center gap-2 text-sm font-semibold"
-              >
-                <Plus className="h-4 w-4" /> {t("newAccount")}
-              </button>
+              <div className="flex items-center gap-2">
+                {!hasDirectExpenses && (
+                  <button
+                    onClick={handleAddDirectExpenses}
+                    disabled={seedingExpenses}
+                    className="h-9 px-4 rounded-xl inline-flex items-center gap-2 text-sm font-semibold border border-orange-300 bg-orange-50 text-orange-700 hover:bg-orange-100 disabled:opacity-50"
+                  >
+                    <Layers className="h-4 w-4" />
+                    {seedingExpenses
+                      ? (isRTL ? "جاري الإضافة..." : "Adding...")
+                      : (isRTL ? "إضافة المصاريف المباشرة" : "Add Direct Expenses")}
+                  </button>
+                )}
+                <button
+                  onClick={() => setShowNewModal(true)}
+                  className="btn-primary h-9 px-4 rounded-xl inline-flex items-center gap-2 text-sm font-semibold"
+                >
+                  <Plus className="h-4 w-4" /> {t("newAccount")}
+                </button>
+              </div>
             ) : undefined
           }
         />

@@ -7,7 +7,7 @@ import { api } from "../../../../convex/_generated/api";
 import { formatDateShort } from "@/lib/utils";
 import { StatusBadge } from "@/components/ui/status-badge";
 import { INVOICE_TYPE_LABELS } from "@/lib/constants";
-import { Eye, ChevronLeft, ChevronRight, Search, Landmark, Plus, X, Check, Trash2, WalletCards, CheckCircle2, Scale, Calendar, Filter, FileText } from "lucide-react";
+import { Eye, ChevronLeft, ChevronRight, Search, Landmark, Plus, X, Check, Trash2, WalletCards, CheckCircle2, Scale, Calendar, Filter, FileText, Zap } from "lucide-react";
 import { useI18n } from "@/hooks/useI18n";
 import { useAuth } from "@/hooks/useAuth";
 import { usePermissions } from "@/hooks/usePermissions";
@@ -39,7 +39,7 @@ const SALES_PAYMENT_METHODS = ["cash", "hand", "main_safe", "cash_sales_safe", "
 
 // ─── New Invoice Form ──────────────────────────────────────────────────────────
 
-function NewInvoiceForm({ onClose }: { onClose: () => void }) {
+function NewInvoiceForm({ onClose, editInvoice, editLines }: { onClose: () => void; editInvoice?: any; editLines?: any[] }) {
   const { t, isRTL } = useI18n();
 
   const companies = useQuery(api.seed.getCompanies, {});
@@ -92,6 +92,33 @@ function NewInvoiceForm({ onClose }: { onClose: () => void }) {
     }
   }, [defaultUser, selectedBranchStore, setSelectedBranch]);
   const defaultCurrency = useQuery(api.helpers.getDefaultCurrency, {});
+
+  // Pre-fill form when editing
+  useEffect(() => {
+    if (!editInvoice) return;
+    setInvoiceDate(editInvoice.invoiceDate ?? todayISO());
+    setDueDate(editInvoice.dueDate ?? todayISO());
+    setExternalInvoiceNumber(editInvoice.externalInvoiceNumber ?? "");
+    setInvoiceType(editInvoice.invoiceType ?? "cash_sale");
+    setPaymentMethod(editInvoice.paymentMethod ?? "cash");
+    setCustomerId(editInvoice.customerId ?? "");
+    setWarehouseId(editInvoice.warehouseId ?? "");
+    setSalesRepId(editInvoice.salesRepId ?? "");
+    setVehicleId(editInvoice.vehicleId ?? "");
+    setDiscountAmount(String((editInvoice.discountAmount ?? 0)));
+    setNotes(editInvoice.notes ?? "");
+    if (editLines && editLines.length > 0) {
+      setLines(editLines.map((l: any, i: number) => ({
+        id: i,
+        itemId: l.itemId ?? "",
+        quantity: String(l.quantity ?? 1),
+        unitPrice: String(l.unitPrice ?? ""),
+        uomId: l.uomId ?? "",
+      })));
+      setLineIdCounter(editLines.length);
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [editInvoice?._id]);
   // C: load only group-parent accounts for the customer picker
   const customerGroups = useQuery(api.customers.getGroups, company ? { companyId: company._id } : "skip") ?? [];
   // C: load branches for selected group
@@ -106,6 +133,7 @@ function NewInvoiceForm({ onClose }: { onClose: () => void }) {
   const units = useQuery(api.items.getAllUnits, company ? { companyId: company._id } : "skip");
 
   const createInvoice = useMutation(api.salesInvoices.createSalesInvoice);
+  const updateInvoice = useMutation(api.salesInvoices.updateDraftSalesInvoice);
 
   // Compute subtotal
   const subtotal = lines.reduce((sum, l) => {
@@ -143,20 +171,29 @@ function NewInvoiceForm({ onClose }: { onClose: () => void }) {
   };
 
   const updateLine = (id: number, field: keyof InvoiceLine, value: string) => {
-    setLines((prev) =>
-      prev.map((l) => {
+    setLines((prev) => {
+      const updated = prev.map((l) => {
         if (l.id !== id) return l;
-        const updated = { ...l, [field]: value };
+        const updatedLine = { ...l, [field]: value };
         // Auto-fill unit price from item sellingPrice when item changes
         if (field === "itemId" && value) {
           const foundItem = (items ?? []).find((it: any) => it._id === value);
           if (foundItem?.sellingPrice) {
-            updated.unitPrice = String(foundItem.sellingPrice);
+            updatedLine.unitPrice = String(foundItem.sellingPrice);
           }
         }
-        return updated;
-      })
-    );
+        return updatedLine;
+      });
+      // Auto-add new line when item selected on the last line
+      if (field === "itemId" && value) {
+        const isLastLine = prev[prev.length - 1]?.id === id;
+        if (isLastLine) {
+          const newId = Date.now();
+          return [...updated, { id: newId, itemId: "", quantity: "1", unitPrice: "" }];
+        }
+      }
+      return updated;
+    });
   };
 
   const onSubmit = async (e: React.FormEvent) => {
@@ -180,12 +217,12 @@ function NewInvoiceForm({ onClose }: { onClose: () => void }) {
         const foundItem = (items ?? []).find((it: any) => it._id === l.itemId);
         const qty = parseFloat(l.quantity);
         const price = parseFloat(l.unitPrice);
-        const total = Math.round(qty * price * 100);
+        const total = Math.round(qty * price * 100) / 100;
         return {
           itemId: l.itemId as any,
           quantity: qty,
           uomId: (foundItem?.baseUomId ?? (units ?? [])[0]?._id) as any,
-          unitPrice: Math.round(price * 100),
+          unitPrice: Math.round(price * 100) / 100,
           discountPct: 0,
           discountAmount: 0,
           vatRate: 0,
@@ -196,37 +233,63 @@ function NewInvoiceForm({ onClose }: { onClose: () => void }) {
         };
       });
 
-      await createInvoice({
-        companyId: company._id,
-        branchId: effectiveBranchId as any,
-        invoiceType: invoiceType as any,
-        customerId: customerId ? (customerId as any) : undefined,
-        invoiceDate,
-        dueDate: invoiceType === "credit_sale" ? dueDate : undefined,
-        periodId: openPeriod._id,
-        currencyId: defaultCurrency._id,
-        exchangeRate: 1,
-        externalInvoiceNumber: externalInvoiceNumber.trim() || undefined,
-        warehouseId: warehouseId as any,
-        salesRepId: salesRepId ? (salesRepId as any) : undefined,
-        salesRepName: salesRepId ? (salesReps.find((rep: any) => rep._id === salesRepId)?.nameAr ?? undefined) : undefined,
-        vehicleId: vehicleId ? (vehicleId as any) : undefined,
-        vehicleCode: vehicleId ? (vehicles.find((vehicle: any) => vehicle._id === vehicleId)?.code ?? undefined) : undefined,
-        paymentMethod,
-        discountAmount: Math.round(discountValue * 100),
-        serviceCharge: 0,
-        cashReceived:
-          invoiceType === "cash_sale" && ["cash", "hand", "main_safe", "cash_sales_safe", "transfer"].includes(paymentMethod)
-            ? Math.round(netAfterDiscount * 100)
-            : 0,
-        cardReceived:
-          invoiceType === "cash_sale" && paymentMethod === "card"
-            ? Math.round(netAfterDiscount * 100)
-            : 0,
-        notes: notes || undefined,
-        createdBy: defaultUser._id,
-        lines: invoiceLines,
-      });
+      if (editInvoice) {
+        // UPDATE existing draft
+        await updateInvoice({
+          invoiceId: editInvoice._id,
+          userId: defaultUser._id,
+          invoiceDate,
+          dueDate: invoiceType === "credit_sale" ? dueDate : undefined,
+          externalInvoiceNumber: externalInvoiceNumber.trim() || undefined,
+          invoiceType: invoiceType as any,
+          paymentMethod,
+          customerId: customerId ? (customerId as any) : undefined,
+          warehouseId: warehouseId as any,
+          salesRepId: salesRepId ? (salesRepId as any) : undefined,
+          vehicleId: vehicleId ? (vehicleId as any) : undefined,
+          discountAmount: discountValue,
+          notes: notes || undefined,
+          lines: invoiceLines.map((l) => ({
+            itemId: l.itemId as any,
+            quantity: l.quantity,
+            unitPrice: l.unitPrice,
+            uomId: l.uomId as any,
+          })),
+        });
+      } else {
+        // CREATE new invoice
+        await createInvoice({
+          companyId: company._id,
+          branchId: effectiveBranchId as any,
+          invoiceType: invoiceType as any,
+          customerId: customerId ? (customerId as any) : undefined,
+          invoiceDate,
+          dueDate: invoiceType === "credit_sale" ? dueDate : undefined,
+          periodId: openPeriod._id,
+          currencyId: defaultCurrency._id,
+          exchangeRate: 1,
+          externalInvoiceNumber: externalInvoiceNumber.trim() || undefined,
+          warehouseId: warehouseId as any,
+          salesRepId: salesRepId ? (salesRepId as any) : undefined,
+          salesRepName: salesRepId ? (salesReps.find((rep: any) => rep._id === salesRepId)?.nameAr ?? undefined) : undefined,
+          vehicleId: vehicleId ? (vehicleId as any) : undefined,
+          vehicleCode: vehicleId ? (vehicles.find((vehicle: any) => vehicle._id === vehicleId)?.code ?? undefined) : undefined,
+          paymentMethod,
+          discountAmount: Math.round(discountValue * 100) / 100,
+          serviceCharge: 0,
+          cashReceived:
+            invoiceType === "cash_sale" && ["cash", "hand", "main_safe", "cash_sales_safe", "transfer"].includes(paymentMethod)
+              ? Math.round(netAfterDiscount * 100) / 100
+              : 0,
+          cardReceived:
+            invoiceType === "cash_sale" && paymentMethod === "card"
+              ? Math.round(netAfterDiscount * 100) / 100
+              : 0,
+          notes: notes || undefined,
+          createdBy: defaultUser._id,
+          lines: invoiceLines,
+        });
+      }
 
       onClose();
     } catch (err: any) {
@@ -553,7 +616,7 @@ function PostButton({ invoice, userId }: { invoice: any; userId: string | undefi
   );
 }
 
-function InvoiceLifecycleActions({ invoice, userId }: { invoice: any; userId: string | undefined }) {
+function InvoiceLifecycleActions({ invoice, userId, onEdit }: { invoice: any; userId: string | undefined; onEdit?: () => void }) {
   const { t } = useI18n();
   const [loadingAction, setLoadingAction] = useState<"delete" | "cancel" | "reverse" | null>(null);
   const [err, setErr] = useState("");
@@ -612,13 +675,21 @@ function InvoiceLifecycleActions({ invoice, userId }: { invoice: any; userId: st
       {err ? <span className="text-xs text-red-600 max-w-[220px] text-end leading-tight">{err}</span> : null}
       <div className="inline-flex items-center gap-1">
         {invoice.documentStatus === "draft" && invoice.postingStatus === "unposted" ? (
-          <button
-            onClick={handleDelete}
-            disabled={loadingAction !== null}
-            className="h-7 px-3 rounded-md text-xs font-semibold inline-flex items-center gap-1 bg-red-50 text-red-700 hover:bg-red-100 border border-red-200 disabled:opacity-60"
-          >
-            {loadingAction === "delete" ? t("loading") : t("delete")}
-          </button>
+          <>
+            <button
+              onClick={onEdit}
+              className="h-7 px-3 rounded-md text-xs font-semibold inline-flex items-center gap-1 bg-blue-50 text-blue-700 hover:bg-blue-100 border border-blue-200"
+            >
+              ✏️ Edit
+            </button>
+            <button
+              onClick={handleDelete}
+              disabled={loadingAction !== null}
+              className="h-7 px-3 rounded-md text-xs font-semibold inline-flex items-center gap-1 bg-red-50 text-red-700 hover:bg-red-100 border border-red-200 disabled:opacity-60"
+            >
+              {loadingAction === "delete" ? t("loading") : t("delete")}
+            </button>
+          </>
         ) : null}
 
         {invoice.postingStatus === "unposted" && invoice.documentStatus === "approved" ? (
@@ -685,8 +756,13 @@ export default function SalesInvoicesPage() {
   const [searchText, setSearchText] = useState("");
   const [page, setPage] = useState(0);
   const [showForm, setShowForm] = useState(searchParams.get("new") === "true");
+  const [editInvoiceId, setEditInvoiceId] = useState<string | null>(null);
+  const [bulkPosting, setBulkPosting] = useState(false);
+  const [bulkResult, setBulkResult] = useState<{succeeded:number;failed:number}|null>(null);
+  const bulkPostMutation = useMutation(api.salesInvoices.bulkPostSalesInvoices);
 
   const companies = useQuery(api.seed.getCompanies, {});
+  const editInvoiceData = useQuery(api.salesInvoices.getInvoiceById, editInvoiceId ? { invoiceId: editInvoiceId as any } : "skip");
   const company = companies?.[0];
 
   const invoices = useQuery(
@@ -724,6 +800,35 @@ export default function SalesInvoicesPage() {
   const totalPaid = posted.reduce((s: any, i: any) => s + i.cashReceived + i.cardReceived, 0);
   const totalCredit = posted.reduce((s: any, i: any) => s + i.creditAmount, 0);
 
+  // Bulk post all unposted+approved invoices
+  const handleBulkPost = async () => {
+    if (!company || !defaultUser) return;
+    const candidates = filtered.filter(
+      (inv: any) => inv.postingStatus === "unposted" && inv.documentStatus === "approved"
+    );
+    if (candidates.length === 0) {
+      alert(isRTL ? "لا توجد فواتير جاهزة للترحيل" : "No invoices ready to post");
+      return;
+    }
+    if (!window.confirm(isRTL
+      ? `سيتم ترحيل ${candidates.length} فاتورة. هل تريد المتابعة؟`
+      : `Post ${candidates.length} invoices? This cannot be undone.`)) return;
+    setBulkPosting(true);
+    setBulkResult(null);
+    try {
+      const res = await bulkPostMutation({
+        companyId: company._id,
+        invoiceIds: candidates.map((i: any) => i._id),
+        userId: defaultUser._id as any,
+      });
+      setBulkResult({ succeeded: res.succeeded, failed: res.failed });
+    } catch (e: any) {
+      alert(e.message ?? "Error");
+    } finally {
+      setBulkPosting(false);
+    }
+  };
+
   return (
     <div dir={isRTL ? "rtl" : "ltr"} className="space-y-5">
       {/* Header */}
@@ -738,19 +843,52 @@ export default function SalesInvoicesPage() {
         }
         actions={
           canCreate("sales") ? (
-            <button
-              onClick={() => setShowForm((v) => !v)}
-              className="btn-primary h-10 px-4 rounded-lg inline-flex items-center gap-2 text-sm font-semibold"
-            >
-              <Plus className="h-4 w-4" /> {t("newInvoice")}
-            </button>
+            <div className="flex items-center gap-2">
+              {canPost("sales") && (
+                <button
+                  onClick={handleBulkPost}
+                  disabled={bulkPosting}
+                  className="h-10 px-4 rounded-lg inline-flex items-center gap-2 text-sm font-semibold disabled:opacity-60"
+                  style={{ background: "#f59e0b15", color: "#b45309", border: "1px solid #f59e0b40" }}
+                >
+                  <Zap className="h-4 w-4" />
+                  {bulkPosting
+                    ? (isRTL ? "جاري الترحيل..." : "Posting...")
+                    : (isRTL ? "ترحيل الكل" : "Bulk Post")}
+                </button>
+              )}
+              <button
+                onClick={() => setShowForm((v) => !v)}
+                className="btn-primary h-10 px-4 rounded-lg inline-flex items-center gap-2 text-sm font-semibold"
+              >
+                <Plus className="h-4 w-4" /> {t("newInvoice")}
+              </button>
+            </div>
           ) : undefined
         }
       />
       </div>
 
       {/* Inline Form */}
-      {showForm && <NewInvoiceForm onClose={() => setShowForm(false)} />}
+      {(showForm || editInvoiceId) && (
+        <NewInvoiceForm
+          onClose={() => { setShowForm(false); setEditInvoiceId(null); }}
+          editInvoice={editInvoiceId ? editInvoiceData : undefined}
+          editLines={editInvoiceId ? editInvoiceData?.lines : undefined}
+        />
+      )}
+
+      {/* Bulk post result banner */}
+      {bulkResult && (
+        <div className={`flex items-center justify-between px-4 py-3 rounded-xl text-[13px] font-semibold ${bulkResult.failed > 0 ? "bg-amber-50 text-amber-800 border border-amber-200" : "bg-green-50 text-green-800 border border-green-200"}`}>
+          <span>
+            {isRTL
+              ? `تم ترحيل ${bulkResult.succeeded} فاتورة بنجاح${bulkResult.failed > 0 ? ` · فشل ${bulkResult.failed}` : ""}`
+              : `Successfully posted ${bulkResult.succeeded} invoices${bulkResult.failed > 0 ? ` · ${bulkResult.failed} failed` : ""}`}
+          </span>
+          <button onClick={() => setBulkResult(null)} className="text-[11px] opacity-60 hover:opacity-100">✕</button>
+        </div>
+      )}
 
       {/* Modern Filter Strip - Box Design */}
       <div className="bg-white rounded-lg border border-gray-200 p-3 flex flex-wrap items-end gap-3 w-full">
@@ -857,7 +995,7 @@ export default function SalesInvoicesPage() {
         />
       </div>
 
-      {/* Table */}
+      {/* ── Table / Cards ── */}
       <div className="bg-white rounded-2xl shadow-[0_2px_10px_rgba(0,0,0,0.04)] border border-[color:var(--ink-100)] overflow-hidden">
         {loading ? (
           <LoadingState label={t("loading")} />
@@ -874,7 +1012,54 @@ export default function SalesInvoicesPage() {
           />
         ) : (
           <>
-            <div className="overflow-x-auto">
+            {/* ── Mobile cards (hidden on md+) ── */}
+            <div className="mobile-list p-3 space-y-2.5">
+              {paginated.map((inv: any) => {
+                const isPosted   = inv.postingStatus === "posted";
+                const isReviewed = inv.reviewStatus === "submitted" || inv.reviewStatus === "approved";
+                return (
+                  <div key={inv._id}
+                    onClick={() => router.push(`/sales/invoices/${inv._id}`)}
+                    className="record-card cursor-pointer">
+                    <div className="flex items-start justify-between gap-3 mb-2">
+                      <div>
+                        <span className="inline-block text-[11px] font-bold px-2 py-0.5 rounded-md bg-[var(--ink-100)] text-[var(--ink-700)] mb-1">
+                          {inv.invoiceNumber}
+                        </span>
+                        <p className="text-[14px] font-bold text-[var(--ink-900)] leading-tight">
+                          {(inv as any).customerName || "—"}
+                        </p>
+                        <p className="text-[11.5px] text-[var(--ink-500)] mt-0.5">
+                          {inv.invoiceDate} · {isRTL ? (inv as any).branchName : ((inv as any).branchNameEn || (inv as any).branchName || "—")}
+                        </p>
+                      </div>
+                      <div className="text-end shrink-0">
+                        <p className="text-[17px] font-bold tabular-nums text-[var(--ink-900)]">
+                          {formatCurrency(inv.totalAmount)}
+                        </p>
+                        <div className="flex items-center gap-1 justify-end mt-1">
+                          <StatusBadge status={inv.postingStatus} type="posting" />
+                        </div>
+                      </div>
+                    </div>
+                    <div className="flex items-center justify-between pt-2 border-t border-[var(--ink-100)]">
+                      <div className="flex items-center gap-1.5">
+                        <StatusBadge
+                          status={inv.reviewStatus === "rejected" ? "rejected" : inv.reviewStatus === "submitted" ? "approved" : inv.documentStatus}
+                          type="document" />
+                        {inv.salesRepName && (
+                          <span className="text-[10.5px] text-[var(--ink-400)]">· {inv.salesRepName}</span>
+                        )}
+                      </div>
+                      <ChevronRight className="h-4 w-4 text-[var(--ink-300)]" />
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+
+            {/* ── Desktop table (hidden on mobile) ── */}
+            <div className="desktop-table overflow-x-auto">
               <table className="w-full text-sm text-left border-collapse" dir={isRTL ? "rtl" : "ltr"}>
                 <thead>
                   <tr className="bg-gray-50/80 border-b border-gray-100">
@@ -921,7 +1106,7 @@ export default function SalesInvoicesPage() {
                       <td className="px-6 py-4 text-end">
                         <div className="flex items-center gap-1 justify-end opacity-0 group-hover:opacity-100 transition-opacity duration-200">
                           {canPost("sales") && <PostButton invoice={inv} userId={defaultUser?._id} />}
-                          <InvoiceLifecycleActions invoice={inv} userId={defaultUser?._id} />
+                          <InvoiceLifecycleActions invoice={inv} userId={defaultUser?._id} onEdit={() => { setEditInvoiceId(inv._id); setShowForm(false); }} />
                           <button
                             onClick={() => router.push(`/sales/invoices/${inv._id}`)}
                             className="h-8 w-8 rounded-lg bg-white border border-gray-200 text-gray-400 hover:text-blue-600 hover:border-blue-200 hover:shadow-sm flex items-center justify-center transition-all"
@@ -934,18 +1119,28 @@ export default function SalesInvoicesPage() {
                   ))}
                 </tbody>
               </table>
-            </div>
+            </div>{/* end desktop-table */}
             {totalPages > 1 && (
               <div className="flex items-center justify-between px-6 py-4 border-t border-[color:var(--ink-100)] bg-white">
-                <p className="text-xs font-medium text-[color:var(--ink-500)]">{page + 1} / {totalPages}</p>
-                <div className="flex items-center gap-2">
-                  <button disabled={page === 0} onClick={() => setPage((p) => p - 1)}
-                    className="h-8 w-8 inline-flex items-center justify-center rounded-lg border border-[color:var(--ink-200)] text-[color:var(--ink-600)] hover:bg-[color:var(--ink-50)] disabled:opacity-40 transition-colors">
-                    <ChevronRight className="h-4 w-4" />
-                  </button>
-                  <button disabled={page >= totalPages - 1} onClick={() => setPage((p) => p + 1)}
-                    className="h-8 w-8 inline-flex items-center justify-center rounded-lg border border-[color:var(--ink-200)] text-[color:var(--ink-600)] hover:bg-[color:var(--ink-50)] disabled:opacity-40 transition-colors">
+                <p className="text-sm text-[color:var(--ink-500)]">
+                  {isRTL
+                    ? `صفحة ${page + 1} من ${totalPages}`
+                    : `Page ${page + 1} of ${totalPages}`}
+                </p>
+                <div className="flex gap-2">
+                  <button
+                    onClick={() => setPage((p) => Math.max(0, p - 1))}
+                    disabled={page === 0}
+                    className="h-8 w-8 rounded-lg border border-[color:var(--ink-200)] flex items-center justify-center disabled:opacity-40 hover:bg-[color:var(--ink-50)] transition-colors"
+                  >
                     <ChevronLeft className="h-4 w-4" />
+                  </button>
+                  <button
+                    onClick={() => setPage((p) => Math.min(totalPages - 1, p + 1))}
+                    disabled={page === totalPages - 1}
+                    className="h-8 w-8 rounded-lg border border-[color:var(--ink-200)] flex items-center justify-center disabled:opacity-40 hover:bg-[color:var(--ink-50)] transition-colors"
+                  >
+                    <ChevronRight className="h-4 w-4" />
                   </button>
                 </div>
               </div>

@@ -642,6 +642,38 @@ export default defineSchema({
   }).index("by_token", ["token"])
     .index("by_user", ["userId"]),
 
+  // ─── Posting Rules (auto-mapped GL accounts for each module) ────────────────
+
+  postingRules: defineTable({
+    companyId: v.id("companies"),
+    // Sales
+    cashSalesAccountId:               v.optional(v.id("accounts")),
+    cardSalesAccountId:               v.optional(v.id("accounts")),
+    arAccountId:                      v.optional(v.id("accounts")),
+    defaultRevenueAccountId:          v.optional(v.id("accounts")),
+    cogsAccountId:                    v.optional(v.id("accounts")),
+    inventoryAccountId:               v.optional(v.id("accounts")),
+    vatPayableAccountId:              v.optional(v.id("accounts")),
+    // Purchases
+    apAccountId:                      v.optional(v.id("accounts")),
+    vatReceivableAccountId:           v.optional(v.id("accounts")),
+    purchaseAccountId:                v.optional(v.id("accounts")),
+    // Treasury
+    mainCashAccountId:                v.optional(v.id("accounts")),
+    bankAccountId:                    v.optional(v.id("accounts")),
+    // Payroll
+    salaryExpenseAccountId:           v.optional(v.id("accounts")),
+    salaryPayableAccountId:           v.optional(v.id("accounts")),
+    // Fixed Assets
+    depreciationExpenseAccountId:     v.optional(v.id("accounts")),
+    accumulatedDepreciationAccountId: v.optional(v.id("accounts")),
+    // Production
+    wipAccountId:                     v.optional(v.id("accounts")),
+    // Wastage
+    wastageExpenseAccountId:          v.optional(v.id("accounts")),
+    updatedAt:                        v.optional(v.number()),
+  }).index("by_company", ["companyId"]),
+
   // ─── Fixed Assets (Phase 19) ─────────────────────────────────────────────────
 
   fixedAssets: defineTable({
@@ -733,9 +765,12 @@ export default defineSchema({
     employeeCode: v.string(),
     nameAr: v.string(),
     nameEn: v.optional(v.string()),
-    nationalId: v.optional(v.string()),
+    nationalId: v.optional(v.string()),        // QID number
+    qidExpiryDate: v.optional(v.string()),     // QID / Iqama expiry date YYYY-MM-DD
+    sponsorshipStatus: v.optional(v.string()), // e.g. "Arirang Bakery", "Outside/PETRO FOAM"
     nationality: v.optional(v.string()),
     passportNumber: v.optional(v.string()),
+    passportExpiryDate: v.optional(v.string()),
     dateOfBirth: v.optional(v.string()),
     gender: v.optional(v.union(v.literal("male"), v.literal("female"))),
     email: v.optional(v.string()),
@@ -913,45 +948,7 @@ export default defineSchema({
     totalOutQty: v.optional(v.number()),
     balanceQty: v.optional(v.number()),
     balanceValue: v.optional(v.number()),
-    sourceFile: v.string(),
-    reviewStatus: v.optional(v.string()),
-    updatedAt: v.optional(v.string()),
-    updatedBy: v.optional(v.string()),
-    // Mapping fields (reference-only, no FK enforcement)
-    mappedWarehouseId: v.optional(v.string()),
-    mappedItemId: v.optional(v.string()),
-  }).index("by_branchName", ["branchName"])
-    .index("by_itemCode", ["itemCode"]),
-
-  legacyPLSnapshot: defineTable({
-    branchName: v.optional(v.string()),
-    periodLabel: v.optional(v.string()),
-    metricName: v.string(),
-    excelValue: v.optional(v.number()),
-    extraLabel: v.optional(v.string()),
-    sourceFile: v.string(),
-    reviewStatus: v.optional(v.string()),
-    updatedAt: v.optional(v.string()),
-    updatedBy: v.optional(v.string()),
-    // Mapping fields (reference-only, no FK enforcement)
-    mappedAccountId: v.optional(v.string()),
-  }).index("by_branchName", ["branchName"]),
-
-  legacyStaffSnapshot: defineTable({
-    employeeNo: v.string(),
-    employeeName: v.string(),
-    position: v.optional(v.string()),
-    category: v.optional(v.string()),
-    location: v.optional(v.string()),
-    basic: v.optional(v.number()),
-    allowances: v.optional(v.number()),
-    totalPackage: v.optional(v.number()),
-    notes: v.optional(v.string()),
-    sourceFile: v.string(),
-    reviewStatus: v.optional(v.string()),
-    updatedAt: v.optional(v.string()),
-    updatedBy: v.optional(v.string()),
-    // Mapping fields (reference-only, no FK enforcement)
-    mappedUserId: v.optional(v.string()),
-  }).index("by_employeeNo", ["employeeNo"]),
+    sourceFile: v.optional(v.string()),
+    updatedAt: v.optional(v.number()),
+  }).index("by_item", ["itemCode"]),
 });

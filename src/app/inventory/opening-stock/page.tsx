@@ -57,6 +57,10 @@ export default function OpeningStockPage() {
     api.items.getAllItems,
     company ? { companyId: company._id } : "skip"
   );
+  const units = useQuery(
+    api.items.getAllUnits,
+    company ? { companyId: company._id } : "skip"
+  );
 
   const createAdjustment = useMutation(api.inventory.createStockAdjustmentImmediate);
 
@@ -74,6 +78,13 @@ export default function OpeningStockPage() {
   const activeItems = (items ?? []).filter((i: any) => i.isActive);
   const activeWarehouses = (warehouses ?? []).filter((w: any) => w.isActive);
 
+  const getUomName = (itemId: string) => {
+    const item = activeItems.find((i: any) => i._id === itemId);
+    if (!item?.baseUomId) return "";
+    const uom = (units ?? []).find((u: any) => u._id === item.baseUomId);
+    return uom ? (isRTL ? uom.nameAr : (uom.nameEn || uom.nameAr)) : "";
+  };
+
   // ── Line helpers ──────────────────────────────────────────────────────────
   const addLine = () => {
     setLines((p) => [...p, { id: nextId, itemId: "", quantity: "0", unitCost: "0" }]);
@@ -83,19 +94,29 @@ export default function OpeningStockPage() {
   const removeLine = (id: number) => setLines((p) => p.filter((l) => l.id !== id));
 
   const updateLine = (id: number, field: keyof StockLine, value: string) => {
-    setLines((p) =>
-      p.map((l) => {
+    setLines((p) => {
+      const updated = p.map((l) => {
         if (l.id !== id) return l;
-        const updated = { ...l, [field]: value };
+        const updatedLine = { ...l, [field]: value };
         // Auto-fill cost from item standard cost
         if (field === "itemId" && value) {
           const found = activeItems.find((it: any) => it._id === value);
-          if (found?.standardCost) updated.unitCost = String(found.standardCost);
-          else if (found?.lastCost) updated.unitCost = String(found.lastCost);
+          if (found?.standardCost) updatedLine.unitCost = String(found.standardCost);
+          else if (found?.lastCost) updatedLine.unitCost = String(found.lastCost);
         }
-        return updated;
-      })
-    );
+        return updatedLine;
+      });
+      // Auto-add new row when item is selected in the LAST line
+      if (field === "itemId" && value) {
+        const lastLine = p[p.length - 1];
+        if (lastLine?.id === id) {
+          const newId = Math.max(...p.map((l) => l.id)) + 1;
+          setNextId(newId + 1);
+          return [...updated, { id: newId, itemId: "", quantity: "0", unitCost: "0" }];
+        }
+      }
+      return updated;
+    });
   };
 
   // ── Computed totals ───────────────────────────────────────────────────────
@@ -326,6 +347,9 @@ export default function OpeningStockPage() {
                   <th className="px-3 py-2.5 text-end font-semibold w-32">
                     {isRTL ? "الكمية" : "Qty"} <span className="text-red-500">*</span>
                   </th>
+                  <th className="px-3 py-2.5 text-start font-semibold w-20">
+                    {isRTL ? "الوحدة" : "Unit"}
+                  </th>
                   <th className="px-3 py-2.5 text-end font-semibold w-36">
                     {isRTL ? "تكلفة الوحدة" : "Unit Cost"}
                   </th>
@@ -373,11 +397,14 @@ export default function OpeningStockPage() {
                           className="input-field h-9 text-end w-full tabular-nums text-xs"
                         />
                       </td>
+                      <td className="px-3 py-2 text-xs font-medium text-[color:var(--ink-500)] whitespace-nowrap">
+                        {line.itemId ? getUomName(line.itemId) : ""}
+                      </td>
                       <td className="px-2 py-2">
                         <input
                           type="number"
                           min="0"
-                          step="0.01"
+                          step="any"
                           value={line.unitCost}
                           onChange={(e) => updateLine(line.id, "unitCost", e.target.value)}
                           className="input-field h-9 text-end w-full tabular-nums text-xs"

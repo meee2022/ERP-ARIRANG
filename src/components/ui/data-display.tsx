@@ -21,29 +21,32 @@ interface SummaryStripProps {
 
 export function SummaryStrip({ items, className = "" }: SummaryStripProps) {
   return (
-    <div
-      className={`grid gap-px rounded-xl overflow-hidden border border-[color:var(--ink-200)] bg-[color:var(--ink-200)] ${className}`}
-      style={{ gridTemplateColumns: `repeat(${items.length}, minmax(0, 1fr))` }}
-    >
-      {items.map((item, i) => (
-        <div
-          key={i}
-          className="bg-white px-5 py-4 flex flex-col gap-1"
-          style={{
-            borderTop: `3px solid ${item.borderColor ?? "var(--ink-200)"}`,
-          }}
-        >
-          <span className="text-[10px] font-semibold uppercase tracking-wider text-[color:var(--ink-400)]">
-            {item.label}
-          </span>
-          <span
-            className="text-lg font-bold tabular-nums leading-tight"
-            style={{ color: item.accent ?? "var(--ink-900)" }}
+    <div className={`overflow-x-auto ${className}`}
+      style={{ WebkitOverflowScrolling: "touch" as any }}>
+      <div
+        className="grid gap-px rounded-xl overflow-hidden border border-[color:var(--ink-200)] bg-[color:var(--ink-200)]"
+        style={{
+          gridTemplateColumns: `repeat(${items.length}, minmax(120px, 1fr))`,
+        }}
+      >
+        {items.map((item, i) => (
+          <div
+            key={i}
+            className="bg-white px-4 py-3.5 flex flex-col gap-1"
+            style={{ borderTop: `3px solid ${item.borderColor ?? "var(--ink-200)"}` }}
           >
-            {item.value}
-          </span>
-        </div>
-      ))}
+            <span className="text-[10px] font-semibold uppercase tracking-wider text-[color:var(--ink-400)] whitespace-nowrap">
+              {item.label}
+            </span>
+            <span
+              className="text-[17px] font-bold tabular-nums leading-tight"
+              style={{ color: item.accent ?? "var(--ink-900)" }}
+            >
+              {item.value}
+            </span>
+          </div>
+        ))}
+      </div>
     </div>
   );
 }

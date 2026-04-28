@@ -652,7 +652,46 @@ export default function CustomersPage() {
             ) : undefined}
           />
         ) : (
-          <div className="overflow-x-auto">
+          <>
+          {/* Mobile cards */}
+          <div className="mobile-list p-3 space-y-2.5">
+            {filtered.map((c: any) => (
+              <div key={c._id} className="record-card">
+                <div className="flex items-start justify-between gap-3 mb-2">
+                  <div className="min-w-0 flex-1">
+                    <div className="flex items-center gap-2 flex-wrap mb-0.5">
+                      <span className="text-[11px] font-bold px-2 py-0.5 rounded bg-[var(--ink-100)] text-[var(--ink-600)]">{c.code}</span>
+                      {c.isGroupParent && <span className="text-[9px] font-bold px-1.5 py-0.5 rounded bg-blue-50 text-blue-700 border border-blue-200">GROUP</span>}
+                      <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded-full border ${c.isActive ? "bg-green-50 text-green-700 border-green-200" : "bg-[var(--ink-50)] text-[var(--ink-400)] border-[var(--ink-200)]"}`}>
+                        {c.isActive ? t("active") : t("inactive")}
+                      </span>
+                    </div>
+                    <p className="text-[14px] font-bold text-[var(--ink-900)]">{isRTL ? c.nameAr : (c.nameEn || c.nameAr)}</p>
+                    {c.mobile && <p className="text-[11.5px] text-[var(--ink-500)] mt-0.5">{c.mobile}</p>}
+                  </div>
+                  <div className="text-end shrink-0">
+                    <p className="text-[11px] text-[var(--ink-400)]">{t("creditLimit")}</p>
+                    <p className="text-[14px] font-bold text-[var(--ink-900)] tabular-nums">{formatCurrency(c.creditLimit ?? 0)}</p>
+                    <p className="text-[11px] text-[var(--ink-500)]">{c.creditDays ?? 0} {t("days")}</p>
+                  </div>
+                </div>
+                <div className="flex items-center justify-between pt-2 border-t border-[var(--ink-100)]">
+                  <button onClick={() => toggleExpand(c._id)}
+                    className="text-[11.5px] font-semibold text-[var(--brand-600)] flex items-center gap-1">
+                    <MapPin className="h-3.5 w-3.5" /> {isRTL ? "الفروع" : "Outlets"} {c.isGroupParent ? `(${c.branchCount ?? 0})` : ""}
+                  </button>
+                  {canEdit("sales") && (
+                    <button onClick={(e) => openEdit(c, e)}
+                      className="text-[11.5px] font-semibold px-3 py-1.5 rounded-lg bg-[var(--ink-50)] text-[var(--ink-700)] border border-[var(--ink-200)] touch-target">
+                      {t("edit")}
+                    </button>
+                  )}
+                </div>
+              </div>
+            ))}
+          </div>
+          {/* Desktop table */}
+          <div className="desktop-table overflow-x-auto">
             <table className="w-full text-sm text-left border-collapse" dir={isRTL ? "rtl" : "ltr"}>
               <thead>
                 <tr className="bg-gray-50/50 border-b border-gray-100">
@@ -774,7 +813,8 @@ export default function CustomersPage() {
                 ))}
               </tbody>
             </table>
-          </div>
+          </div>{/* end desktop-table */}
+          </>
         )}
       </div>
 

@@ -51,12 +51,12 @@ export function PurchaseReturnPdf({ data }: { data: PurchaseReturnPdfData }) {
   const pdfLines: PdfLine[] = data.lines.map((l, i) => ({
     idx: i + 1, code: l.itemCode,
     name: isRTL ? l.itemNameAr : (l.itemNameEn || l.itemNameAr),
-    quantity: l.quantity, unitPrice: l.unitPrice / 100, lineTotal: l.lineTotal / 100,
+    quantity: l.quantity, unitPrice: l.unitPrice, lineTotal: l.lineTotal,
   }));
 
-  const subtotal = data.lines.reduce((s, l) => s + l.lineTotal, 0) / 100;
-  const vat      = data.vatAmount / 100;
-  const total    = data.totalAmount / 100;
+  const subtotal = data.lines.reduce((s, l) => s + l.lineTotal, 0);
+  const vat      = data.vatAmount;
+  const total    = data.totalAmount;
 
   return (
     <Document title={`${labels.title} - ${data.returnNumber}`}>

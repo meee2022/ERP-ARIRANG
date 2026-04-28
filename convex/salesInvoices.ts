@@ -13,6 +13,7 @@ import {
 import { assertUserPermission, assertUserBranch } from "./lib/permissions";
 import { logAudit } from "./lib/audit";
 import { assertPeriodOpen } from "./lib/fiscalControl";
+import { requirePostingRules } from "./postingRules";
 
 // ─── CREATE SALES INVOICE ─────────────────────────────────────────────────────
 
@@ -237,10 +238,11 @@ export const postSalesInvoice = mutation({
   args: {
     invoiceId: v.id("salesInvoices"),
     userId: v.id("users"),
-    cashAccountId: v.id("accounts"),
-    cardAccountId: v.id("accounts"),
-    arAccountId: v.id("accounts"),
-    vatPayableAccountId: v.id("accounts"),
+    // All account args are now optional — system auto-fetches from posting rules
+    cashAccountId:      v.optional(v.id("accounts")),
+    cardAccountId:      v.optional(v.id("accounts")),
+    arAccountId:        v.optional(v.id("accounts")),
+    vatPayableAccountId:v.optional(v.id("accounts")),
   },
   handler: async (ctx, args) => {
     const invoice = await ctx.db.get(args.invoiceId);
@@ -257,6 +259,20 @@ export const postSalesInvoice = mutation({
 
     await validatePeriodOpen(ctx, invoice.periodId);
     await assertPeriodOpen(ctx, invoice.invoiceDate, invoice.companyId);
+
+    // ── Auto-load posting rules if any account arg is missing ──
+    const rules = (!args.cashAccountId || !args.arAccountId || !args.vatPayableAccountId)
+      ? await requirePostingRules(ctx, invoice.companyId)
+      : null;
+
+    const cashAccountId       = args.cashAccountId       ?? rules?.cashSalesAccountId;
+    const cardAccountId       = args.cardAccountId       ?? rules?.cardSalesAccountId ?? cashAccountId;
+    const arAccountId         = args.arAccountId         ?? rules?.arAccountId;
+    const vatPayableAccountId = args.vatPayableAccountId ?? rules?.vatPayableAccountId;
+
+    if (!cashAccountId)       throw new Error("حساب الصندوق غير محدد — يرجى ضبط قواعد الترحيل");
+    if (!arAccountId)         throw new Error("حساب الذمم المدينة غير محدد — يرجى ضبط قواعد الترحيل");
+    if (!vatPayableAccountId) throw new Error("حساب ضريبة القيمة المضافة غير محدد — يرجى ضبط قواعد الترحيل");
 
     // Get all lines
     const lines = await ctx.db
@@ -295,10 +311,10 @@ export const postSalesInvoice = mutation({
     const journalLines = buildSalesInvoiceJournal(
       invoice,
       updatedLines,
-      args.cashAccountId,
-      args.cardAccountId,
-      args.arAccountId,
-      args.vatPayableAccountId
+      cashAccountId!,
+      cardAccountId!,
+      arAccountId!,
+      vatPayableAccountId!
     );
 
     // Add inventory credit lines
@@ -931,22 +947,46 @@ export const quickPostSalesInvoice = mutation({
     // Resolve AR or Cash account from customer
     let debitAccountId: Id<"accounts">;
     if (invoice.invoiceType === "cash_sale" || !invoice.customerId) {
-      // For cash sale: look for a cash account (type asset, subtype cash_bank)
-      const cashAccount = await ctx.db
-        .query("accounts")
-        .withIndex("by_company_type", (q) =>
-          q.eq("companyId", invoice.companyId).eq("accountType", "asset")
-        )
-        .filter((q) =>
-          q.and(
-            q.eq(q.field("accountSubType"), "cash_bank"),
-            q.eq(q.field("isPostable"), true),
-            q.eq(q.field("isActive"), true)
-          )
-        )
+      // 1) Try posting rules first
+      const rules = await ctx.db
+        .query("postingRules")
+        .withIndex("by_company", (q) => q.eq("companyId", invoice.companyId))
         .first();
-      if (!cashAccount) throw new Error("لم يُعثر على حساب الصندوق/البنك. أضفه في دليل الحسابات.");
-      debitAccountId = cashAccount._id;
+      let cashAccountId = rules?.cashSalesAccountId ?? rules?.mainCashAccountId;
+
+      // 2) Fallback: find by subtype cash_bank
+      if (!cashAccountId) {
+        const cashAccount = await ctx.db
+          .query("accounts")
+          .withIndex("by_company_type", (q) =>
+            q.eq("companyId", invoice.companyId).eq("accountType", "asset")
+          )
+          .filter((q) =>
+            q.and(
+              q.eq(q.field("accountSubType"), "cash_bank"),
+              q.eq(q.field("isPostable"), true),
+              q.eq(q.field("isActive"), true)
+            )
+          )
+          .first();
+        cashAccountId = cashAccount?._id;
+      }
+
+      // 3) Fallback: find by common cash account codes (1101, 1100, 1001)
+      if (!cashAccountId) {
+        for (const code of ["1101", "1100", "1001", "1010"]) {
+          const acc = await ctx.db
+            .query("accounts")
+            .withIndex("by_company_code", (q) =>
+              q.eq("companyId", invoice.companyId).eq("code", code)
+            )
+            .first();
+          if (acc?.isPostable && acc?.isActive) { cashAccountId = acc._id; break; }
+        }
+      }
+
+      if (!cashAccountId) throw new Error("لم يُعثر على حساب الصندوق/البنك. يرجى ضبط قواعد الترحيل أو إضافة حساب من نوع صندوق/بنك في دليل الحسابات.");
+      debitAccountId = cashAccountId;
     } else {
       // Credit sale: use customer's linked account
       const customer = await ctx.db.get(invoice.customerId);
@@ -1173,5 +1213,211 @@ export const getSalesInvoiceSummary = query({
       countPosted,
       invoiceCount: invoices.length,
     };
+  },
+});
+
+// ─── Bulk Post Sales Invoices ─────────────────────────────────────────────────
+export const bulkPostSalesInvoices = mutation({
+  args: {
+    companyId: v.id("companies"),
+    invoiceIds: v.array(v.id("salesInvoices")),
+    userId: v.id("users"),
+  },
+  handler: async (ctx, args) => {
+    const results: { invoiceId: string; success: boolean; error?: string }[] = [];
+
+    for (const invoiceId of args.invoiceIds) {
+      try {
+        const invoice = await ctx.db.get(invoiceId);
+        if (!invoice) { results.push({ invoiceId, success: false, error: "not_found" }); continue; }
+        if (invoice.postingStatus !== "unposted") { results.push({ invoiceId, success: false, error: "already_posted" }); continue; }
+        if (invoice.documentStatus === "cancelled") { results.push({ invoiceId, success: false, error: "cancelled" }); continue; }
+
+        // Run posting
+        const { requirePostingRules } = await import("./postingRules");
+        const { buildSalesInvoiceJournal, postJournalEntry, updateStockBalance } = await import("./lib/posting");
+
+        const rules = await requirePostingRules(ctx, invoice.companyId);
+        const currency = await ctx.db.query("currencies")
+          .filter((q) => q.eq(q.field("isBase"), true)).first();
+        if (!currency) throw new Error("No base currency");
+
+        const cashAccountId  = rules.cashSalesAccountId!;
+        const arAccountId    = rules.arAccountId!;
+        const vatAccountId   = rules.vatPayableAccountId!;
+        const cardAccountId  = rules.cardSalesAccountId ?? cashAccountId;
+
+        const lines = await ctx.db.query("salesInvoiceLines")
+          .withIndex("by_invoice", (q) => q.eq("invoiceId", invoiceId))
+          .collect();
+
+        const enrichedLines = await Promise.all(lines.map(async (l: any) => {
+          const item = l.itemId ? (await ctx.db.get(l.itemId) as any) : null;
+          return { ...l, itemCode: item?.code, itemNameAr: item?.nameAr ?? "", itemNameEn: item?.nameEn };
+        }));
+
+        const journalLines = buildSalesInvoiceJournal(
+          invoice as any,
+          enrichedLines,
+          cashAccountId,
+          cardAccountId,
+          arAccountId,
+          vatAccountId,
+        );
+
+        const entryId = await postJournalEntry(
+          ctx,
+          {
+            companyId: invoice.companyId,
+            branchId: invoice.branchId,
+            periodId: invoice.periodId,
+            journalType: "auto_sales" as const,
+            entryDate: invoice.invoiceDate,
+            description: `فاتورة مبيعات ${invoice.invoiceNumber}`,
+            sourceType: "salesInvoice",
+            sourceId: String(invoiceId),
+            currencyId: currency._id,
+            exchangeRate: invoice.exchangeRate ?? 1,
+            isAutoGenerated: true,
+            createdBy: args.userId,
+          },
+          journalLines
+        );
+
+        // Update stock
+        for (const line of enrichedLines) {
+          if (!line.itemId || !invoice.warehouseId) continue;
+          await updateStockBalance(
+            ctx,
+            line.itemId as any,
+            invoice.warehouseId,
+            -(line.quantity ?? 0),
+            line.unitCost ?? 0,
+            "sales_issue"
+          );
+        }
+
+        await ctx.db.patch(invoiceId, {
+          postingStatus: "posted",
+          journalEntryId: entryId,
+          postedAt: Date.now(),
+          postedBy: args.userId,
+        });
+
+        results.push({ invoiceId, success: true });
+      } catch (e: any) {
+        results.push({ invoiceId, success: false, error: e.message ?? "error" });
+      }
+    }
+
+    const succeeded = results.filter((r) => r.success).length;
+    const failed    = results.filter((r) => !r.success).length;
+    return { results, succeeded, failed };
+  },
+});
+
+// ─── UPDATE DRAFT SALES INVOICE ───────────────────────────────────────────────
+export const updateDraftSalesInvoice = mutation({
+  args: {
+    invoiceId: v.id("salesInvoices"),
+    userId: v.id("users"),
+    invoiceDate: v.string(),
+    dueDate: v.optional(v.string()),
+    externalInvoiceNumber: v.optional(v.string()),
+    invoiceType: v.union(v.literal("cash_sale"), v.literal("credit_sale")),
+    paymentMethod: v.optional(v.string()),
+    customerId: v.optional(v.id("customers")),
+    warehouseId: v.id("warehouses"),
+    salesRepId: v.optional(v.id("salesReps")),
+    vehicleId: v.optional(v.id("vehicles")),
+    discountAmount: v.optional(v.number()),
+    notes: v.optional(v.string()),
+    lines: v.array(v.object({
+      itemId: v.id("items"),
+      quantity: v.number(),
+      unitPrice: v.number(),
+      uomId: v.id("unitOfMeasure"),
+      discount: v.optional(v.number()),
+      notes: v.optional(v.string()),
+    })),
+  },
+  handler: async (ctx, args) => {
+    const invoice = await ctx.db.get(args.invoiceId);
+    if (!invoice) throw new Error("الفاتورة غير موجودة");
+    if (invoice.documentStatus !== "draft") throw new Error("يمكن تعديل المسودات فقط");
+    if (invoice.postingStatus !== "unposted") throw new Error("لا يمكن تعديل فاتورة مرحلة");
+
+    const user = await assertUserPermission(ctx, args.userId, "sales", "edit");
+    assertUserBranch(user, invoice.branchId);
+
+    // Recalculate totals
+    const subtotal = args.lines.reduce((s, l) => s + l.quantity * l.unitPrice, 0);
+    const discount = args.discountAmount ?? 0;
+    const netAmount = Math.max(0, subtotal - discount);
+    const vatRate = 0.05;
+    const vatAmount = Math.round(netAmount * vatRate * 100) / 100;
+    const totalAmount = Math.round((netAmount + vatAmount) * 100) / 100;
+
+    let cashReceived = 0, cardReceived = 0, creditAmount = 0;
+    if (args.invoiceType === "cash_sale") {
+      cashReceived = totalAmount;
+    } else {
+      creditAmount = totalAmount;
+    }
+
+    // Update invoice header
+    await ctx.db.patch(args.invoiceId, {
+      invoiceDate: args.invoiceDate,
+      dueDate: args.dueDate,
+      externalInvoiceNumber: args.externalInvoiceNumber,
+      invoiceType: args.invoiceType,
+      paymentMethod: args.paymentMethod as any,
+      customerId: args.customerId,
+      warehouseId: args.warehouseId,
+      salesRepId: args.salesRepId,
+      vehicleId: args.vehicleId as any, // deliveryVehicles id
+      discountAmount: discount,
+      subtotal,
+      vatAmount,
+      totalAmount,
+      cashReceived,
+      cardReceived,
+      creditAmount,
+      notes: args.notes,
+    });
+
+    // Delete old lines
+    const oldLines = await ctx.db
+      .query("salesInvoiceLines")
+      .withIndex("by_invoice", (q) => q.eq("invoiceId", args.invoiceId))
+      .collect();
+    await Promise.all(oldLines.map((l) => ctx.db.delete(l._id)));
+
+    // Insert new lines
+    for (let i = 0; i < args.lines.length; i++) {
+      const l = args.lines[i];
+      const lineTotal = Math.round(l.quantity * l.unitPrice * 100) / 100;
+      await ctx.db.insert("salesInvoiceLines", {
+        invoiceId: args.invoiceId,
+        lineNumber: i + 1,
+        itemId: l.itemId,
+        quantity: l.quantity,
+        unitPrice: l.unitPrice,
+        uomId: l.uomId,
+        discountPct: 0,
+        discountAmount: l.discount ?? 0,
+        lineTotal,
+        vatRate,
+        vatAmount: Math.round(lineTotal * vatRate * 100) / 100,
+        serviceChargeRate: 0,
+        serviceChargeAmt: 0,
+        unitCost: 0,
+        costTotal: 0,
+      });
+    }
+
+    await logAudit(ctx, { companyId: invoice.companyId, userId: args.userId, action: "update", module: "sales", documentType: "salesInvoice", documentId: String(args.invoiceId), details: JSON.stringify({ before: invoice.totalAmount, after: totalAmount }) });
+
+    return { invoiceId: args.invoiceId, totalAmount };
   },
 });

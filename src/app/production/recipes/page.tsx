@@ -260,7 +260,7 @@ function IngredientsModal({ detail, items, units, onClose, upsertLine, deleteLin
     if (!newLine.itemId || !newLine.uomId) return;
     const qty      = parseFloat(newLine.quantity) || 1;
     const waste    = parseFloat(newLine.wastePct) || 0;
-    const grossQty = qty * (1 + waste / 100);
+    const grossQty = qty * (1 + waste);
     const item     = items.find((i: any) => i._id === newLine.itemId);
     await upsertLine({
       recipeId: detail._id, itemId: newLine.itemId as any, quantity: qty,

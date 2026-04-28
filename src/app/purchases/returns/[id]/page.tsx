@@ -197,9 +197,9 @@ export default function PurchaseReturnDetailPage() {
                   <td className="code">{line.itemCode ?? "—"}</td>
                   <td>{isRTL ? line.itemNameAr : (line.itemNameEn || line.itemNameAr)}</td>
                   <td className="numeric text-end">{line.quantity}</td>
-                  <td className="numeric text-end">{formatCurrency((line.unitCost ?? line.unitPrice ?? 0) / 100)}</td>
+                  <td className="numeric text-end">{formatCurrency((line.unitCost ?? line.unitPrice ?? 0))}</td>
                   <td className="numeric text-end font-semibold">
-                    {formatCurrency((line.lineTotal ?? line.quantity * (line.unitCost ?? line.unitPrice ?? 0)) / 100)}
+                    {formatCurrency(line.lineTotal ?? line.quantity * (line.unitCost ?? line.unitPrice ?? 0))}
                   </td>
                 </tr>
               ))}
@@ -211,17 +211,17 @@ export default function PurchaseReturnDetailPage() {
           <div className="w-72 space-y-1">
             <div className="flex justify-between text-sm text-[color:var(--ink-600)]">
               <span>{t("subtotal")}</span>
-              <span className="tabular-nums">{formatCurrency(subtotal / 100)}</span>
+              <span className="tabular-nums">{formatCurrency(subtotal)}</span>
             </div>
             {vatAmount > 0 && (
               <div className="flex justify-between text-sm text-[color:var(--ink-600)]">
                 <span>{t("taxAmount")}</span>
-                <span className="tabular-nums">{formatCurrency(vatAmount / 100)}</span>
+                <span className="tabular-nums">{formatCurrency(vatAmount)}</span>
               </div>
             )}
             <div className="flex justify-between border-t-2 border-[color:var(--ink-800)] pt-2 text-base font-extrabold text-[color:var(--ink-900)]">
               <span>{pdfData.labels.returnTotal}</span>
-              <span className="tabular-nums">{formatCurrency(totalAmount / 100)}</span>
+              <span className="tabular-nums">{formatCurrency(totalAmount)}</span>
             </div>
           </div>
         </div>

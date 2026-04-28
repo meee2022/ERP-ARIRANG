@@ -271,7 +271,7 @@ export const getCustomerStatement = query({
         date: r.voucherDate,
         type: "receipt" as const,
         reference: r.voucherNumber,
-        description: `سند قبض`,
+        description: `Cash Receipt / سند قبض`,
         debit: 0,
         credit: r.amount,
         documentId: r._id,
@@ -347,7 +347,7 @@ export const getSupplierStatement = query({
         date: p.voucherDate,
         type: "payment" as const,
         reference: p.voucherNumber,
-        description: `سند صرف`,
+        description: `Cash Payment / سند صرف`,
         debit: p.amount,
         credit: 0,
         documentId: p._id,
@@ -1797,3 +1797,414 @@ export const getCashMovementReport = query({
 });
 
 
+
+// ─── VAT SUMMARY REPORT ───────────────────────────────────────────────────────
+export const getVatSummary = query({
+  args: {
+    companyId: v.id("companies"),
+    fromDate:  v.string(),
+    toDate:    v.string(),
+  },
+  handler: async (ctx, args) => {
+    // Sales VAT (output tax) — from posted sales invoices
+    const salesInvoices = await ctx.db
+      .query("salesInvoices")
+      .filter((q) => q.eq(q.field("companyId"), args.companyId))
+      .collect();
+
+    const postedSales = salesInvoices.filter(
+      (inv) =>
+        inv.postingStatus === "posted" &&
+        inv.invoiceDate >= args.fromDate &&
+        inv.invoiceDate <= args.toDate
+    );
+
+    const outputVat    = postedSales.reduce((s, inv) => s + (inv.vatAmount ?? 0), 0);
+    const salesNet     = postedSales.reduce((s, inv) => s + (inv.taxableAmount ?? inv.subtotal ?? 0), 0);
+    const salesGross   = postedSales.reduce((s, inv) => s + (inv.totalAmount ?? 0), 0);
+    const salesCount   = postedSales.length;
+
+    // Purchase VAT (input tax) — from posted purchase invoices
+    const purchaseInvoices = await ctx.db
+      .query("purchaseInvoices")
+      .filter((q) => q.eq(q.field("companyId"), args.companyId))
+      .collect();
+
+    const postedPurchases = purchaseInvoices.filter(
+      (inv) =>
+        inv.postingStatus === "posted" &&
+        inv.invoiceDate >= args.fromDate &&
+        inv.invoiceDate <= args.toDate
+    );
+
+    const inputVat      = postedPurchases.reduce((s, inv) => s + (inv.vatAmount ?? 0), 0);
+    const purchasesNet  = postedPurchases.reduce((s, inv) => s + (inv.totalAmount ?? 0) - (inv.vatAmount ?? 0), 0);
+    const purchasesGross= postedPurchases.reduce((s, inv) => s + (inv.totalAmount ?? 0), 0);
+    const purchasesCount= postedPurchases.length;
+
+    // Net VAT payable to authority
+    const netVatPayable = outputVat - inputVat;
+
+    return {
+      period: { fromDate: args.fromDate, toDate: args.toDate },
+      sales: {
+        count:       salesCount,
+        netAmount:   salesNet,
+        grossAmount: salesGross,
+        vatAmount:   outputVat,
+        vatRate:     salesNet > 0 ? (outputVat / salesNet) * 100 : 0,
+      },
+      purchases: {
+        count:        purchasesCount,
+        netAmount:    purchasesNet,
+        grossAmount:  purchasesGross,
+        vatAmount:    inputVat,
+        vatRate:      purchasesNet > 0 ? (inputVat / purchasesNet) * 100 : 0,
+      },
+      summary: {
+        outputVat,
+        inputVat,
+        netVatPayable,
+        isRefundable: netVatPayable < 0,
+      },
+    };
+  },
+});
+
+// ─── Period Month-end Checklist ────────────────────────────────────────────────
+export const getPeriodChecklist = query({
+  args: {
+    companyId: v.id("companies"),
+    periodStartDate: v.string(),
+    periodEndDate: v.string(),
+  },
+  handler: async (ctx, args) => {
+    const { companyId, periodStartDate, periodEndDate } = args;
+
+    // 1. Unposted sales invoices in period
+    const allSalesInvoices = await ctx.db
+      .query("salesInvoices")
+      .withIndex("by_company", (q) => q.eq("companyId", companyId))
+      .filter((q) =>
+        q.and(
+          q.gte(q.field("invoiceDate"), periodStartDate),
+          q.lte(q.field("invoiceDate"), periodEndDate),
+          q.neq(q.field("documentStatus"), "cancelled")
+        )
+      )
+      .collect();
+
+    const unpostedSales = allSalesInvoices.filter((i) => i.postingStatus === "unposted");
+
+    // 2. Unposted purchase invoices in period
+    const allPurchaseInvoices = await ctx.db
+      .query("purchaseInvoices")
+      .withIndex("by_company", (q) => q.eq("companyId", companyId))
+      .filter((q) =>
+        q.and(
+          q.gte(q.field("invoiceDate"), periodStartDate),
+          q.lte(q.field("invoiceDate"), periodEndDate),
+          q.neq(q.field("documentStatus"), "cancelled")
+        )
+      )
+      .collect();
+
+    const unpostedPurchases = allPurchaseInvoices.filter((i) => i.postingStatus === "unposted");
+
+    // 3. Trial balance — any accounts with non-zero balance (via journalEntries)
+    const periodEntries = await ctx.db
+      .query("journalEntries")
+      .filter((q) =>
+        q.and(
+          q.eq(q.field("companyId"), companyId),
+          q.gte(q.field("entryDate"), periodStartDate),
+          q.lte(q.field("entryDate"), periodEndDate)
+        )
+      )
+      .collect();
+
+    const entryIds = periodEntries.map((e) => e._id as string);
+    const accountTotals = new Map<string, number>();
+    await Promise.all(entryIds.slice(0, 500).map(async (eid) => {
+      const lines = await ctx.db
+        .query("journalLines")
+        .withIndex("by_entry", (q) => q.eq("entryId", eid as any))
+        .collect();
+      for (const line of lines) {
+        const key = line.accountId as string;
+        const cur = accountTotals.get(key) ?? 0;
+        accountTotals.set(key, cur + (line.debit ?? 0) - (line.credit ?? 0));
+      }
+    }));
+    const nonZeroAccounts = [...accountTotals.values()].filter((v) => Math.abs(v) > 0).length;
+
+    // 4. Unposted wastage entries
+    const unpostedWastage = await ctx.db
+      .query("wastageEntries")
+      .withIndex("by_company", (q) => q.eq("companyId", companyId))
+      .filter((q) =>
+        q.and(
+          q.gte(q.field("entryDate"), periodStartDate),
+          q.lte(q.field("entryDate"), periodEndDate),
+          q.eq(q.field("postingStatus"), "unposted")
+        )
+      )
+      .collect();
+
+    return {
+      sales: {
+        total: allSalesInvoices.length,
+        unposted: unpostedSales.length,
+        ok: unpostedSales.length === 0,
+      },
+      purchases: {
+        total: allPurchaseInvoices.length,
+        unposted: unpostedPurchases.length,
+        ok: unpostedPurchases.length === 0,
+      },
+      trialBalance: {
+        entryCount: periodEntries.length,
+        nonZeroAccounts,
+        ok: periodEntries.length > 0,
+      },
+      wastage: {
+        unposted: unpostedWastage.length,
+        ok: unpostedWastage.length === 0,
+      },
+      canClose:
+        unpostedSales.length === 0 &&
+        unpostedPurchases.length === 0 &&
+        unpostedWastage.length === 0,
+    };
+  },
+});
+
+// ─── Route Sheet (Daily delivery manifest per vehicle) ────────────────────────
+export const getRouteSheet = query({
+  args: {
+    companyId: v.id("companies"),
+    date: v.string(),
+    branchId: v.optional(v.id("branches")),
+  },
+  handler: async (ctx, args) => {
+    // Fetch all invoices for the date (any posting status except cancelled)
+    const allInvoices = await ctx.db
+      .query("salesInvoices")
+      .withIndex("by_branch_date", (q) => q.eq("branchId", args.branchId as any ?? ("" as any)))
+      .filter((q) =>
+        q.and(
+          q.eq(q.field("invoiceDate"), args.date),
+          q.neq(q.field("documentStatus"), "cancelled")
+        )
+      )
+      .collect();
+    
+    // If no branchId or the branch query was skipped, collect all for the date
+    const allByDate = args.branchId ? allInvoices : await ctx.db
+      .query("salesInvoices")
+      .filter((q) =>
+        q.and(
+          q.eq(q.field("invoiceDate"), args.date),
+          q.eq(q.field("companyId"), args.companyId),
+          q.neq(q.field("documentStatus"), "cancelled")
+        )
+      )
+      .collect();
+
+    const filtered = args.branchId ? allInvoices.filter(inv => inv.companyId === args.companyId) : allByDate;
+
+    // Group by vehicle
+    const vehicleMap = new Map<string, any>();
+
+    for (const inv of filtered) {
+      const vehicleKey = (inv.vehicleId as string) ?? `code:${inv.vehicleCode ?? "none"}`;
+      if (!vehicleMap.has(vehicleKey)) {
+        let vehicle: any = null;
+        if (inv.vehicleId) vehicle = await ctx.db.get(inv.vehicleId as any);
+        vehicleMap.set(vehicleKey, {
+          vehicleId: inv.vehicleId ?? null,
+          vehicleCode: vehicle?.code ?? inv.vehicleCode ?? "—",
+          vehicleDescAr: vehicle?.descriptionAr ?? (inv.vehicleCode ?? "بدون مركبة"),
+          vehicleDescEn: vehicle?.descriptionEn ?? (inv.vehicleCode ?? "No Vehicle"),
+          driverName: vehicle?.driverName ?? null,
+          invoices: [],
+          totalAmount: 0,
+          cashAmount: 0,
+          creditAmount: 0,
+          invoiceCount: 0,
+        });
+      }
+
+      const group = vehicleMap.get(vehicleKey)!;
+      group.invoices.push({
+        _id: inv._id,
+        invoiceNumber: inv.invoiceNumber,
+        externalInvoiceNumber: inv.externalInvoiceNumber ?? null,
+        invoiceDate: inv.invoiceDate,
+        invoiceType: inv.invoiceType,
+        postingStatus: inv.postingStatus,
+        documentStatus: inv.documentStatus,
+        totalAmount: inv.totalAmount ?? 0,
+        cashReceived: inv.cashReceived ?? 0,
+        creditAmount: inv.creditAmount ?? 0,
+        customerId: inv.customerId,
+        branchId: inv.branchId,
+        salesRepName: inv.salesRepName ?? null,
+      });
+      group.totalAmount  += inv.totalAmount ?? 0;
+      group.cashAmount   += inv.cashReceived ?? 0;
+      group.creditAmount += inv.creditAmount ?? 0;
+      group.invoiceCount += 1;
+    }
+
+    // Enrich with customer names
+    const allCustomerIds = new Set(filtered.map((i) => i.customerId).filter(Boolean));
+    const customers = await Promise.all(
+      [...allCustomerIds].map((id) => ctx.db.get(id as any))
+    );
+    const customerMap = new Map(customers.filter(Boolean).map((c) => [c!._id as string, c]));
+
+    const vehicles = [...vehicleMap.values()].map((v) => ({
+      ...v,
+      invoices: v.invoices.map((inv: any) => ({
+        ...inv,
+        customerName: (customerMap.get(inv.customerId as string) as any)?.nameAr ?? "—",
+      })),
+    }));
+
+    vehicles.sort((a, b) => (a.vehicleCode ?? "").localeCompare(b.vehicleCode ?? ""));
+
+    return {
+      date: args.date,
+      vehicles,
+      totals: {
+        vehicleCount: vehicles.length,
+        invoiceCount: vehicles.reduce((s, v) => s + v.invoiceCount, 0),
+        totalAmount: vehicles.reduce((s, v) => s + v.totalAmount, 0),
+        cashAmount: vehicles.reduce((s, v) => s + v.cashAmount, 0),
+        creditAmount: vehicles.reduce((s, v) => s + v.creditAmount, 0),
+      },
+    };
+  },
+});
+
+// ─── Inventory Aging Report ────────────────────────────────────────────────────
+export const getInventoryAging = query({
+  args: {
+    companyId: v.id("companies"),
+    warehouseId: v.optional(v.id("warehouses")),
+  },
+  handler: async (ctx, args) => {
+    const today = new Date().toISOString().slice(0, 10);
+
+    // Get all stock balances
+    const stockBalances = await ctx.db
+      .query("stockBalance")
+      .collect();
+
+    // Get all GRN lines for receipt dates (last receipt date per item/warehouse)
+    // Note: grnLines.companyId is optional (backfill), so we collect and filter
+    const grnLines = await ctx.db
+      .query("grnLines")
+      .withIndex("by_company", (q) => q.eq("companyId", args.companyId))
+      .collect();
+    // Also fetch GRN headers to get dates for lines that don't have grnDate
+    const grnIds = [...new Set(grnLines.map((l) => l.grnId as string))];
+    const grnHeaders = new Map<string, any>();
+    await Promise.all(grnIds.slice(0, 200).map(async (id) => {
+      const grn = await ctx.db.get(id as any);
+      if (grn) grnHeaders.set(id, grn);
+    }));
+
+    // Build map: itemId+warehouseId → last GRN date
+    const lastReceiptMap = new Map<string, string>();
+    for (const line of grnLines) {
+      const warehouseId = line.warehouseId ?? (line as any)._warehouseId;
+      const grnDate = line.grnDate ?? (line as any)._grnDate;
+      if (!warehouseId || !grnDate) continue;
+      const key = `${line.itemId}:${warehouseId}`;
+      const current = lastReceiptMap.get(key);
+      if (!current || grnDate > current) {
+        lastReceiptMap.set(key, grnDate);
+      }
+    }
+
+    // Get items
+    const items = await ctx.db
+      .query("items")
+      .withIndex("by_company", (q) => q.eq("companyId", args.companyId))
+      .collect();
+    const itemMap = new Map(items.map((i) => [i._id as string, i]));
+
+    // Get warehouses
+    const warehouses = await ctx.db
+      .query("warehouses")
+      .withIndex("by_company", (q) => q.eq("companyId", args.companyId))
+      .collect();
+    const whMap = new Map(warehouses.map((w) => [w._id as string, w]));
+
+    // Filter by warehouse if requested
+    const relevant = stockBalances.filter((sb) => {
+      if (args.warehouseId && sb.warehouseId !== args.warehouseId) return false;
+      // Only show items with positive stock
+      return (sb.quantity ?? 0) > 0;
+    });
+
+    // Build result
+    const rows = relevant.map((sb) => {
+      const item = itemMap.get(sb.itemId as string);
+      if (!item) return null;
+      const wh = whMap.get(sb.warehouseId as string);
+      const totalQty = sb.quantity ?? 0;
+      const avgCost = sb.avgCost ?? 0;
+      const stockValue = totalQty * avgCost;
+
+      const lastReceipt = lastReceiptMap.get(`${sb.itemId}:${sb.warehouseId}`) ?? null;
+      let agingDays = 0;
+      if (lastReceipt) {
+        const msPerDay = 1000 * 60 * 60 * 24;
+        agingDays = Math.floor((new Date(today).getTime() - new Date(lastReceipt).getTime()) / msPerDay);
+      }
+
+      const agingBucket =
+        agingDays <= 7  ? "0-7"  :
+        agingDays <= 14 ? "8-14" :
+        agingDays <= 30 ? "15-30":
+        agingDays <= 60 ? "31-60": "60+";
+
+      return {
+        itemId: sb.itemId,
+        code: item.code,
+        nameAr: item.nameAr,
+        nameEn: item.nameEn ?? item.nameAr,
+        warehouseId: sb.warehouseId,
+        warehouseName: wh?.nameAr ?? wh?.nameEn ?? "—",
+        totalQty,
+        avgCost,
+        stockValue,
+        lastReceiptDate: lastReceipt,
+        agingDays,
+        agingBucket,
+        reorderPoint: item.reorderPoint ?? 0,
+      };
+    }).filter(Boolean);
+
+    // Sort: oldest first
+    rows.sort((a: any, b: any) => b.agingDays - a.agingDays);
+
+    // Bucket summary
+    const buckets: Record<string, { count: number; value: number }> = {
+      "0-7": { count: 0, value: 0 },
+      "8-14": { count: 0, value: 0 },
+      "15-30": { count: 0, value: 0 },
+      "31-60": { count: 0, value: 0 },
+      "60+": { count: 0, value: 0 },
+    };
+    for (const r of rows as any[]) {
+      buckets[r.agingBucket].count++;
+      buckets[r.agingBucket].value += r.stockValue;
+    }
+
+    return { rows, buckets, asOfDate: today };
+  },
+});

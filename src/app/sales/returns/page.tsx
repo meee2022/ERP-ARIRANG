@@ -83,7 +83,7 @@ function NewSalesReturnForm({ onClose }: { onClose: () => void }) {
 
   const grandTotal = (invoiceLines ?? []).reduce((sum: number, line: any) => {
     const qty = parseFloat(returnQtys[line._id] ?? "0") || 0;
-    return sum + qty * (line.unitPrice / 100);
+    return sum + qty * (line.unitPrice);
   }, 0);
 
   const onSubmit = async (e: React.FormEvent) => {
@@ -181,7 +181,7 @@ function NewSalesReturnForm({ onClose }: { onClose: () => void }) {
               <option value="">{t("selectInvoice")}</option>
               {(postedInvoices ?? []).map((inv: any) => (
                 <option key={inv._id} value={inv._id}>
-                  {inv.invoiceNumber} — {inv.customerName} ({formatCurrency(inv.totalAmount / 100, lang)})
+                  {inv.invoiceNumber} — {inv.customerName} ({formatCurrency(inv.totalAmount, lang)})
                 </option>
               ))}
             </select>
@@ -240,12 +240,12 @@ function NewSalesReturnForm({ onClose }: { onClose: () => void }) {
                   <tbody>
                     {invoiceLines.map((line: any) => {
                       const qty = parseFloat(returnQtys[line._id] ?? "0") || 0;
-                      const lineTotal = qty * (line.unitPrice / 100);
+                      const lineTotal = qty * (line.unitPrice);
                       return (
                         <tr key={line._id}>
                           <td>{line.item?.nameAr ?? "—"}</td>
                           <td className="text-center muted">{line.quantity}</td>
-                          <td className="text-center muted">{formatCurrency(line.unitPrice / 100, lang)}</td>
+                          <td className="text-center muted">{formatCurrency(line.unitPrice, lang)}</td>
                           <td className="text-center">
                             <input type="number" min="0" max={line.quantity} step="1"
                               className="w-20 mx-auto block text-center input-field py-1 text-sm"
@@ -359,7 +359,26 @@ export default function SalesReturnsPage() {
             ) : undefined}
           />
         ) : (
-          <div className="overflow-x-auto">
+          <>
+          <div className="mobile-list p-3 space-y-2.5">
+            {returns.map((ret: any) => (
+              <div key={ret._id} className="record-card">
+                <div className="flex items-start justify-between gap-2 mb-2">
+                  <div className="min-w-0 flex-1">
+                    <span className="font-mono text-[11px] font-bold px-2 py-0.5 rounded bg-[var(--ink-100)] text-[var(--ink-600)] inline-block mb-1">{ret.returnNumber}</span>
+                    <p className="text-[14px] font-bold text-[var(--ink-900)]">{ret.customerName ?? "—"}</p>
+                    <p className="text-[11px] text-[var(--ink-400)] mt-0.5">{ret.returnDate} · {isRTL ? ret.branchNameAr : ret.branchNameEn}</p>
+                    <p className="text-[11px] text-[var(--ink-400)]">{isRTL ? "فاتورة: " : "Inv: "}{ret.originalInvoiceNumber} · {isRTL ? "بواسطة: " : "By: "}{ret.createdByName}</p>
+                  </div>
+                  <div className="text-end shrink-0">
+                    <p className="text-[17px] font-bold tabular-nums text-[var(--ink-900)]">{formatCurrency(ret.totalAmount)}</p>
+                    <StatusBadge status={ret.postingStatus} type="posting" />
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+          <div className="desktop-table overflow-x-auto">
             <table className="data-table">
               <thead>
                 <tr>
@@ -367,6 +386,8 @@ export default function SalesReturnsPage() {
                   <th>{t("returnDate")}</th>
                   <th>{t("originalInvoice")}</th>
                   <th>{t("customers")}</th>
+                  <th>{isRTL ? "الفرع" : "Branch"}</th>
+                  <th>{isRTL ? "أنشأه" : "Created By"}</th>
                   <th className="text-end">{t("grandTotal")}</th>
                   <th className="text-center">{t("status")}</th>
                   <th className="text-center">{t("actions")}</th>
@@ -378,8 +399,15 @@ export default function SalesReturnsPage() {
                     <td className="code">{ret.returnNumber}</td>
                     <td className="muted">{formatDateShort(ret.returnDate)}</td>
                     <td className="code">{ret.originalInvoiceNumber}</td>
-                    <td>{ret.customerName}</td>
-                    <td className="text-end numeric">{formatCurrency(ret.totalAmount / 100, lang)}</td>
+                    <td>
+                      <div className="font-medium">{ret.customerName}</div>
+                      {ret.customerCode && ret.customerCode !== "—" && (
+                        <div className="text-[11px] text-[color:var(--ink-400)]">{ret.customerCode}</div>
+                      )}
+                    </td>
+                    <td className="muted">{isRTL ? ret.branchNameAr : ret.branchNameEn}</td>
+                    <td className="muted">{ret.createdByName}</td>
+                    <td className="text-end numeric">{formatCurrency(ret.totalAmount, lang)}</td>
                     <td className="text-center">
                       <StatusBadge status={ret.postingStatus} />
                     </td>
@@ -411,6 +439,7 @@ export default function SalesReturnsPage() {
               </tbody>
             </table>
           </div>
+          </>
         )}
       </div>
 

@@ -7,7 +7,7 @@ import { useQuery, useMutation } from "convex/react";
 import { api } from "../../../../convex/_generated/api";
 import { formatDateShort } from "@/lib/utils";
 import { StatusBadge } from "@/components/ui/status-badge";
-import { Plus, Trash2, RotateCcw, Check, X, Search, FileText, WalletCards, ArrowUpRight, ArrowDownRight, Calendar, Filter } from "lucide-react";
+import { Plus, Trash2, RotateCcw, Check, X, Search, FileText, WalletCards, ArrowUpRight, ArrowDownRight, Calendar, Filter, ChevronDown, ChevronUp } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
 import { usePermissions } from "@/hooks/usePermissions";
 import { useAppStore } from "@/store/useAppStore";
@@ -92,8 +92,8 @@ function NewJournalForm({ accounts, company, onClose }: any) {
           .map((l) => ({
             accountId: l.accountId as any,
             description: l.description || undefined,
-            debit: Math.round(Number(l.debit) * 100),
-            credit: Math.round(Number(l.credit) * 100),
+            debit: Math.round(Number(l.debit) * 100) / 100,
+            credit: Math.round(Number(l.credit) * 100) / 100,
           })),
       });
       onClose();
@@ -279,6 +279,96 @@ function JournalLifecycleActions({ entry, userId, companyId }: { entry: any; use
   );
 }
 
+// ─── Journal Lines Detail Panel ───────────────────────────────────────────────
+function JournalLinesPanel({ entryId, isRTL, formatCurrency }: {
+  entryId: string; isRTL: boolean; formatCurrency: (n: number) => string;
+}) {
+  const entry = useQuery(api.journalEntries.getJournalEntry, { entryId: entryId as any });
+
+  if (!entry) return (
+    <div className="px-8 py-4 text-xs text-gray-400 animate-pulse">
+      {isRTL ? "جارٍ تحميل التفاصيل..." : "Loading details..."}
+    </div>
+  );
+
+  const lines = entry.lines ?? [];
+
+  return (
+    <div className="px-6 pb-4 pt-2 bg-indigo-50/40 border-t border-indigo-100">
+      {/* Header */}
+      <p className="text-[10px] font-bold text-indigo-500 uppercase tracking-widest mb-2">
+        {isRTL ? "الحسابات المتأثرة" : "Affected Accounts"}
+      </p>
+      <div className="rounded-lg overflow-hidden border border-indigo-100 bg-white">
+        <table className="w-full text-xs" dir={isRTL ? "rtl" : "ltr"}>
+          <thead>
+            <tr className="bg-indigo-50 text-indigo-700">
+              <th className="px-4 py-2 font-bold text-start">{isRTL ? "كود" : "Code"}</th>
+              <th className="px-4 py-2 font-bold text-start">{isRTL ? "اسم الحساب" : "Account Name"}</th>
+              <th className="px-4 py-2 font-bold text-start">{isRTL ? "بيان" : "Description"}</th>
+              <th className="px-4 py-2 font-bold text-end text-green-700">{isRTL ? "مدين (Dr)" : "Debit (Dr)"}</th>
+              <th className="px-4 py-2 font-bold text-end text-red-600">{isRTL ? "دائن (Cr)" : "Credit (Cr)"}</th>
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-gray-50">
+            {lines.map((line: any, idx: number) => (
+              <tr key={idx} className="hover:bg-indigo-50/30 transition-colors">
+                <td className="px-4 py-2.5">
+                  <span className="font-mono text-[10px] bg-gray-100 px-1.5 py-0.5 rounded text-gray-600 font-bold">
+                    {line.account?.code ?? "—"}
+                  </span>
+                </td>
+                <td className="px-4 py-2.5 font-semibold text-gray-800">
+                  {isRTL
+                    ? (line.account?.nameAr ?? line.account?.nameEn ?? "—")
+                    : (line.account?.nameEn ?? line.account?.nameAr ?? "—")}
+                </td>
+                <td className="px-4 py-2.5 text-gray-400 max-w-[200px] truncate">
+                  {line.description ?? "—"}
+                </td>
+                <td className="px-4 py-2.5 text-end tabular-nums font-bold text-green-700">
+                  {line.debit > 0 ? formatCurrency(line.debit) : "—"}
+                </td>
+                <td className="px-4 py-2.5 text-end tabular-nums font-bold text-red-600">
+                  {line.credit > 0 ? formatCurrency(line.credit) : "—"}
+                </td>
+              </tr>
+            ))}
+          </tbody>
+          <tfoot>
+            <tr className="bg-gray-50 border-t-2 border-indigo-200">
+              <td colSpan={3} className="px-4 py-2 text-[10px] font-bold text-gray-500 uppercase">
+                {isRTL ? "الإجمالي" : "Total"}
+              </td>
+              <td className="px-4 py-2 text-end tabular-nums font-bold text-green-700">
+                {formatCurrency(entry.totalDebit)}
+              </td>
+              <td className="px-4 py-2 text-end tabular-nums font-bold text-red-600">
+                {formatCurrency(entry.totalCredit)}
+              </td>
+            </tr>
+          </tfoot>
+        </table>
+      </div>
+      {/* Balance check */}
+      <div className="flex items-center gap-2 mt-2">
+        {entry.totalDebit === entry.totalCredit ? (
+          <span className="text-[10px] text-green-600 font-bold flex items-center gap-1">
+            ✅ {isRTL ? "القيد متوازن" : "Entry is balanced"}
+          </span>
+        ) : (
+          <span className="text-[10px] text-red-500 font-bold flex items-center gap-1">
+            ❌ {isRTL ? "القيد غير متوازن!" : "Entry is NOT balanced!"}
+          </span>
+        )}
+        <span className="text-[10px] text-gray-400">
+          {isRTL ? `المصدر: ${entry.isAutoGenerated ? "تلقائي" : "يدوي"}` : `Source: ${entry.isAutoGenerated ? "Auto" : "Manual"}`}
+        </span>
+      </div>
+    </div>
+  );
+}
+
 // ─── Journal Entries Page ─────────────────────────────────────────────────────
 import { useSearchParams } from "next/navigation";
 
@@ -293,6 +383,7 @@ export default function JournalEntriesPage() {
   const [journalType, setJournalType] = useState("");
   const [postingStatus, setPostingStatus] = useState("");
   const [search, setSearch] = useState("");
+  const [expandedEntryId, setExpandedEntryId] = useState<string | null>(null);
 
   const selectedBranch = useAppStore((s) => s.selectedBranch);
   const branchArg = selectedBranch !== "all" ? selectedBranch : undefined;
@@ -422,10 +513,45 @@ export default function JournalEntriesPage() {
             }
           />
         ) : (
-          <div className="overflow-x-auto">
+          <>
+          <div className="mobile-list p-3 space-y-2.5">
+            {filtered.map((jv: any) => {
+              const isExpanded = expandedEntryId === jv._id;
+              return (
+                <div key={jv._id} className={`record-card overflow-hidden transition-all ${isExpanded ? "ring-2 ring-indigo-200" : ""}`}>
+                  <div
+                    className="flex items-start justify-between gap-2 mb-2 cursor-pointer"
+                    onClick={() => setExpandedEntryId(isExpanded ? null : jv._id)}
+                  >
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-center gap-2 mb-1">
+                        <span className="font-mono text-[11px] font-bold px-2 py-0.5 rounded bg-[var(--ink-100)] text-[var(--ink-600)]">{jv.entryNumber}</span>
+                        <span className={`inline-flex items-center justify-center w-5 h-5 rounded-full ${isExpanded ? "bg-indigo-100 text-indigo-600" : "bg-gray-100 text-gray-400"}`}>
+                          {isExpanded ? <ChevronUp className="h-3 w-3" /> : <ChevronDown className="h-3 w-3" />}
+                        </span>
+                      </div>
+                      <p className="text-[13px] font-semibold text-[var(--ink-800)] truncate">{jv.description ?? "—"}</p>
+                      <p className="text-[11px] text-[var(--ink-400)] mt-0.5">{jv.entryDate}</p>
+                    </div>
+                    <div className="text-end shrink-0">
+                      <p className="text-[16px] font-bold tabular-nums text-[var(--ink-900)]">{formatCurrency(jv.totalDebit)}</p>
+                      <StatusBadge status={jv.postingStatus} type="posting" />
+                    </div>
+                  </div>
+                  {isExpanded && (
+                    <div className="mt-1 -mx-3 -mb-3">
+                      <JournalLinesPanel entryId={jv._id} isRTL={isRTL} formatCurrency={formatCurrency} />
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+          <div className="desktop-table overflow-x-auto">
             <table className="w-full text-sm text-left border-collapse" dir={isRTL ? "rtl" : "ltr"}>
               <thead>
                 <tr className="bg-gray-50/50 border-b border-gray-100">
+                  <th className="px-4 py-4 w-8"></th>
                   <th className="px-6 py-4 text-[10px] font-bold text-gray-400 uppercase tracking-widest">{t("journalNo")}</th>
                   <th className="px-6 py-4 text-[10px] font-bold text-gray-400 uppercase tracking-widest">{t("date")}</th>
                   <th className="px-6 py-4 text-[10px] font-bold text-gray-400 uppercase tracking-widest">{t("type")}</th>
@@ -437,31 +563,60 @@ export default function JournalEntriesPage() {
                   <th className="px-6 py-4 text-[10px] font-bold text-gray-400 uppercase tracking-widest text-end">{t("actions")}</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-gray-50">
-                {filtered.map((jv: any) => (
-                  <tr key={jv._id} className="group hover:bg-gray-50/80 transition-all duration-200">
-                    <td className="px-6 py-4">
-                      <span className="inline-flex items-center px-2 py-0.5 rounded text-[11px] font-bold bg-gray-100 text-gray-600 border border-gray-200">
-                        {jv.entryNumber}
-                      </span>
-                    </td>
-                    <td className="px-6 py-4 text-xs text-gray-500 font-medium">{formatDateShort(jv.entryDate)}</td>
-                    <td className="px-6 py-4 text-xs text-gray-500 font-medium">{JTYPES[jv.journalType] ?? jv.journalType}</td>
-                    <td className="px-6 py-4 max-w-[260px] truncate font-bold text-gray-900 text-sm" title={jv.description}>{jv.description}</td>
-                    <td className="px-6 py-4 tabular-nums font-bold text-indigo-700 text-end text-sm">{formatCurrency(jv.totalDebit)}</td>
-                    <td className="px-6 py-4 tabular-nums font-bold text-purple-700 text-end text-sm">{formatCurrency(jv.totalCredit)}</td>
-                    <td className="px-6 py-4 text-[10px] text-gray-400 font-bold uppercase tracking-tight">{jv.isAutoGenerated ? t("autoGenerated") : t("manual")}</td>
-                    <td className="px-6 py-4"><StatusBadge status={jv.postingStatus} type="posting" /></td>
-                    <td className="px-6 py-4 text-end">
-                      <div className="flex items-center justify-end gap-1 opacity-0 group-hover:opacity-100 transition-opacity duration-200">
-                        <JournalLifecycleActions entry={jv} userId={currentUser?._id} companyId={company?._id} />
-                      </div>
-                    </td>
-                  </tr>
-                ))}
+              <tbody>
+                {filtered.map((jv: any) => {
+                  const isExpanded = expandedEntryId === jv._id;
+                  return (
+                    <React.Fragment key={jv._id}>
+                      <tr
+                        className={`group transition-all duration-200 cursor-pointer border-b border-gray-50 ${isExpanded ? "bg-indigo-50/60" : "hover:bg-gray-50/80"}`}
+                        onClick={() => setExpandedEntryId(isExpanded ? null : jv._id)}
+                      >
+                        {/* Expand toggle */}
+                        <td className="px-4 py-4 text-center">
+                          <span className={`inline-flex items-center justify-center w-6 h-6 rounded-full transition-colors ${isExpanded ? "bg-indigo-100 text-indigo-600" : "bg-gray-100 text-gray-400 group-hover:bg-indigo-50 group-hover:text-indigo-500"}`}>
+                            {isExpanded
+                              ? <ChevronUp className="h-3.5 w-3.5" />
+                              : <ChevronDown className="h-3.5 w-3.5" />}
+                          </span>
+                        </td>
+                        <td className="px-6 py-4">
+                          <span className="inline-flex items-center px-2 py-0.5 rounded text-[11px] font-bold bg-gray-100 text-gray-600 border border-gray-200">
+                            {jv.entryNumber}
+                          </span>
+                        </td>
+                        <td className="px-6 py-4 text-xs text-gray-500 font-medium">{formatDateShort(jv.entryDate)}</td>
+                        <td className="px-6 py-4 text-xs text-gray-500 font-medium">{JTYPES[jv.journalType] ?? jv.journalType}</td>
+                        <td className="px-6 py-4 max-w-[260px] truncate font-bold text-gray-900 text-sm" title={jv.description}>{jv.description}</td>
+                        <td className="px-6 py-4 tabular-nums font-bold text-green-700 text-end text-sm">{formatCurrency(jv.totalDebit)}</td>
+                        <td className="px-6 py-4 tabular-nums font-bold text-red-600 text-end text-sm">{formatCurrency(jv.totalCredit)}</td>
+                        <td className="px-6 py-4 text-[10px] text-gray-400 font-bold uppercase tracking-tight">{jv.isAutoGenerated ? t("autoGenerated") : t("manual")}</td>
+                        <td className="px-6 py-4"><StatusBadge status={jv.postingStatus} type="posting" /></td>
+                        <td className="px-6 py-4 text-end" onClick={(e) => e.stopPropagation()}>
+                          <div className="flex items-center justify-end gap-1 opacity-0 group-hover:opacity-100 transition-opacity duration-200">
+                            <JournalLifecycleActions entry={jv} userId={currentUser?._id} companyId={company?._id} />
+                          </div>
+                        </td>
+                      </tr>
+                      {/* Expanded lines detail */}
+                      {isExpanded && (
+                        <tr>
+                          <td colSpan={10} className="p-0">
+                            <JournalLinesPanel
+                              entryId={jv._id}
+                              isRTL={isRTL}
+                              formatCurrency={formatCurrency}
+                            />
+                          </td>
+                        </tr>
+                      )}
+                    </React.Fragment>
+                  );
+                })}
               </tbody>
             </table>
           </div>
+          </>
         )}
       </div>
     </div>

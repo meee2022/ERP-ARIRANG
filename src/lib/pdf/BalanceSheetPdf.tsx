@@ -68,13 +68,13 @@ function buildNodes(
       nodes.push({
         code: acc.code,
         label: isRTL ? acc.nameAr : (acc.nameEn || acc.nameAr),
-        amount: acc.balance / 100,
+        amount: acc.balance,
         level: 2,
       });
     }
   }
   if (extra) nodes.push(...extra);
-  nodes.push({ label: totalLabel, amount: total / 100, level: 0, isTotal: true });
+  nodes.push({ label: totalLabel, amount: total, level: 0, isTotal: true });
   return nodes;
 }
 
@@ -157,7 +157,7 @@ export function BalanceSheetPdf({ data }: { data: BalanceSheetPdfData }) {
   const retainedNode: TreeNode[] = data.equity.retainedEarnings !== 0
     ? [{
         label: labels.currentPeriodIncome,
-        amount: data.equity.retainedEarnings / 100,
+        amount: data.equity.retainedEarnings,
         level: 2,
       }]
     : [];
@@ -193,7 +193,7 @@ export function BalanceSheetPdf({ data }: { data: BalanceSheetPdfData }) {
           </Text>
           <View style={{ flex: 1 }} />
           <Text style={[S.balanceCheckText, { color: "#1e3a8a", textAlign: end }]}>
-            {labels.totalAssets}: {formatCurrency(data.totalAssets / 100)}
+            {labels.totalAssets}: {formatCurrency(data.totalAssets)}
           </Text>
         </View>
 
@@ -201,15 +201,15 @@ export function BalanceSheetPdf({ data }: { data: BalanceSheetPdfData }) {
         <View style={[S.kpiRow, { flexDirection: dir }]}>
           <View style={[S.kpiBox, { backgroundColor: "#eff6ff", borderColor: "#93c5fd" }]}>
             <Text style={S.kpiLabel}>{labels.totalAssets}</Text>
-            <Text style={[S.kpiValue, { color: "#1d4ed8" }]}>{formatCurrency(data.totalAssets / 100)}</Text>
+            <Text style={[S.kpiValue, { color: "#1d4ed8" }]}>{formatCurrency(data.totalAssets)}</Text>
           </View>
           <View style={[S.kpiBox, { backgroundColor: "#fff1f2", borderColor: "#fca5a5" }]}>
             <Text style={S.kpiLabel}>{labels.totalLiabilities}</Text>
-            <Text style={[S.kpiValue, { color: "#991b1b" }]}>{formatCurrency(data.liabilities.total / 100)}</Text>
+            <Text style={[S.kpiValue, { color: "#991b1b" }]}>{formatCurrency(data.liabilities.total)}</Text>
           </View>
           <View style={[S.kpiBox, { backgroundColor: "#f0fdf4", borderColor: "#86efac" }]}>
             <Text style={S.kpiLabel}>{labels.totalEquity}</Text>
-            <Text style={[S.kpiValue, { color: "#166534" }]}>{formatCurrency(data.equity.total / 100)}</Text>
+            <Text style={[S.kpiValue, { color: "#166534" }]}>{formatCurrency(data.equity.total)}</Text>
           </View>
         </View>
 
@@ -225,7 +225,7 @@ export function BalanceSheetPdf({ data }: { data: BalanceSheetPdfData }) {
         {/* Grand total: Total Liabilities + Equity */}
         <View style={[S.grandTotal, { flexDirection: dir }]} wrap={false}>
           <Text style={[S.grandTotalLabel, { textAlign: start }]}>{labels.totalLiabilitiesAndEquity}</Text>
-          <Text style={[S.grandTotalValue, { textAlign: end }]}>{formatCurrency(data.totalLiabilitiesAndEquity / 100)}</Text>
+          <Text style={[S.grandTotalValue, { textAlign: end }]}>{formatCurrency(data.totalLiabilitiesAndEquity)}</Text>
         </View>
 
         <PdfFooter printedBy={labels.printedBy} isRTL={isRTL} />

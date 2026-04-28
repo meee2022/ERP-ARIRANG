@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo } from "react";
+import { useState, useEffect, useRef, useMemo, useCallback } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import {
@@ -8,10 +8,9 @@ import {
   Landmark, Sparkles, CreditCard, FileCheck, Warehouse, SlidersHorizontal,
   ArrowLeftRight, Scale, ShoppingCart, LogOut, BarChart2, Shield, CheckCircle2,
   TrendingUp, PieChart, RotateCcw, CalendarDays, Archive, PackageOpen,
-  Building2, ChevronDown, ChevronRight, Search, Pin, X, HardDrive, Zap,
-  FlaskConical, ClipboardList, ChefHat,
+  Building2, Search, X, HardDrive, Zap, FlaskConical, ClipboardList, ChefHat,
+  AlertTriangle, Trash2, CalendarCheck2, Barcode, Clock,
 } from "lucide-react";
-import { cn } from "@/lib/utils";
 import { useI18n } from "@/hooks/useI18n";
 import type { TKey } from "@/lib/i18n";
 import { useAppStore } from "@/store/useAppStore";
@@ -19,70 +18,94 @@ import { useAuth } from "@/hooks/useAuth";
 import { usePermissions } from "@/hooks/usePermissions";
 import { useCompanySettings } from "@/hooks/useCompanySettings";
 
-type NavItem    = { href: string; icon: any; key: TKey };
-type NavSection = { titleKey: TKey; icon: any; items: NavItem[]; color?: string };
+// ─── Rail width constant (single source of truth) ────────────────────────────
+const RAIL_W = 76;
 
-// ── colour assigned per section ───────────────────────────────────────────────
+// ─── Types ──────────────────────────────────────────────────────────────────────
+type NavItem    = { href: string; icon: any; key: TKey };
+type NavSection = {
+  id: string;
+  titleKey: TKey;
+  labelAr: string;   // short Arabic label shown below icon
+  labelEn: string;   // short English label shown below icon
+  icon: any;
+  color: string;
+  items: NavItem[];
+};
+
+// ─── Navigation data ─────────────────────────────────────────────────────────
 const SECTIONS: NavSection[] = [
   {
-    titleKey: "navSales", icon: Landmark, color: "#34d399",
+    id: "sales", titleKey: "navSales", labelAr: "مبيعات", labelEn: "Sales",
+    icon: Landmark, color: "#34d399",
     items: [
-      { href: "/sales/mobile",     icon: Smartphone, key: "mobileSales"   },
-      { href: "/sales/invoices",  icon: Landmark,  key: "salesInvoices" },
-      { href: "/sales/review",    icon: CheckCircle2, key: "reviewQueue" },
-      { href: "/sales/returns",   icon: RotateCcw, key: "salesReturns"  },
-      { href: "/sales/customers", icon: Users,     key: "customers"     },
-      { href: "/sales/sales-reps", icon: User,     key: "salesReps"     },
-      { href: "/sales/vehicles",   icon: Truck,    key: "vehicles"      },
+      { href: "/sales/mobile",     icon: Smartphone,  key: "mobileSales"   },
+      { href: "/sales/invoices",   icon: Landmark,    key: "salesInvoices" },
+      { href: "/sales/review",     icon: CheckCircle2,key: "reviewQueue"   },
+      { href: "/sales/returns",    icon: RotateCcw,   key: "salesReturns"  },
+      { href: "/sales/customers",  icon: Users,       key: "customers"     },
+      { href: "/sales/sales-reps", icon: User,        key: "salesReps"     },
+      { href: "/sales/vehicles",   icon: Truck,       key: "vehicles"      },
     ],
   },
   {
-    titleKey: "navPurchases", icon: Truck, color: "#60a5fa",
+    id: "purchases", titleKey: "navPurchases", labelAr: "مشتريات", labelEn: "Purchases",
+    icon: ShoppingCart, color: "#60a5fa",
     items: [
-      { href: "/purchases/invoices",  icon: ShoppingCart,      key: "purchaseInvoices" },
-      { href: "/purchases/grn",       icon: FileCheck,         key: "grn"              },
-      { href: "/purchases/returns",   icon: RotateCcw,         key: "purchaseReturns"  },
-      { href: "/purchases/suppliers", icon: Truck,             key: "suppliers"        },
+      { href: "/purchases/invoices",            icon: ShoppingCart, key: "purchaseInvoices"   },
+      { href: "/purchases/grn",                 icon: FileCheck,    key: "grn"                },
+      { href: "/purchases/returns",             icon: RotateCcw,    key: "purchaseReturns"    },
+      { href: "/purchases/suppliers",           icon: Truck,        key: "suppliers"          },
+      { href: "/purchases/supplier-comparison", icon: Scale,        key: "supplierComparison" },
     ],
   },
   {
-    titleKey: "navInventory", icon: Package, color: "#fb923c",
+    id: "inventory", titleKey: "navInventory", labelAr: "مخزون", labelEn: "Inventory",
+    icon: Package, color: "#fb923c",
     items: [
-      { href: "/inventory/items",         icon: Package,           key: "items"               },
-      { href: "/inventory/warehouses",    icon: Warehouse,         key: "warehouses"          },
-      { href: "/inventory/opening-stock", icon: PackageOpen,       key: "openingStock"        },
-      { href: "/inventory/adjustments",   icon: SlidersHorizontal, key: "stockAdjustments"    },
-      { href: "/inventory/transfers",     icon: ArrowLeftRight,    key: "stockTransfers"      },
-      { href: "/inventory/movements",     icon: RotateCcw,         key: "inventoryMovements"  },
+      { href: "/inventory/items",         icon: Package,           key: "items"              },
+      { href: "/inventory/warehouses",    icon: Warehouse,         key: "warehouses"         },
+      { href: "/inventory/opening-stock", icon: PackageOpen,       key: "openingStock"       },
+      { href: "/inventory/adjustments",   icon: SlidersHorizontal, key: "stockAdjustments"   },
+      { href: "/inventory/transfers",     icon: ArrowLeftRight,    key: "stockTransfers"     },
+      { href: "/inventory/movements",     icon: RotateCcw,         key: "inventoryMovements" },
+      { href: "/inventory/low-stock",     icon: AlertTriangle,     key: "lowStockAlerts"     },
+      { href: "/inventory/wastage",       icon: Trash2,            key: "wastage"            },
     ],
   },
   {
-    titleKey: "navProduction", icon: ChefHat, color: "#22d3ee",
+    id: "production", titleKey: "navProduction", labelAr: "إنتاج", labelEn: "Production",
+    icon: ChefHat, color: "#22d3ee",
     items: [
-      { href: "/production",                  icon: LayoutDashboard, key: "productionDashboard" },
-      { href: "/production/recipes",          icon: FlaskConical,    key: "recipes"             },
-      { href: "/production/orders",           icon: ClipboardList,   key: "productionOrders"    },
-      { href: "/production/migrate-recipes",  icon: HardDrive,       key: "migrateRecipes"      },
+      { href: "/production",                 icon: LayoutDashboard, key: "productionDashboard" },
+      { href: "/production/recipes",         icon: FlaskConical,    key: "recipes"             },
+      { href: "/production/orders",          icon: ClipboardList,   key: "productionOrders"    },
+      { href: "/production/recipe-costs",    icon: BarChart2,       key: "recipeCosts"         },
+      { href: "/production/migrate-recipes", icon: HardDrive,       key: "migrateRecipes"      },
     ],
   },
   {
-    titleKey: "navTreasury", icon: Receipt, color: "#a78bfa",
+    id: "treasury", titleKey: "navTreasury", labelAr: "الخزينة", labelEn: "Treasury",
+    icon: Receipt, color: "#a78bfa",
     items: [
       { href: "/treasury/receipts",       icon: Receipt,        key: "cashReceipts"  },
       { href: "/treasury/payments",       icon: CreditCard,     key: "cashPayments"  },
       { href: "/treasury/cheques",        icon: FileCheck,      key: "cheques"       },
       { href: "/treasury/bank-transfers", icon: ArrowLeftRight, key: "bankTransfers" },
+      { href: "/treasury/bank-accounts",  icon: Landmark,       key: "bankAccounts"  },
     ],
   },
   {
-    titleKey: "navFinance", icon: BookOpen, color: "#f472b6",
+    id: "finance", titleKey: "navFinance", labelAr: "محاسبة", labelEn: "Finance",
+    icon: BookOpen, color: "#f472b6",
     items: [
       { href: "/finance/chart-of-accounts", icon: BookOpen, key: "chartOfAccounts" },
       { href: "/finance/journal-entries",   icon: FileText, key: "journalEntries"  },
     ],
   },
   {
-    titleKey: "navHR", icon: Users, color: "#4ade80",
+    id: "hr", titleKey: "navHR", labelAr: "الموارد البشرية", labelEn: "HR",
+    icon: Users, color: "#4ade80",
     items: [
       { href: "/hr",            icon: LayoutDashboard,   key: "hrDashboard"      },
       { href: "/hr/employees",  icon: Users,             key: "employeeRegister" },
@@ -93,509 +116,519 @@ const SECTIONS: NavSection[] = [
     ],
   },
   {
-    titleKey: "navFixedAssets", icon: HardDrive, color: "#94a3b8",
+    id: "fixed-assets", titleKey: "navFixedAssets", labelAr: "أصول ثابتة", labelEn: "Assets",
+    icon: HardDrive, color: "#94a3b8",
     items: [
-      { href: "/fixed-assets/register",    icon: HardDrive,  key: "assetRegister"    },
+      { href: "/fixed-assets/register",     icon: HardDrive,  key: "assetRegister"    },
       { href: "/fixed-assets/depreciation", icon: TrendingUp, key: "depreciationRuns" },
     ],
   },
   {
-    titleKey: "navReports", icon: BarChart2, color: "#fbbf24",
+    id: "reports", titleKey: "navReports", labelAr: "التقارير", labelEn: "Reports",
+    icon: BarChart2, color: "#fbbf24",
     items: [
-      { href: "/reports/trial-balance",         icon: Scale,        key: "trialBalance"       },
-      { href: "/reports/income-statement",       icon: TrendingUp,   key: "incomeStatement"    },
-      { href: "/reports/balance-sheet",          icon: PieChart,     key: "balanceSheet"       },
-      { href: "/reports/general-ledger",         icon: BookOpen,     key: "generalLedger"      },
-      { href: "/reports/ar-aging",               icon: BarChart2,    key: "arAging"            },
-      { href: "/reports/ap-aging",               icon: BarChart2,    key: "apAging"            },
-      { href: "/reports/sales-report",           icon: TrendingUp,   key: "salesReport"        },
-      { href: "/reports/sales-details",          icon: FileText,     key: "salesDetails"       },
-      { href: "/reports/daily-sales",            icon: BarChart2,    key: "dailySales"         },
-      { href: "/reports/item-sales",             icon: Package,      key: "itemSales"          },
-      { href: "/reports/top-sales",              icon: TrendingUp,   key: "topSales"           },
-      { href: "/reports/sales-by-sales-rep",     icon: User,         key: "salesBySalesRep"    },
-      { href: "/reports/sales-by-vehicle",       icon: Truck,        key: "salesByVehicle"     },
-      { href: "/reports/purchase-report",        icon: ShoppingCart, key: "purchaseReport"     },
-      { href: "/reports/stock-valuation",        icon: PackageOpen,  key: "stockValuation"     },
-      { href: "/reports/customer-statement",     icon: Users,        key: "customerStatement"  },
-      { href: "/reports/supplier-statement",     icon: Truck,        key: "supplierStatement"  },
-      { href: "/reports/cash-movement",          icon: CreditCard,   key: "cashMovementReport" },
-      { href: "/reports/cost-center-movement",   icon: BarChart2,    key: "costCenterMovement" },
-      { href: "/reports/cost-center-pl",         icon: PieChart,     key: "costCenterPL"       },
-      { href: "/reports/asset-register",         icon: HardDrive,    key: "assetRegisterReport" },
-      { href: "/reports/depreciation-schedule",  icon: TrendingUp,   key: "depScheduleReport"  },
-      { href: "/reports/asset-book-value",       icon: BarChart2,    key: "assetBookValueReport"},
-      { href: "/reports/hr-employees",           icon: Users,        key: "employeeDirectoryReport" },
-      { href: "/reports/hr-attendance",          icon: CalendarDays, key: "attendanceReport"   },
-      { href: "/reports/hr-leave",               icon: FileCheck,    key: "leaveReport"        },
-      { href: "/reports/hr-payroll",             icon: CreditCard,   key: "payrollReport"      },
-      { href: "/reports/production-cost",        icon: ChefHat,      key: "productionCostReport" },
+      { href: "/reports/vat-report",            icon: Receipt,      key: "vatReport"           },
+      { href: "/reports/trial-balance",         icon: Scale,        key: "trialBalance"        },
+      { href: "/reports/income-statement",      icon: TrendingUp,   key: "incomeStatement"     },
+      { href: "/reports/balance-sheet",         icon: PieChart,     key: "balanceSheet"        },
+      { href: "/reports/general-ledger",        icon: BookOpen,     key: "generalLedger"       },
+      { href: "/reports/ar-aging",              icon: BarChart2,    key: "arAging"             },
+      { href: "/reports/ap-aging",              icon: BarChart2,    key: "apAging"             },
+      { href: "/reports/sales-report",          icon: TrendingUp,   key: "salesReport"         },
+      { href: "/reports/sales-details",         icon: FileText,     key: "salesDetails"        },
+      { href: "/reports/daily-sales",           icon: BarChart2,    key: "dailySales"          },
+      { href: "/reports/item-sales",            icon: Package,      key: "itemSales"           },
+      { href: "/reports/top-sales",             icon: TrendingUp,   key: "topSales"            },
+      { href: "/reports/sales-by-sales-rep",    icon: User,         key: "salesBySalesRep"     },
+      { href: "/reports/sales-by-vehicle",      icon: Truck,        key: "salesByVehicle"      },
+      { href: "/reports/purchase-report",       icon: ShoppingCart, key: "purchaseReport"      },
+      { href: "/reports/stock-valuation",       icon: PackageOpen,  key: "stockValuation"      },
+      { href: "/reports/customer-statement",    icon: Users,        key: "customerStatement"   },
+      { href: "/reports/supplier-statement",    icon: Truck,        key: "supplierStatement"   },
+      { href: "/reports/cash-movement",         icon: CreditCard,   key: "cashMovementReport"  },
+      { href: "/reports/cost-center-movement",  icon: BarChart2,    key: "costCenterMovement"  },
+      { href: "/reports/cost-center-pl",        icon: PieChart,     key: "costCenterPL"        },
+      { href: "/reports/asset-register",        icon: HardDrive,    key: "assetRegisterReport" },
+      { href: "/reports/depreciation-schedule", icon: TrendingUp,   key: "depScheduleReport"   },
+      { href: "/reports/asset-book-value",      icon: BarChart2,    key: "assetBookValueReport"},
+      { href: "/reports/hr-employees",          icon: Users,        key: "employeeDirectoryReport" },
+      { href: "/reports/hr-attendance",         icon: CalendarDays, key: "attendanceReport"    },
+      { href: "/reports/hr-leave",              icon: FileCheck,    key: "leaveReport"         },
+      { href: "/reports/hr-payroll",            icon: CreditCard,   key: "payrollReport"       },
+      { href: "/reports/production-cost",       icon: ChefHat,      key: "productionCostReport"},
+      { href: "/reports/route-sheet",            icon: Truck,        key: "routeSheet"           },
+      { href: "/reports/inventory-aging",        icon: Clock,        key: "inventoryAging"       },
+    ],
+  },
+  {
+    id: "settings", titleKey: "navSettings", labelAr: "إعدادات", labelEn: "Settings",
+    icon: Shield, color: "#64748b",
+    items: [
+      { href: "/settings/company",          icon: Building2,      key: "companySettings" },
+      { href: "/settings/cost-centers",     icon: PieChart,       key: "costCenters"     },
+      { href: "/settings/fiscal-years",     icon: CalendarDays,   key: "fiscalYears"     },
+      { href: "/settings/month-end-close",  icon: CalendarCheck2, key: "monthEndClose"   },
+      { href: "/settings/users",            icon: Users,          key: "userManagement"  },
+      { href: "/settings/audit-log",        icon: Shield,         key: "auditLog"        },
+      { href: "/settings/backup",           icon: HardDrive,      key: "backup"          },
+      { href: "/settings/posting-rules",    icon: Zap,            key: "postingRules"    },
+      { href: "/settings/reset-data",      icon: Trash2,         key: "resetTestData"   },
+    ],
+  },
+  {
+    id: "legacy", titleKey: "navLegacy", labelAr: "قديم", labelEn: "Legacy",
+    icon: Archive, color: "#78716c",
+    items: [
+      { href: "/legacy/items",     icon: Archive, key: "legacyItems"     },
+      { href: "/legacy/recipes",   icon: Archive, key: "legacyRecipes"   },
+      { href: "/legacy/inventory", icon: Archive, key: "legacyInventory" },
+      { href: "/legacy/pl",        icon: Archive, key: "legacyPL"        },
+      { href: "/legacy/staff",     icon: Archive, key: "legacyStaff"     },
     ],
   },
 ];
 
-const SETTINGS_SECTION: NavSection = {
-  titleKey: "navSettings", icon: Shield, color: "#64748b",
-  items: [
-    { href: "/settings/company",      icon: Building2,    key: "companySettings" },
-    { href: "/settings/cost-centers", icon: PieChart,     key: "costCenters"     },
-    { href: "/settings/fiscal-years", icon: CalendarDays, key: "fiscalYears"     },
-    { href: "/settings/users",        icon: Users,        key: "userManagement"  },
-    { href: "/settings/audit-log",    icon: Shield,       key: "auditLog"        },
-  ],
-};
+// ─── Permission map ───────────────────────────────────────────────────────────
+function itemModule(href: string): string | null {
+  if (href.startsWith("/sales"))       return "sales";
+  if (href.startsWith("/purchases"))   return "purchases";
+  if (href.startsWith("/inventory"))   return "inventory";
+  if (href.startsWith("/treasury"))    return "treasury";
+  if (href.startsWith("/finance"))     return "finance";
+  if (href.startsWith("/reports"))     return "reports";
+  if (href.startsWith("/settings/users")) return "users";
+  if (href.startsWith("/settings"))    return "settings";
+  if (href.startsWith("/hr"))          return "hr";
+  if (href.startsWith("/production"))  return "production";
+  return null;
+}
 
-const LEGACY_SECTION: NavSection = {
-  titleKey: "navLegacy", icon: Archive, color: "#78716c",
-  items: [
-    { href: "/legacy/items",     icon: Archive, key: "legacyItems"     },
-    { href: "/legacy/recipes",   icon: Archive, key: "legacyRecipes"   },
-    { href: "/legacy/inventory", icon: Archive, key: "legacyInventory" },
-    { href: "/legacy/pl",        icon: Archive, key: "legacyPL"        },
-    { href: "/legacy/staff",     icon: Archive, key: "legacyStaff"     },
-  ],
-};
+// ─── Floating Panel ───────────────────────────────────────────────────────────
+function FloatingPanel({
+  section, isRTL, onClose, isActive,
+}: {
+  section: NavSection;
+  isRTL: boolean;
+  onClose: () => void;
+  isActive: (href: string) => boolean;
+}) {
+  const { t } = useI18n();
+  const [search, setSearch] = useState("");
+  const inputRef = useRef<HTMLInputElement>(null);
+  const panelRef = useRef<HTMLDivElement>(null);
 
-const PINNED: NavItem[] = [
-  { href: "/",                         icon: LayoutDashboard, key: "dashboard"        },
-  { href: "/sales/invoices",           icon: Landmark,        key: "salesInvoices"    },
-  { href: "/treasury/receipts",        icon: Receipt,         key: "cashReceipts"     },
-  { href: "/purchases/invoices",       icon: ShoppingCart,    key: "purchaseInvoices" },
-  { href: "/sales/customers",          icon: Users,           key: "customers"        },
-  { href: "/reports/income-statement", icon: TrendingUp,      key: "incomeStatement"  },
-];
+  useEffect(() => {
+    setSearch("");
+    setTimeout(() => inputRef.current?.focus(), 80);
+  }, [section.id]);
 
-// ── Component ──────────────────────────────────────────────────────────────────
-export function Sidebar() {
-  const pathname = usePathname();
-  const router   = useRouter();
-  const { t, isRTL }          = useI18n();
-  const collapsed              = useAppStore((s) => s.sidebarCollapsed);
-  const { currentUser, logout } = useAuth();
-  const { role, isAdmin, canView }      = usePermissions();
-  const { company, logoUrl }   = useCompanySettings();
+  // Close on outside click
+  useEffect(() => {
+    const handle = (e: MouseEvent) => {
+      if (panelRef.current && !panelRef.current.contains(e.target as Node)) {
+        // Check if click was on the rail itself — let rail toggle handle it
+        const rail = document.getElementById("nav-rail");
+        if (rail?.contains(e.target as Node)) return;
+        onClose();
+      }
+    };
+    document.addEventListener("mousedown", handle);
+    return () => document.removeEventListener("mousedown", handle);
+  }, [onClose]);
 
-  const isActive = (href: string) =>
-    href === "/" ? pathname === "/" : pathname === href || pathname.startsWith(href + "/");
+  const filtered = search.trim()
+    ? section.items.filter((i) => t(i.key).toLowerCase().includes(search.toLowerCase()))
+    : section.items;
 
-  const itemModule = (href: string) => {
-    if (href.startsWith("/sales")) return "sales";
-    if (href.startsWith("/purchases")) return "purchases";
-    if (href.startsWith("/inventory")) return "inventory";
-    if (href.startsWith("/treasury")) return "treasury";
-    if (href.startsWith("/finance")) return "finance";
-    if (href.startsWith("/reports")) return "reports";
-    if (href.startsWith("/settings")) return href === "/settings/users" ? "users" : "settings";
-    if (href.startsWith("/hr")) return "hr";
-    if (href.startsWith("/production")) return "production";
-    return null;
-  };
+  return (
+    <div
+      ref={panelRef}
+      className="fixed inset-y-0 z-[60] flex flex-col shadow-2xl"
+      style={{
+        width: 236,
+        [isRTL ? "right" : "left"]: RAIL_W,
+        background: "var(--sidebar)",
+        borderInlineStart: `1px solid rgba(255,255,255,0.06)`,
+        animation: "panel-slide 0.18s ease-out",
+      }}
+    >
+      {/* Panel header */}
+      <div className="shrink-0 px-4 pt-5 pb-3"
+        style={{ borderBottom: `1px solid ${section.color}20` }}>
+        <div className="flex items-center justify-between mb-3">
+          <div className="flex items-center gap-2.5">
+            <div className="h-7 w-7 rounded-lg flex items-center justify-center shrink-0"
+              style={{ background: `${section.color}22`, border: `1px solid ${section.color}40` }}>
+              <section.icon className="h-3.5 w-3.5" style={{ color: section.color }} />
+            </div>
+            <span className="text-[13px] font-bold" style={{ color: "rgba(243,233,214,0.95)" }}>
+              {t(section.titleKey as TKey)}
+            </span>
+          </div>
+          <button onClick={onClose}
+            className="h-6 w-6 rounded-md flex items-center justify-center opacity-40 hover:opacity-80 transition-opacity"
+            style={{ background: "rgba(255,255,255,0.06)" }}>
+            <X className="h-3.5 w-3.5 text-[rgba(243,233,214,0.8)]" />
+          </button>
+        </div>
 
-  const baseSections = isAdmin ? [...SECTIONS, SETTINGS_SECTION, LEGACY_SECTION] : SECTIONS;
-  const allSections = useMemo(
-    () =>
-      baseSections
-        .map((section) => ({
-          ...section,
-          items: section.items.filter((item) => {
-            const module = itemModule(item.href);
-            if (!module) return isAdmin;
-            return canView(module as any);
-          }),
-        }))
-        .filter((section) => section.items.length > 0),
-    [isAdmin, canView]
-  );
-
-  const activeSection = useMemo(
-    () => allSections.find((s) => s.items.some((i) => isActive(i.href)))?.titleKey ?? null,
-    [pathname, isAdmin] // eslint-disable-line
-  );
-
-  const [openSections, setOpenSections] = useState<Set<TKey>>(() => {
-    const s = new Set<TKey>();
-    if (activeSection) s.add(activeSection as TKey);
-    return s;
-  });
-
-  const [searchQuery, setSearchQuery] = useState("");
-  const toggleSection = (key: TKey) =>
-    setOpenSections((prev) => {
-      const next = new Set(prev);
-      next.has(key) ? next.delete(key) : next.add(key);
-      return next;
-    });
-
-  const handleLogout = async () => { await logout(); router.replace("/login"); };
-
-  const searchActive = searchQuery.trim().length > 0;
-  const searchLower  = searchQuery.toLowerCase();
-  const searchResults = useMemo(() => {
-    if (!searchActive) return [];
-    return allSections.flatMap((s) =>
-      s.items.filter((i) => t(i.key).toLowerCase().includes(searchLower))
-    );
-  }, [searchQuery, allSections, isRTL]); // eslint-disable-line
-
-  const pinnedItems = useMemo(
-    () =>
-      PINNED.filter((item) => {
-        const module = itemModule(item.href);
-        if (!module) return isAdmin;
-        return canView(module as any);
-      }),
-    [canView, isAdmin]
-  );
-
-  const roleLabelMap: Record<string, { ar: string; en: string }> = {
-    admin:      { ar: "مدير النظام",  en: "Admin"      },
-    manager:    { ar: "مدير",         en: "Manager"    },
-    accountant: { ar: "محاسب",        en: "Accountant" },
-    cashier:    { ar: "أمين صندوق",   en: "Cashier"    },
-    sales:      { ar: "مبيعات",       en: "Sales"      },
-    warehouse:  { ar: "مستودع",       en: "Warehouse"  },
-    viewer:     { ar: "مشاهد",        en: "Viewer"     },
-  };
-  const roleLabelText = roleLabelMap[role]?.[isRTL ? "ar" : "en"] ?? role;
-
-  // ── Nav item ──────────────────────────────────────────────────────────────
-  const renderNavItem = (item: NavItem, accentColor?: string) => {
-    const active = isActive(item.href);
-    const accent = accentColor ?? "var(--gold-400)";
-
-    return (
-      <li key={item.href}>
-        <Link
-          href={item.href}
-          title={collapsed ? t(item.key) : undefined}
-          className={cn(
-            "group relative flex items-center gap-2.5 rounded-lg py-[7px] text-[12.5px] font-medium transition-all duration-150",
-            collapsed ? "justify-center px-2" : "px-2.5",
-            active
-              ? "text-white"
-              : "text-[rgba(243,233,214,0.65)] hover:text-[rgba(243,233,214,0.95)] hover:bg-[rgba(255,255,255,0.05)]"
-          )}
-          style={active ? {
-            background: "rgba(255,255,255,0.09)",
-            boxShadow: `inset ${isRTL ? "-" : ""}2px 0 0 ${accent}`,
-          } : undefined}
-        >
-          {/* Icon */}
-          <span
-            className={cn("h-[15px] w-[15px] shrink-0 transition-transform group-hover:scale-110")}
-            style={{ color: active ? accent : undefined }}
-          >
-            <item.icon className="h-full w-full" />
-          </span>
-
-          {/* Label */}
-          {!collapsed && (
-            <span className="flex-1 truncate leading-snug">{t(item.key)}</span>
-          )}
-
-          {/* Active dot */}
-          {active && !collapsed && (
-            <span
-              className="h-1 w-1 rounded-full shrink-0 opacity-80"
-              style={{ background: accent }}
-            />
-          )}
-        </Link>
-      </li>
-    );
-  };
-
-  // ── Section header ────────────────────────────────────────────────────────
-  const renderSection = (section: NavSection) => {
-    const isOpen    = openSections.has(section.titleKey as TKey);
-    const isCurrent = section.titleKey === activeSection;
-    const SIcon     = section.icon;
-    const accent    = section.color ?? "var(--gold-400)";
-
-    return (
-      <div key={section.titleKey} className="mb-0.5">
-        {/* ── Section toggle button ──────────────────────────── */}
-        <button
-          onClick={() => !collapsed && toggleSection(section.titleKey as TKey)}
-          title={collapsed ? t(section.titleKey as TKey) : undefined}
-          className={cn(
-            "w-full flex items-center gap-2.5 rounded-lg transition-all duration-150",
-            collapsed ? "justify-center px-2 py-2" : "px-2.5 py-[7px]",
-            isCurrent
-              ? "text-white"
-              : "text-[rgba(243,233,214,0.55)] hover:text-[rgba(243,233,214,0.9)] hover:bg-[rgba(255,255,255,0.04)]"
-          )}
-          style={isCurrent ? {
-            background: `linear-gradient(${isRTL ? "270deg" : "90deg"}, ${accent}18, ${accent}07)`,
-          } : undefined}
-        >
-          {/* Icon box */}
-          <span
-            className="h-[26px] w-[26px] rounded-md flex items-center justify-center shrink-0 transition-all"
+        {/* Search inside panel */}
+        <div className="relative">
+          <Search className="absolute top-1/2 -translate-y-1/2 h-3 w-3 pointer-events-none opacity-40"
+            style={{ [isRTL ? "right" : "left"]: 8, color: "rgba(243,233,214,0.8)" }} />
+          <input
+            ref={inputRef}
+            type="text"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            placeholder={t("navSearchPlaceholder")}
+            className="w-full rounded-lg py-1.5 text-[11.5px] bg-[rgba(255,255,255,0.05)] text-[rgba(243,233,214,0.85)] placeholder-[rgba(243,233,214,0.28)] focus:outline-none"
             style={{
-              background: isCurrent ? `${accent}28` : "rgba(255,255,255,0.06)",
-              border: `1px solid ${isCurrent ? accent + "40" : "rgba(255,255,255,0.08)"}`,
+              border: "1px solid rgba(255,255,255,0.08)",
+              [isRTL ? "paddingRight" : "paddingLeft"]: 26,
+              [isRTL ? "paddingLeft" : "paddingRight"]: 10,
             }}
-          >
-            <SIcon
-              className="h-3.5 w-3.5"
-              style={{ color: isCurrent ? accent : "rgba(243,233,214,0.55)" }}
-            />
-          </span>
+          />
+        </div>
+      </div>
 
-          {!collapsed && (
-            <>
-              <span
-                className="flex-1 text-start text-[11.5px] font-bold tracking-[0.04em] uppercase"
-                style={{ color: isCurrent ? "rgba(243,233,214,0.95)" : "rgba(243,233,214,0.55)" }}
-              >
-                {t(section.titleKey as TKey)}
-              </span>
-
-              {/* Badge: item count */}
-              {!isCurrent && (
-                <span
-                  className="text-[9px] font-semibold px-1.5 py-0.5 rounded-full shrink-0 tabular-nums"
-                  style={{
-                    background: "rgba(255,255,255,0.07)",
-                    color: "rgba(243,233,214,0.35)",
-                  }}
-                >
-                  {section.items.length}
-                </span>
-              )}
-
-              {/* Chevron */}
-              {isCurrent || isOpen ? (
-                <ChevronDown
-                  className="h-3 w-3 shrink-0 transition-transform duration-200"
-                  style={{ color: isCurrent ? accent : "rgba(243,233,214,0.3)" }}
-                />
-              ) : (
-                <ChevronRight
-                  className="h-3 w-3 shrink-0"
-                  style={{ color: "rgba(243,233,214,0.25)" }}
-                />
-              )}
-            </>
-          )}
-        </button>
-
-        {/* ── Section items ──────────────────────────────────── */}
-        {(isOpen || isCurrent || collapsed) && (
-          <ul
-            className={cn(
-              "space-y-0.5 mt-0.5",
-              !collapsed && "ps-2 border-s ms-[18px]"
-            )}
-            style={!collapsed ? {
-              borderColor: `${accent}22`,
-            } : undefined}
-          >
-            {section.items.map((item) => renderNavItem(item, accent))}
+      {/* Items */}
+      <nav className="flex-1 overflow-y-auto py-2 px-2 custom-scrollbar">
+        {filtered.length === 0 ? (
+          <p className="text-center text-[11px] text-[rgba(243,233,214,0.3)] py-6">
+            {t("noResults" as TKey)}
+          </p>
+        ) : (
+          <ul className="space-y-0.5">
+            {filtered.map((item) => {
+              const active = isActive(item.href);
+              return (
+                <li key={item.href}>
+                  <Link
+                    href={item.href}
+                    onClick={onClose}
+                    className="flex items-center gap-2.5 rounded-lg px-2.5 py-2 text-[12.5px] font-medium transition-all duration-100 group"
+                    style={
+                      active
+                        ? {
+                            background: `${section.color}15`,
+                            color: "rgba(243,233,214,0.97)",
+                            boxShadow: `inset ${isRTL ? "-" : ""}2px 0 0 ${section.color}`,
+                          }
+                        : {
+                            color: "rgba(243,233,214,0.6)",
+                          }
+                    }
+                    onMouseEnter={(e) => {
+                      if (!active) {
+                        (e.currentTarget as HTMLElement).style.background = "rgba(255,255,255,0.05)";
+                        (e.currentTarget as HTMLElement).style.color = "rgba(243,233,214,0.92)";
+                      }
+                    }}
+                    onMouseLeave={(e) => {
+                      if (!active) {
+                        (e.currentTarget as HTMLElement).style.background = "";
+                        (e.currentTarget as HTMLElement).style.color = "rgba(243,233,214,0.6)";
+                      }
+                    }}
+                  >
+                    <item.icon
+                      className="h-3.5 w-3.5 shrink-0"
+                      style={{ color: active ? section.color : "rgba(243,233,214,0.4)" }}
+                    />
+                    <span className="flex-1 truncate">{t(item.key)}</span>
+                    {active && (
+                      <span className="h-1.5 w-1.5 rounded-full shrink-0"
+                        style={{ background: section.color }} />
+                    )}
+                  </Link>
+                </li>
+              );
+            })}
           </ul>
         )}
+      </nav>
+
+      {/* Item count footer */}
+      <div className="shrink-0 px-4 py-2 text-[10px]"
+        style={{ borderTop: "1px solid rgba(255,255,255,0.06)", color: "rgba(243,233,214,0.25)" }}>
+        {section.items.length} {t("navQuickAccess" as TKey) ? "صفحة" : "pages"}
       </div>
+    </div>
+  );
+}
+
+// ─── Rail Icon Button — icon + label always visible ──────────────────────────
+function RailBtn({
+  icon: Icon, label, color, active, onClick,
+}: {
+  icon: any; label: string; color: string;
+  active: boolean; onClick: () => void;
+}) {
+  return (
+    <button
+      onClick={onClick}
+      className="relative flex flex-col items-center justify-center gap-1 rounded-xl transition-all duration-150 group"
+      style={{
+        width: RAIL_W - 8,   // 68px — 4px padding each side
+        paddingTop: 8,
+        paddingBottom: 8,
+        background: active ? `${color}1e` : "transparent",
+        boxShadow: active ? `0 0 0 1px ${color}38` : "none",
+      }}
+      onMouseEnter={(e) => {
+        if (!active) (e.currentTarget as HTMLElement).style.background = "rgba(255,255,255,0.06)";
+      }}
+      onMouseLeave={(e) => {
+        if (!active) (e.currentTarget as HTMLElement).style.background = "transparent";
+      }}
+    >
+      {/* Icon */}
+      <Icon
+        className="h-[18px] w-[18px] shrink-0 transition-transform duration-150 group-hover:scale-110"
+        style={{ color: active ? color : "rgba(243,233,214,0.5)" }}
+      />
+      {/* Label — always shown */}
+      <span
+        className="text-center leading-tight font-medium select-none"
+        style={{
+          fontSize: 9.5,
+          color: active ? color : "rgba(243,233,214,0.38)",
+          maxWidth: RAIL_W - 10,
+          overflow: "hidden",
+          display: "-webkit-box",
+          WebkitLineClamp: 2,
+          WebkitBoxOrient: "vertical",
+        }}
+      >
+        {label}
+      </span>
+    </button>
+  );
+}
+
+// ─── Main Sidebar ──────────────────────────────────────────────────────────────
+export function Sidebar() {
+  const pathname  = usePathname();
+  const router    = useRouter();
+  const { t, isRTL }              = useI18n();
+  const setSidebarOpen            = useAppStore((s) => s.setSidebarOpen);
+  const { currentUser, logout }   = useAuth();
+  const { isAdmin, canView }      = usePermissions();
+  const { company, logoUrl }      = useCompanySettings();
+
+  const [openSection, setOpenSection] = useState<string | null>(null);
+
+  const isActive = useCallback(
+    (href: string) =>
+      href === "/" ? pathname === "/" : pathname === href || pathname.startsWith(href + "/"),
+    [pathname]
+  );
+
+  // Filter sections by permissions
+  const visibleSections = useMemo(() => {
+    const base = isAdmin
+      ? SECTIONS
+      : SECTIONS.filter((s) => s.id !== "settings" && s.id !== "legacy");
+
+    return base
+      .map((s) => ({
+        ...s,
+        items: s.items.filter((item) => {
+          const mod = itemModule(item.href);
+          if (!mod) return isAdmin;
+          return canView(mod as any);
+        }),
+      }))
+      .filter((s) => s.items.length > 0);
+  }, [isAdmin, canView]);
+
+  // Which section is currently active (by pathname)
+  const activeSectionId = useMemo(() => {
+    return (
+      visibleSections.find((s) => s.items.some((i) => isActive(i.href)))?.id ?? null
     );
+  }, [pathname, visibleSections, isActive]);
+
+  // Close panel on navigation
+  useEffect(() => {
+    setOpenSection(null);
+    setSidebarOpen(false);
+  }, [pathname, setSidebarOpen]);
+
+  // Close panel on Escape
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setOpenSection(null);
+    };
+    window.addEventListener("keydown", handler);
+    return () => window.removeEventListener("keydown", handler);
+  }, []);
+
+  const handleLogout = async () => {
+    setOpenSection(null);
+    await logout();
+    router.replace("/login");
   };
 
-  // ── JSX ───────────────────────────────────────────────────────────────────
+  const toggleSection = (id: string) => {
+    setOpenSection((prev) => (prev === id ? null : id));
+  };
+
+  const openSectionData = visibleSections.find((s) => s.id === openSection) ?? null;
+
+  // User initials
+  const initials = useMemo(() => {
+    const name = currentUser?.name ?? currentUser?.email ?? "U";
+    return name.slice(0, 2).toUpperCase();
+  }, [currentUser]);
+
   return (
-    <aside
-      className={cn(
-        "h-full flex flex-col overflow-hidden",
-        "text-[color:var(--sidebar-foreground)]",
-        isRTL
-          ? "border-l border-[color:var(--sidebar-border)]"
-          : "border-r border-[color:var(--sidebar-border)]"
+    <>
+      {/* ── Keyframe animation ─────────────────────────────────────────── */}
+      <style>{`
+        @keyframes panel-slide {
+          from { opacity: 0; transform: translateX(${isRTL ? "12px" : "-12px"}); }
+          to   { opacity: 1; transform: translateX(0); }
+        }
+      `}</style>
+
+      {/* ── Overlay when panel open (mobile only) ─────────────────────── */}
+      {openSection && (
+        <div
+          className="fixed inset-0 z-[55] lg:hidden"
+          onClick={() => setOpenSection(null)}
+        />
       )}
-      style={{ background: "var(--sidebar)" }}
-    >
-      {/* ── Company Brand ──────────────────────────────────────────────────── */}
-      <div
-        className={cn(
-          "shrink-0 px-3 pt-4 pb-3",
-          collapsed && "px-2 pt-3 pb-2"
-        )}
-        style={{ borderBottom: "1px solid rgba(201,163,90,0.15)" }}
+
+      {/* ── Icon Rail ──────────────────────────────────────────────────── */}
+      <aside
+        id="nav-rail"
+        className="h-full flex flex-col items-center py-3 gap-1"
+        style={{
+          width: RAIL_W,
+          background: "var(--sidebar)",
+          borderInlineEnd: "1px solid rgba(255,255,255,0.06)",
+        }}
       >
-        {/* Logo + company name row */}
-        <div className={cn("flex items-center gap-2.5", collapsed && "justify-center")}>
-          {/* Logo or fallback icon */}
+        {/* ── Logo ─────────────────────────────────────────────────────── */}
+        <Link href="/" className="mb-2 shrink-0 block">
           {logoUrl ? (
             // eslint-disable-next-line @next/next/no-img-element
             <img
               src={logoUrl}
               alt={company?.nameAr ?? ""}
-              className={cn(
-                "rounded-xl object-contain shrink-0",
-                collapsed ? "w-9 h-9" : "w-11 h-11"
-              )}
-              style={{ boxShadow: "0 3px 10px rgba(0,0,0,0.35)" }}
+              className="w-9 h-9 rounded-xl object-contain"
+              style={{ boxShadow: "0 3px 10px rgba(0,0,0,0.4)" }}
             />
           ) : (
             <div
-              className={cn(
-                "rounded-xl flex items-center justify-center shrink-0",
-                collapsed ? "w-9 h-9" : "w-11 h-11"
-              )}
+              className="w-9 h-9 rounded-xl flex items-center justify-center"
               style={{
-                background: "linear-gradient(135deg, var(--gold-300), var(--gold-500))",
+                background: "linear-gradient(135deg,var(--gold-300),var(--gold-500))",
                 boxShadow: "0 4px 12px rgba(201,163,90,0.3)",
               }}
             >
               <Sparkles className="h-4 w-4" style={{ color: "var(--brand-900)" }} />
             </div>
           )}
+        </Link>
 
-          {/* Company name */}
-          {!collapsed && (
-            <div className="min-w-0 flex-1">
-              <div
-                className="text-[14px] font-bold truncate leading-snug"
-                style={{ color: "rgba(243,233,214,0.97)" }}
-              >
-                {isRTL
-                  ? (company?.nameAr ?? t("appName"))
-                  : (company?.nameEn || company?.nameAr || t("appName"))}
-              </div>
-              {company?.nameEn && company?.nameAr && (
-                <div
-                  className="text-[10.5px] truncate leading-snug"
-                  style={{ color: "rgba(243,233,214,0.45)" }}
-                >
-                  {isRTL ? (company.nameEn || "") : (company.nameAr || "")}
-                </div>
-              )}
-              <div
-                className="text-[9.5px] tracking-wide mt-0.5"
-                style={{ color: "var(--gold-300)", opacity: 0.75 }}
-              >
-                {t("appSubtitle")}
-              </div>
-            </div>
-          )}
-        </div>
-      </div>
-
-      {/* ── Search ─────────────────────────────────────────────────────────── */}
-      {!collapsed && (
-        <div className="px-2.5 pt-2.5 pb-1.5 shrink-0">
-          <div className="relative">
-            <Search
-              className="absolute top-1/2 -translate-y-1/2 h-3.5 w-3.5 pointer-events-none"
-              style={{
-                color: "rgba(243,233,214,0.3)",
-                [isRTL ? "right" : "left"]: "9px",
-              }}
-            />
-            <input
-              type="text"
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              placeholder={t("navSearchPlaceholder")}
-              className="w-full rounded-lg py-1.5 text-[12px] bg-[rgba(255,255,255,0.05)] text-[rgba(243,233,214,0.85)] placeholder-[rgba(243,233,214,0.28)] focus:outline-none transition-all"
-              style={{
-                border: "1px solid rgba(255,255,255,0.08)",
-                [isRTL ? "paddingRight" : "paddingLeft"]: "30px",
-                [isRTL ? "paddingLeft" : "paddingRight"]: searchActive ? "28px" : "10px",
-              }}
-              onFocus={(e) => (e.currentTarget.style.borderColor = "rgba(201,163,90,0.4)")}
-              onBlur={(e)  => (e.currentTarget.style.borderColor = "rgba(255,255,255,0.08)")}
-            />
-            {searchActive && (
-              <button
-                onClick={() => setSearchQuery("")}
-                className="absolute top-1/2 -translate-y-1/2 opacity-40 hover:opacity-80 transition-opacity"
-                style={{ [isRTL ? "left" : "right"]: "8px" }}
-              >
-                <X className="h-3 w-3 text-[rgba(243,233,214,0.8)]" />
-              </button>
-            )}
-          </div>
-        </div>
-      )}
-
-      {/* ── Nav ────────────────────────────────────────────────────────────── */}
-      <nav className="flex-1 overflow-y-auto custom-scrollbar px-2 py-2 space-y-0.5">
-
-        {/* Search results */}
-        {searchActive && (
-          <div>
-            <p className="px-2 pb-1 text-[10px] font-semibold tracking-widest uppercase text-[rgba(243,233,214,0.35)]">
-              {searchResults.length} {isRTL ? "نتيجة" : "results"}
-            </p>
-            <ul className="space-y-0.5">
-              {searchResults.length === 0 ? (
-                <li className="px-3 py-2 text-[12px] text-[rgba(243,233,214,0.35)] text-center">
-                  {isRTL ? "لا توجد نتائج" : "No results"}
-                </li>
-              ) : (
-                searchResults.map((item) => renderNavItem(item))
-              )}
-            </ul>
-          </div>
-        )}
-
-        {/* ── Quick Access ─────────────────────────────────────────────────── */}
-        {!searchActive && (
-          <div className="mb-2">
-            {!collapsed && (
-              <div
-                className="flex items-center gap-1.5 px-2 pb-1.5 pt-0.5"
-              >
-                <Zap className="h-2.5 w-2.5 shrink-0" style={{ color: "var(--gold-400)" }} />
-                <span className="text-[9.5px] font-bold tracking-[0.14em] uppercase select-none"
-                  style={{ color: "rgba(243,233,214,0.38)" }}>
-                  {t("navQuickAccess")}
-                </span>
-              </div>
-            )}
-            <ul className="space-y-0.5">
-                {pinnedItems.map((item) => renderNavItem(item))}
-            </ul>
-          </div>
-        )}
-
-        {/* ── Sections divider ─────────────────────────────────────────────── */}
-        {!searchActive && !collapsed && (
-          <div
-            className="mx-2 my-1"
-            style={{ height: "1px", background: "rgba(201,163,90,0.12)" }}
-          />
-        )}
-
-        {/* ── Sections ─────────────────────────────────────────────────────── */}
-        {!searchActive && (
-          <div className="space-y-0.5">
-            {allSections.map(renderSection)}
-          </div>
-        )}
-      </nav>
-
-      {/* ── Footer ─────────────────────────────────────────────────────────── */}
-      <div
-        className="px-2 py-2.5 shrink-0 space-y-1.5"
-        style={{ borderTop: "1px solid rgba(201,163,90,0.12)" }}
-      >
-        {!collapsed && (
-          <div className="px-2 pb-1 text-center text-[10px] text-[rgba(243,233,214,0.3)]">
-            v1.0.0
-          </div>
-        )}
-        <button
-          onClick={handleLogout}
-          title={t("logout")}
-          className={cn(
-            "w-full flex items-center gap-2 rounded-lg px-2.5 py-1.5 text-[12px] transition-all",
-            "text-[rgba(243,233,214,0.45)] hover:text-red-300 hover:bg-red-900/20",
-            collapsed && "justify-center"
-          )}
+        {/* ── Dashboard (direct link) ───────────────────────────────────── */}
+        <Link
+          href="/"
+          title={t("dashboard")}
+          className="relative flex flex-col items-center justify-center gap-1 rounded-xl transition-all duration-150 group"
+          style={{
+            width: RAIL_W - 8,
+            paddingTop: 8,
+            paddingBottom: 8,
+            ...(isActive("/")
+              ? { background: "#ffffff14", boxShadow: "0 0 0 1px rgba(255,255,255,0.15)" }
+              : { background: "transparent" }),
+          }}
+          onMouseEnter={(e) => {
+            if (!isActive("/")) (e.currentTarget as HTMLElement).style.background = "rgba(255,255,255,0.06)";
+          }}
+          onMouseLeave={(e) => {
+            if (!isActive("/")) (e.currentTarget as HTMLElement).style.background = "transparent";
+          }}
         >
-          <LogOut className="h-3.5 w-3.5 shrink-0" />
-          {!collapsed && <span>{t("logout")}</span>}
-        </button>
-      </div>
-    </aside>
+          <LayoutDashboard
+            className="h-[18px] w-[18px] group-hover:scale-110 transition-transform"
+            style={{ color: isActive("/") ? "rgba(243,233,214,0.97)" : "rgba(243,233,214,0.5)" }}
+          />
+          <span
+            className="leading-tight font-medium select-none text-center"
+            style={{
+              fontSize: 9.5,
+              color: isActive("/") ? "rgba(243,233,214,0.95)" : "rgba(243,233,214,0.38)",
+            }}
+          >
+            {isRTL ? "الرئيسية" : "Home"}
+          </span>
+        </Link>
+
+        {/* ── Thin divider ─────────────────────────────────────────────── */}
+        <div className="w-8 h-px my-1 rounded-full shrink-0"
+          style={{ background: "rgba(255,255,255,0.08)" }} />
+
+        {/* ── Section icons ─────────────────────────────────────────────── */}
+        <div className="flex-1 flex flex-col items-center gap-1 overflow-hidden">
+          {visibleSections.map((section) => {
+            const isCurrent  = section.id === activeSectionId;
+            const isOpen     = section.id === openSection;
+            return (
+              <RailBtn
+                key={section.id}
+                icon={section.icon}
+                label={isRTL ? section.labelAr : section.labelEn}
+                color={section.color}
+                active={isCurrent || isOpen}
+                onClick={() => toggleSection(section.id)}
+              />
+            );
+          })}
+        </div>
+
+        {/* ── Footer: user avatar + logout ─────────────────────────────── */}
+        <div className="shrink-0 flex flex-col items-center gap-2 mt-1">
+          <div className="w-8 h-px rounded-full" style={{ background: "rgba(255,255,255,0.08)" }} />
+
+          {/* User avatar */}
+          <div
+            title={currentUser?.email ?? ""}
+            className="w-9 h-9 rounded-xl flex items-center justify-center text-[12px] font-bold select-none"
+            style={{
+              background: "rgba(255,255,255,0.08)",
+              color: "rgba(243,233,214,0.75)",
+              border: "1px solid rgba(255,255,255,0.1)",
+            }}
+          >
+            {initials}
+          </div>
+
+          {/* Logout */}
+          <button
+            onClick={handleLogout}
+            title={t("logout")}
+            className="w-9 h-9 rounded-xl flex items-center justify-center transition-all hover:bg-red-900/30 group"
+            style={{ background: "rgba(255,255,255,0.04)" }}
+          >
+            <LogOut className="h-4 w-4 text-[rgba(243,233,214,0.35)] group-hover:text-red-400 transition-colors" />
+          </button>
+        </div>
+      </aside>
+
+      {/* ── Floating Panel ─────────────────────────────────────────────── */}
+      {openSection && openSectionData && (
+        <FloatingPanel
+          section={openSectionData}
+          isRTL={isRTL}
+          onClose={() => setOpenSection(null)}
+          isActive={isActive}
+        />
+      )}
+    </>
   );
 }

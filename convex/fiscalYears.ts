@@ -319,3 +319,15 @@ export const closeFiscalYear = mutation({
     });
   },
 });
+
+// ─── LIST ALL ACCOUNTING PERIODS FOR A COMPANY ───────────────────────────────
+export const listPeriods = query({
+  args: { companyId: v.id("companies") },
+  handler: async (ctx, args) => {
+    return await ctx.db
+      .query("accountingPeriods")
+      .withIndex("by_company_dates", (q) => q.eq("companyId", args.companyId))
+      .order("desc")
+      .collect();
+  },
+});

@@ -33,6 +33,7 @@ interface PurchaseLine {
   quantity: string;
   unitPrice: string;
   uomId: string;
+  accountId: string;
 }
 
 // ─── New Purchase Invoice Form ─────────────────────────────────────────────────
@@ -49,7 +50,7 @@ function NewPurchaseInvoiceForm({ onClose }: { onClose: () => void }) {
   const [notes, setNotes] = useState("");
   const [lineIdCounter, setLineIdCounter] = useState(1);
   const [lines, setLines] = useState<PurchaseLine[]>([
-    { id: 0, itemId: "", quantity: "1", unitPrice: "", uomId: "" },
+    { id: 0, itemId: "", quantity: "1", unitPrice: "", uomId: "", accountId: "" },
   ]);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
@@ -66,6 +67,11 @@ function NewPurchaseInvoiceForm({ onClose }: { onClose: () => void }) {
   const suppliers = useQuery(api.suppliers.getAll, company ? { companyId: company._id } : "skip");
   const items = useQuery(api.items.getAllItems, company ? { companyId: company._id } : "skip");
   const units = useQuery(api.items.getAllUnits, company ? { companyId: company._id } : "skip");
+  const allAccounts = useQuery(api.accounts.getAll, company ? { companyId: company._id } : "skip");
+  const expenseAccounts = React.useMemo(
+    () => (allAccounts ?? []).filter((a: any) => a.isPostable && a.isActive && a.accountType === "expense"),
+    [allAccounts]
+  );
 
   // ── Supplier catalog: load when supplier is selected ─────────────────────
   const supplierCatalog = useQuery(
@@ -115,7 +121,7 @@ function NewPurchaseInvoiceForm({ onClose }: { onClose: () => void }) {
   const addLine = () => {
     setLines((prev) => [
       ...prev,
-      { id: lineIdCounter, itemId: "", quantity: "1", unitPrice: "", uomId: "" },
+      { id: lineIdCounter, itemId: "", quantity: "1", unitPrice: "", uomId: "", accountId: "" },
     ]);
     setLineIdCounter((c) => c + 1);
   };
@@ -125,35 +131,43 @@ function NewPurchaseInvoiceForm({ onClose }: { onClose: () => void }) {
   };
 
   const updateLine = (id: number, field: keyof PurchaseLine, value: string) => {
-    setLines((prev) =>
-      prev.map((l) => {
+    setLines((prev) => {
+      const mapped = prev.map((l) => {
         if (l.id !== id) return l;
         const updated = { ...l, [field]: value };
         if (field === "itemId" && value) {
-          // 1. Try supplier catalog suggestion first
+          const foundItem = (items ?? []).find((it: any) => it._id === value);
           const catalogRow = catalogByItemId.get(value);
           if (catalogRow) {
             if (catalogRow.lastPrice != null) updated.unitPrice = String(catalogRow.lastPrice);
-            // purchaseUom is a string name, resolve to UOM id if possible
             if (catalogRow.purchaseUom && units) {
               const foundUom = (units as any[]).find((u) => u.nameEn === catalogRow.purchaseUom || u.nameAr === catalogRow.purchaseUom || u.code === catalogRow.purchaseUom);
               if (foundUom) updated.uomId = foundUom._id;
             }
           }
-          // 2. Fallback to item's own lastCost / baseUomId
           if (!updated.unitPrice) {
-            const foundItem = (items ?? []).find((it: any) => it._id === value);
             if (foundItem?.lastCost) updated.unitPrice = String(foundItem.lastCost);
             if (foundItem?.baseUomId && !updated.uomId) updated.uomId = foundItem.baseUomId;
           }
           if (!updated.uomId) {
-            const foundItem = (items ?? []).find((it: any) => it._id === value);
             if (foundItem?.baseUomId) updated.uomId = foundItem.baseUomId;
+          }
+          if (!updated.accountId) {
+            const autoAcc = foundItem?.cogsAccountId ?? foundItem?.expenseAccountId ?? null;
+            if (autoAcc) updated.accountId = String(autoAcc);
           }
         }
         return updated;
-      })
-    );
+      });
+      if (field === "itemId" && value) {
+        const isLastLine = prev[prev.length - 1]?.id === id;
+        if (isLastLine) {
+          const newId = Math.max(...mapped.map((l) => l.id)) + 1;
+          return [...mapped, { id: newId, itemId: "", quantity: "1", unitPrice: "", uomId: "", accountId: "" }];
+        }
+      }
+      return mapped;
+    });
   };
 
   const onSubmit = async (e: React.FormEvent) => {
@@ -174,18 +188,14 @@ function NewPurchaseInvoiceForm({ onClose }: { onClose: () => void }) {
     setError("");
 
     try {
-      // Build lines — use item cogsAccountId as the line account, fallback to first account query
-      const invoiceLines = await Promise.all(
-        validLines.map(async (l) => {
+      // Build lines — manual accountId > item cogsAccountId > expenseAccountId
+      const invoiceLines = validLines.map((l) => {
           const foundItem = (items ?? []).find((it: any) => it._id === l.itemId);
           const qty = parseFloat(l.quantity);
           const price = parseFloat(l.unitPrice);
           const total = qty * price;
           const resolvedUomId = l.uomId || foundItem?.baseUomId || (units ?? [])[0]?._id;
-
-          // Use item's cogsAccountId or expenseAccountId as the line account
-          const accountId = foundItem?.cogsAccountId ?? foundItem?.expenseAccountId ?? null;
-
+          const accountId = l.accountId || foundItem?.cogsAccountId || foundItem?.expenseAccountId || null;
           return {
             itemId: l.itemId as any,
             description: foundItem ? (foundItem.nameAr || "") : undefined,
@@ -198,13 +208,11 @@ function NewPurchaseInvoiceForm({ onClose }: { onClose: () => void }) {
             lineTotal: total,
             accountId: accountId as any,
           };
-        })
-      );
+        });
 
-      // Filter out lines without an accountId — warn user
       const linesWithAccount = invoiceLines.filter((l) => l.accountId);
       if (linesWithAccount.length === 0) {
-        setError(t("errNoItemAccount"));
+        setError(isRTL ? "يجب تحديد حساب لكل بند — اختر من قائمة الحساب" : "Select an account for each line");
         setSaving(false);
         return;
       }
@@ -316,6 +324,7 @@ function NewPurchaseInvoiceForm({ onClose }: { onClose: () => void }) {
               <thead className="bg-[color:var(--ink-50)] text-[color:var(--ink-600)] text-xs">
                 <tr>
                   <th className="px-3 py-2 text-start font-semibold">{t("item")} *</th>
+                  <th className="px-3 py-2 text-start font-semibold w-44">{isRTL ? "الحساب" : "Account"}</th>
                   <th className="px-3 py-2 text-end font-semibold w-28">{t("quantity")} *</th>
                   <th className="px-3 py-2 text-end font-semibold w-32">{t("unitPrice")} *</th>
                   <th className="px-3 py-2 text-end font-semibold w-32">{t("lineTotal")}</th>
@@ -376,6 +385,25 @@ function NewPurchaseInvoiceForm({ onClose }: { onClose: () => void }) {
                             {catalogRow.lastPrice != null && <span>Last: {catalogRow.lastPrice.toFixed(2)}</span>}
                             {catalogRow.avgPrice != null && <span>Avg: {catalogRow.avgPrice.toFixed(2)}</span>}
                             {catalogRow.purchaseCount > 0 && <span>×{catalogRow.purchaseCount}</span>}
+                          </div>
+                        )}
+                      </td>
+                      <td className="px-2 py-1.5">
+                        <select
+                          value={line.accountId}
+                          onChange={(e) => updateLine(line.id, "accountId", e.target.value)}
+                          className="input-field h-8 w-full text-xs"
+                        >
+                          <option value="">{isRTL ? "— اختر حساباً —" : "— select —"}</option>
+                          {(expenseAccounts as any[]).map((a: any) => (
+                            <option key={a._id} value={a._id}>
+                              {a.code} — {isRTL ? a.nameAr : (a.nameEn || a.nameAr)}
+                            </option>
+                          ))}
+                        </select>
+                        {!line.accountId && (
+                          <div className="mt-0.5 text-[10px] text-amber-500">
+                            {isRTL ? "سيُؤخذ من الصنف" : "auto from item"}
                           </div>
                         )}
                       </td>
@@ -855,7 +883,7 @@ export default function PurchaseInvoicesPage() {
                       </td>
                       <td className="px-6 py-4 text-xs text-gray-500 font-medium">{formatDateShort(inv.invoiceDate)}</td>
                       <td className="px-6 py-4 font-bold text-gray-900 text-sm">{inv.supplierName}</td>
-                      <td className="px-6 py-4 text-end tabular-nums font-bold text-gray-900 text-sm">{formatCurrency(inv.totalAmount / 100)}</td>
+                      <td className="px-6 py-4 text-end tabular-nums font-bold text-gray-900 text-sm">{formatCurrency(inv.totalAmount)}</td>
                       {/* B: document status badge */}
                       <td className="px-6 py-4 text-center">
                         <span className={`inline-flex items-center px-2 py-0.5 rounded text-[10px] font-bold border ${

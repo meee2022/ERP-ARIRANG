@@ -84,13 +84,33 @@ export const createSalesReturn = mutation({
       returnNumber = await generateDocumentNumber(ctx, args.branchId, fiscalYear._id, "SR");
     }
 
-    // Calculate totals
+    // Calculate totals + fetch unitCost from original invoice lines
     let grandTotal = 0;
-    const processedLines = args.lines.map((line) => {
+    const processedLines: Array<typeof args.lines[0] & {
+      lineTotal: number; unitCost: number;
+    }> = [];
+
+    for (const line of args.lines) {
       const lineTotal = Math.round(line.quantity * line.unitPrice);
       grandTotal += lineTotal;
-      return { ...line, lineTotal };
-    });
+
+      // Get actual cost from original invoice line (set during posting)
+      let unitCost = 0;
+      if (line.originalLineId) {
+        const origLine = await ctx.db.get(line.originalLineId as any);
+        unitCost = (origLine as any)?.unitCost ?? 0;
+      }
+      // Fallback: current average cost from stockBalance
+      if (unitCost === 0) {
+        const stock = await ctx.db
+          .query("stockBalance")
+          .withIndex("by_item_warehouse", (q: any) => q.eq("itemId", line.itemId))
+          .first();
+        unitCost = (stock as any)?.avgCost ?? 0;
+      }
+
+      processedLines.push({ ...line, lineTotal, unitCost });
+    }
 
     // Insert salesReturn
     const returnId = await ctx.db.insert("salesReturns", {
@@ -117,7 +137,7 @@ export const createSalesReturn = mutation({
       createdAt: Date.now(),
     });
 
-    // Insert salesReturnLines
+    // Insert salesReturnLines with correct unitCost
     for (const line of processedLines) {
       await ctx.db.insert("salesReturnLines", {
         returnId,
@@ -129,7 +149,7 @@ export const createSalesReturn = mutation({
         vatRate: 0,
         vatAmount: 0,
         lineTotal: line.lineTotal,
-        unitCost: 0,
+        unitCost: line.unitCost,   // ✅ real cost, not 0
       });
     }
 
@@ -192,28 +212,104 @@ export const postSalesReturn = mutation({
     const customerAccountId = customer.accountId;
 
     // Sales Return Journal:
-    // DEBIT: Sales Revenue (4101) — reversing the original credit
-    // CREDIT: Customer Account — reversing the original debit
-    const journalLines: JournalLineInput[] = [
-      {
-        accountId: revenueAccount._id,
-        description: `مرتجع مبيعات - ${ret.returnNumber}`,
-        debit: ret.totalAmount,
-        credit: 0,
-        foreignDebit: 0,
-        foreignCredit: 0,
-      },
-      {
-        accountId: customerAccountId,
-        subAccountType: "customer",
-        subAccountId: String(ret.customerId),
-        description: `مرتجع مبيعات - ${ret.returnNumber}`,
-        debit: 0,
-        credit: ret.totalAmount,
-        foreignDebit: 0,
-        foreignCredit: 0,
-      },
-    ];
+    // DEBIT:  Revenue (per-line account) — reversing the original credit
+    // CREDIT: Customer Account (AR)      — reducing what customer owes
+    // DEBIT:  Inventory account          — items come back to stock at cost
+    // CREDIT: COGS account               — reversing the original COGS
+
+    // Build per-line revenue reversal (use original invoice line accounts where available)
+    const journalLines: JournalLineInput[] = [];
+    let totalRevenueReversed = 0;
+    let totalCOGSReversed    = 0;
+
+    for (const line of lines) {
+      const lineNet = line.lineTotal - line.vatAmount;
+
+      // Resolve revenue account: prefer original line's account, else fall back to 4101
+      let lineRevenueAccountId = revenueAccount._id;
+      if (line.originalLineId) {
+        const origLine = await ctx.db.get(line.originalLineId as any);
+        if ((origLine as any)?.revenueAccountId) {
+          lineRevenueAccountId = (origLine as any).revenueAccountId;
+        }
+      }
+
+      if (lineNet > 0) {
+        journalLines.push({
+          accountId: lineRevenueAccountId,
+          description: `عكس إيراد - ${ret.returnNumber}`,
+          debit: lineNet,
+          credit: 0,
+          foreignDebit: 0,
+          foreignCredit: 0,
+        });
+        totalRevenueReversed += lineNet;
+      }
+
+      // COGS reversal: Dr. Inventory / Cr. COGS
+      const costAmount = Math.round(line.unitCost * line.quantity);
+      if (costAmount > 0) {
+        const item = await ctx.db.get(line.itemId);
+
+        // Resolve COGS account: original line → item → fallback 5101
+        let cogsAccountId: any = null;
+        if (line.originalLineId) {
+          const origLine = await ctx.db.get(line.originalLineId as any);
+          cogsAccountId = (origLine as any)?.cogsAccountId ?? null;
+        }
+        if (!cogsAccountId) cogsAccountId = (item as any)?.cogsAccountId ?? null;
+        if (!cogsAccountId) {
+          const cogsAcc = await ctx.db
+            .query("accounts")
+            .withIndex("by_company_code", (q: any) =>
+              q.eq("companyId", ret.companyId).eq("code", "5101")
+            )
+            .first();
+          cogsAccountId = cogsAcc?._id ?? null;
+        }
+
+        const inventoryAccountId = (item as any)?.inventoryAccountId ?? null;
+
+        if (inventoryAccountId && cogsAccountId) {
+          // Dr. Inventory (items physically returned to warehouse)
+          journalLines.push({
+            accountId: inventoryAccountId,
+            description: `مخزون مرتجع - ${ret.returnNumber}`,
+            debit: costAmount,
+            credit: 0,
+            foreignDebit: 0,
+            foreignCredit: 0,
+          });
+          // Cr. COGS (reverse the cost that was expensed on sale)
+          journalLines.push({
+            accountId: cogsAccountId,
+            description: `عكس تكلفة مبيعات - ${ret.returnNumber}`,
+            debit: 0,
+            credit: costAmount,
+            foreignDebit: 0,
+            foreignCredit: 0,
+          });
+          totalCOGSReversed += costAmount;
+        }
+      }
+    }
+
+    // VAT reversal (if any)
+    if (ret.vatAmount > 0) {
+      // TODO: add VAT payable reversal when VAT is applicable
+    }
+
+    // CR: Customer AR — total amount returned (net + VAT)
+    journalLines.push({
+      accountId: customerAccountId,
+      subAccountType: "customer",
+      subAccountId: String(ret.customerId),
+      description: `مرتجع مبيعات - ${ret.returnNumber}`,
+      debit: 0,
+      credit: ret.totalAmount,
+      foreignDebit: 0,
+      foreignCredit: 0,
+    });
 
     const journalEntryId = await postJournalEntry(
       ctx,
@@ -253,13 +349,13 @@ export const postSalesReturn = mutation({
     });
 
     for (const line of lines) {
-      // Items return to warehouse — positive quantity change
+      // Items return to warehouse — positive quantity change, at COST (not selling price)
       const stockUpdate = await updateStockBalance(
         ctx,
         line.itemId,
         ret.warehouseId,
         line.quantity, // positive = items coming back
-        line.unitPrice,
+        line.unitCost, // ✅ cost price, not selling price
         "sales_return"
       );
 
@@ -373,14 +469,25 @@ export const listSalesReturns = query({
 
     return Promise.all(
       returns.map(async (ret) => {
-        const customer = ret.customerId ? await ctx.db.get(ret.customerId) : null;
-        const originalInvoice = ret.originalInvoiceId
-          ? await ctx.db.get(ret.originalInvoiceId)
-          : null;
+        const customer        = ret.customerId        ? await ctx.db.get(ret.customerId)        : null;
+        const originalInvoice = ret.originalInvoiceId ? await ctx.db.get(ret.originalInvoiceId) : null;
+        const company         = await ctx.db.get(ret.companyId);
+        const branch          = ret.branchId ? await ctx.db.get(ret.branchId) : null;
+        const createdByUser   = ret.createdBy ? await ctx.db.get(ret.createdBy as any) : null;
+        const receivedByUser  = (ret as any).receivedBy ? await ctx.db.get((ret as any).receivedBy) : null;
+
         return {
           ...ret,
-          customerName: customer?.nameAr ?? "—",
-          originalInvoiceNumber: originalInvoice?.invoiceNumber ?? "—",
+          customerName:          (customer as any)?.nameAr ?? (customer as any)?.nameEn ?? "—",
+          customerCode:          (customer as any)?.code ?? "—",
+          originalInvoiceNumber: (originalInvoice as any)?.invoiceNumber ?? "—",
+          originalInvoiceDate:   (originalInvoice as any)?.invoiceDate   ?? null,
+          companyNameAr:         (company as any)?.nameAr ?? "",
+          companyNameEn:         (company as any)?.nameEn ?? "",
+          branchNameAr:          (branch as any)?.nameAr ?? "",
+          branchNameEn:          (branch as any)?.nameEn ?? "",
+          createdByName:         (createdByUser as any)?.name ?? "—",
+          receivedByName:        (receivedByUser as any)?.name ?? null,
         };
       })
     );

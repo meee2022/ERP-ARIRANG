@@ -51,9 +51,9 @@ export default function DailySalesPage() {
         ? [
             { label: t("days"), value: String(totals.dayCount), borderColor: "var(--brand-600)", accent: "var(--ink-900)" },
             { label: t("invoiceCount"), value: String(totals.invoiceCount), borderColor: "#0ea5e9", accent: "#0f172a" },
-            { label: t("totalSales"), value: formatCurrency(totals.grossSales / 100), borderColor: "#f59e0b", accent: "#92400e" },
-            { label: t("discount"), value: formatCurrency(totals.discountAmount / 100), borderColor: "#dc2626", accent: "#991b1b" },
-            { label: t("net"), value: formatCurrency(totals.netSales / 100), borderColor: "#16a34a", accent: "#166534" },
+            { label: t("totalSales"), value: formatCurrency(totals.grossSales), borderColor: "#f59e0b", accent: "#92400e" },
+            { label: t("discount"), value: formatCurrency(totals.discountAmount), borderColor: "#dc2626", accent: "#991b1b" },
+            { label: t("net"), value: formatCurrency(totals.netSales), borderColor: "#16a34a", accent: "#166534" },
           ]
         : [],
     [totals, t, formatCurrency]
@@ -122,11 +122,11 @@ export default function DailySalesPage() {
                   <tr key={row.date}>
                     <td className="muted tabular-nums">{row.date}</td>
                     <td className="numeric text-end">{row.invoiceCount}</td>
-                    <td className="numeric text-end">{formatCurrency(row.grossSales / 100)}</td>
-                    <td className="numeric text-end">{formatCurrency(row.discountAmount / 100)}</td>
-                    <td className="numeric text-end font-semibold">{formatCurrency(row.netSales / 100)}</td>
-                    <td className="numeric text-end">{formatCurrency(row.postedSales / 100)}</td>
-                    <td className="numeric text-end">{formatCurrency(row.draftSales / 100)}</td>
+                    <td className="numeric text-end">{formatCurrency(row.grossSales)}</td>
+                    <td className="numeric text-end">{formatCurrency(row.discountAmount)}</td>
+                    <td className="numeric text-end font-semibold">{formatCurrency(row.netSales)}</td>
+                    <td className="numeric text-end">{formatCurrency(row.postedSales)}</td>
+                    <td className="numeric text-end">{formatCurrency(row.draftSales)}</td>
                     <td className="numeric text-end">{row.submittedCount}</td>
                   </tr>
                 ))}

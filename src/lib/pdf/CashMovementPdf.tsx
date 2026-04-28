@@ -102,7 +102,7 @@ export function CashMovementPdf({ data }: { data: CashMovementPdfData }) {
           {kpis.map((k) => (
             <View key={k.label} style={[S.kpiBox, { backgroundColor: k.bg, borderColor: k.border }]}>
               <Text style={S.kpiLabel}>{k.label}</Text>
-              <Text style={[S.kpiValue, { color: k.fg }]}>{formatCurrency(k.value / 100)}</Text>
+              <Text style={[S.kpiValue, { color: k.fg }]}>{formatCurrency(k.value)}</Text>
             </View>
           ))}
         </View>
@@ -119,22 +119,22 @@ export function CashMovementPdf({ data }: { data: CashMovementPdfData }) {
         {data.rows.map((row, i) => (
           <View key={row.date + i} style={[S.tableRow, i % 2 === 1 ? S.tableRowAlt : {}]} wrap={false}>
             <Text style={[S.td, { width: 64, fontSize: 8, fontFamily: "Helvetica" }]}>{row.date}</Text>
-            <Text style={[S.td, { flex: 1, textAlign: "right", color: "#166534" }]}>{row.debit > 0 ? formatCurrency(row.debit / 100) : "—"}</Text>
-            <Text style={[S.td, { flex: 1, textAlign: "right", color: "#991b1b" }]}>{row.credit > 0 ? formatCurrency(row.credit / 100) : "—"}</Text>
+            <Text style={[S.td, { flex: 1, textAlign: "right", color: "#166534" }]}>{row.debit > 0 ? formatCurrency(row.debit) : "—"}</Text>
+            <Text style={[S.td, { flex: 1, textAlign: "right", color: "#991b1b" }]}>{row.credit > 0 ? formatCurrency(row.credit) : "—"}</Text>
             <Text style={[S.td, { flex: 1, textAlign: "right", color: row.net >= 0 ? "#166534" : "#991b1b" }]}>
-              {row.net >= 0 ? "+" : ""}{formatCurrency(row.net / 100)}
+              {row.net >= 0 ? "+" : ""}{formatCurrency(row.net)}
             </Text>
-            <Text style={[S.td, { flex: 1, textAlign: "right", fontWeight: 700 }]}>{formatCurrency(row.balance / 100)}</Text>
+            <Text style={[S.td, { flex: 1, textAlign: "right", fontWeight: 700 }]}>{formatCurrency(row.balance)}</Text>
           </View>
         ))}
 
         {/* Totals row */}
         <View style={S.totalRow} wrap={false}>
           <Text style={[S.th, { width: 64 }]}>{labels.closingBalance}</Text>
-          <Text style={[S.th, { flex: 1, textAlign: "right", color: "#166534" }]}>{formatCurrency(data.totalDebit / 100)}</Text>
-          <Text style={[S.th, { flex: 1, textAlign: "right", color: "#991b1b" }]}>{formatCurrency(data.totalCredit / 100)}</Text>
+          <Text style={[S.th, { flex: 1, textAlign: "right", color: "#166534" }]}>{formatCurrency(data.totalDebit)}</Text>
+          <Text style={[S.th, { flex: 1, textAlign: "right", color: "#991b1b" }]}>{formatCurrency(data.totalCredit)}</Text>
           <Text style={[S.th, { flex: 1, textAlign: "right" }]}>—</Text>
-          <Text style={[S.th, { flex: 1, textAlign: "right", color: BRAND }]}>{formatCurrency(data.closingBalance / 100)}</Text>
+          <Text style={[S.th, { flex: 1, textAlign: "right", color: BRAND }]}>{formatCurrency(data.closingBalance)}</Text>
         </View>
 
         <PdfFooter printedBy={labels.printedBy} />

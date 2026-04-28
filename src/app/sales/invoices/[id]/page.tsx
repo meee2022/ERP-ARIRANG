@@ -33,11 +33,11 @@ function LinesTable({ lines, t, isRTL, formatCurrency }: any) {
           {(lines ?? []).map((line: any, i: number) => (
             <tr key={line._id ?? i} className="print:break-inside-avoid">
               <td className="muted">{i + 1}</td>
-              <td className="code">{line.itemCode ?? "—"}</td>
-              <td>{isRTL ? line.itemNameAr : (line.itemNameEn || line.itemNameAr)}</td>
+              <td className="code">{line.itemCode || "—"}</td>
+              <td>{line.itemNameAr ? (isRTL ? line.itemNameAr : (line.itemNameEn || line.itemNameAr)) : (line.description || "—")}</td>
               <td className="numeric text-end">{line.quantity}</td>
-              <td className="numeric text-end">{formatCurrency((line.unitPrice ?? 0) / 100)}</td>
-              <td className="numeric text-end font-semibold">{formatCurrency((line.lineTotal ?? 0) / 100)}</td>
+              <td className="numeric text-end">{formatCurrency((line.unitPrice ?? 0))}</td>
+              <td className="numeric text-end font-semibold">{formatCurrency((line.lineTotal ?? 0))}</td>
             </tr>
           ))}
         </tbody>
@@ -55,17 +55,17 @@ function TotalsBlock({ inv, t, formatCurrency }: any) {
       <div className="w-72 space-y-2 text-sm">
         <div className="flex justify-between text-[color:var(--ink-700)]">
           <span>{t("subtotal")}</span>
-          <span className="tabular-nums font-medium">{formatCurrency(subtotal / 100)}</span>
+          <span className="tabular-nums font-medium">{formatCurrency(subtotal)}</span>
         </div>
         {taxAmt > 0 && (
           <div className="flex justify-between text-[color:var(--ink-700)]">
             <span>{t("taxAmount")}</span>
-            <span className="tabular-nums font-medium">{formatCurrency(taxAmt / 100)}</span>
+            <span className="tabular-nums font-medium">{formatCurrency(taxAmt)}</span>
           </div>
         )}
         <div className="flex justify-between border-t-2 border-[color:var(--ink-800)] pt-2 text-base font-extrabold text-[color:var(--ink-900)]">
           <span>{t("invoiceTotal")}</span>
-          <span className="tabular-nums">{formatCurrency(total / 100)}</span>
+          <span className="tabular-nums">{formatCurrency(total)}</span>
         </div>
       </div>
     </div>

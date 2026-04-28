@@ -59,7 +59,7 @@ export default function SalesReportPage() {
         <PageHeader
           icon={TrendingUp}
           title={t("salesReportTitle")}
-          subtitle={report ? `${report.invoiceCount} ${t("invoiceCount")} — ${formatCurrency((report.totalSales ?? 0) / 100)}` : undefined}
+          subtitle={report ? `${report.invoiceCount} ${t("invoiceCount")} — ${formatCurrency((report.totalSales ?? 0))}` : undefined}
         />
       </div>
 
@@ -89,7 +89,7 @@ export default function SalesReportPage() {
         <div className="grid grid-cols-2 gap-4">
           <KPICard
             label={t("totalSales")}
-            value={formatCurrency((report.totalSales ?? 0) / 100)}
+            value={formatCurrency((report.totalSales ?? 0))}
             icon={TrendingUp}
             iconColor="#16a34a"
             accent="#16a34a"
@@ -138,17 +138,17 @@ export default function SalesReportPage() {
                     {groupBy === "day" && <>
                       <td className="muted tabular-nums">{row.date}</td>
                       <td className="numeric text-end">{row.count}</td>
-                      <td className="numeric text-end font-semibold">{formatCurrency((row.total ?? 0) / 100)}</td>
+                      <td className="numeric text-end font-semibold">{formatCurrency((row.total ?? 0))}</td>
                     </>}
                     {groupBy === "item" && <>
                       <td>{row.itemName}</td>
                       <td className="numeric text-end">{row.qty?.toFixed(2)}</td>
-                      <td className="numeric text-end font-semibold">{formatCurrency((row.total ?? 0) / 100)}</td>
+                      <td className="numeric text-end font-semibold">{formatCurrency((row.total ?? 0))}</td>
                     </>}
                     {groupBy === "customer" && <>
                       <td>{row.customerName}</td>
                       <td className="numeric text-end">{row.count}</td>
-                      <td className="numeric text-end font-semibold">{formatCurrency((row.total ?? 0) / 100)}</td>
+                      <td className="numeric text-end font-semibold">{formatCurrency((row.total ?? 0))}</td>
                     </>}
                   </tr>
                 ))}

@@ -1,113 +1,290 @@
 // @ts-nocheck
 "use client";
 
-import React from "react";
+import React, { useMemo } from "react";
 import Link from "next/link";
 import { useQuery } from "convex/react";
 import { api } from "../../convex/_generated/api";
 import {
-  Users, Truck, Package, FileText, Landmark, TrendingUp,
-  CalendarDays, ArrowUpRight, AlertCircle, Banknote,
-  CreditCard, ShoppingCart, Warehouse, ArrowLeftRight,
-  AlertTriangle, TrendingDown, CheckCircle2, BarChart3,
-  ChevronDown, ChevronRight, Info, Archive
+  Users, Truck, Package, FileText, Landmark, TrendingUp, TrendingDown,
+  CalendarDays, ArrowUpRight, AlertCircle, Banknote, CreditCard,
+  ShoppingCart, Warehouse, ArrowLeftRight, AlertTriangle, BarChart3,
+  ChevronRight, Info, Archive, Zap, Circle,
 } from "lucide-react";
 import { useI18n } from "@/hooks/useI18n";
 import { useAppStore } from "@/store/useAppStore";
 import {
-  AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer,
+  AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip,
+  ResponsiveContainer, BarChart, Bar, Cell,
 } from "recharts";
 
-// ── helpers ──────────────────────────────────────────────────────────────────
+// ─── Helpers ──────────────────────────────────────────────────────────────────
+function todayISO() { return new Date().toISOString().split("T")[0]; }
 
-function todayISO(): string {
-  return new Date().toISOString().split("T")[0];
+function shortDate(iso: string, lang = "en") {
+  return new Date(iso).toLocaleDateString(lang === "ar" ? "ar-EG" : "en-GB", {
+    day: "2-digit", month: "short",
+  });
 }
 
-function shortDate(iso: string, lang: string = "en"): string {
-  // "2026-04-22" → "22 Apr" or Arabic equivalent
-  const d = new Date(iso);
-  return d.toLocaleDateString(lang === "ar" ? "ar-EG" : "en-GB", { day: "2-digit", month: "short" });
-}
-
-function calcDelta(today: number, base: number): number | null {
+function calcDelta(today: number, base: number) {
   if (base === 0) return today > 0 ? null : 0;
   return ((today - base) / base) * 100;
 }
 
-type ActivityType =
-  | "sales_invoice"
-  | "cash_receipt"
-  | "cash_payment"
-  | "grn"
-  | "bank_transfer"
-  | "stock_adjustment";
-
-interface ActivityItem {
-  type: ActivityType;
-  documentNumber: string;
-  amount: number;
-  date: string;
-  timestamp: number;
-  description: string;
+function timeAgo(timestamp: number, isRTL: boolean) {
+  const diff = Date.now() - timestamp;
+  const mins = Math.floor(diff / 60000);
+  if (mins < 60) return isRTL ? `منذ ${mins} د` : `${mins}m ago`;
+  const hrs = Math.floor(mins / 60);
+  if (hrs < 24) return isRTL ? `منذ ${hrs} س` : `${hrs}h ago`;
+  return isRTL ? `منذ ${Math.floor(hrs / 24)} ي` : `${Math.floor(hrs / 24)}d ago`;
 }
 
-const TYPE_META: Record<
-  ActivityType,
-  { icon: any; color: string; bg: string; labelKey: string; badgeColor: string; badgeBg: string }
-> = {
-  sales_invoice: {
-    icon: ShoppingCart,
-    color: "var(--brand-700)",
-    bg: "color-mix(in srgb, var(--brand-700) 10%, white)",
-    labelKey: "typeSalesInvoice",
-    badgeColor: "#ef4444",
-    badgeBg: "#fee2e2",
-  },
-  cash_receipt: {
-    icon: Banknote,
-    color: "#059669",
-    bg: "color-mix(in srgb, #059669 10%, white)",
-    labelKey: "typeCashReceipt",
-    badgeColor: "#059669",
-    badgeBg: "#d1fae5",
-  },
-  cash_payment: {
-    icon: CreditCard,
-    color: "#dc2626",
-    bg: "color-mix(in srgb, #dc2626 10%, white)",
-    labelKey: "typeCashPayment",
-    badgeColor: "#d97706",
-    badgeBg: "#fef3c7",
-  },
-  grn: {
-    icon: Warehouse,
-    color: "#7c3aed",
-    bg: "color-mix(in srgb, #7c3aed 10%, white)",
-    labelKey: "typeGRN",
-    badgeColor: "#7c3aed",
-    badgeBg: "#ede9fe",
-  },
-  bank_transfer: {
-    icon: ArrowLeftRight,
-    color: "#d97706",
-    bg: "color-mix(in srgb, #d97706 10%, white)",
-    labelKey: "typeBankTransfer",
-    badgeColor: "#2563eb",
-    badgeBg: "#dbeafe",
-  },
-  stock_adjustment: {
-    icon: Package,
-    color: "#64748b",
-    bg: "color-mix(in srgb, #64748b 10%, white)",
-    labelKey: "typeStockAdj",
-    badgeColor: "#64748b",
-    badgeBg: "#f1f5f9",
-  },
+// ─── Activity config ──────────────────────────────────────────────────────────
+type ActivityType = "sales_invoice"|"cash_receipt"|"cash_payment"|"grn"|"bank_transfer"|"stock_adjustment";
+
+const ACT: Record<ActivityType, { color: string; icon: any; labelAr: string; labelEn: string }> = {
+  sales_invoice:   { color: "#6366f1", icon: ShoppingCart, labelAr: "فاتورة مبيعات", labelEn: "Sales Invoice"   },
+  cash_receipt:    { color: "#10b981", icon: Banknote,     labelAr: "قبض نقدي",      labelEn: "Cash Receipt"    },
+  cash_payment:    { color: "#f43f5e", icon: CreditCard,   labelAr: "دفع نقدي",      labelEn: "Cash Payment"    },
+  grn:             { color: "#8b5cf6", icon: Warehouse,    labelAr: "استلام بضاعة",  labelEn: "GRN"             },
+  bank_transfer:   { color: "#f59e0b", icon: ArrowLeftRight,labelAr: "تحويل بنكي",  labelEn: "Bank Transfer"   },
+  stock_adjustment:{ color: "#64748b", icon: Package,      labelAr: "تسوية مخزون",  labelEn: "Stock Adj."      },
 };
 
-// ── page ─────────────────────────────────────────────────────────────────────
+// ─── Sub-components ───────────────────────────────────────────────────────────
 
+/** Large financial KPI — AR, AP, Cash, Net Flow */
+function FinKpi({ label, value, accent, icon: Icon, loading, fmt, delta, hint }: {
+  label: string; value: number|undefined; accent: string; icon: any;
+  loading: boolean; fmt: (n:number)=>string; delta?: number|null; hint?: string;
+}) {
+  return (
+    <div className="relative bg-white rounded-2xl overflow-hidden flex flex-col"
+      style={{ border: "1px solid var(--ink-100)", boxShadow: "0 1px 4px rgba(0,0,0,0.05)" }}>
+      {/* Accent top stripe */}
+      <div className="h-1 w-full" style={{ background: `linear-gradient(90deg, ${accent}, ${accent}80)` }} />
+      <div className="flex flex-col flex-1 p-5">
+        {/* Header row */}
+        <div className="flex items-center justify-between mb-4">
+          <div className="h-10 w-10 rounded-xl flex items-center justify-center"
+            style={{ background: `${accent}12` }}>
+            <Icon className="h-5 w-5" style={{ color: accent }} />
+          </div>
+          {delta !== undefined && delta !== null && (
+            <span className="inline-flex items-center gap-0.5 text-[11px] font-bold px-2 py-0.5 rounded-full"
+              style={{
+                background: delta >= 0 ? "#d1fae5" : "#fee2e2",
+                color: delta >= 0 ? "#059669" : "#dc2626",
+              }}>
+              {delta >= 0 ? <TrendingUp className="h-3 w-3" /> : <TrendingDown className="h-3 w-3" />}
+              {Math.abs(delta).toFixed(1)}%
+            </span>
+          )}
+        </div>
+        {/* Value */}
+        <div className="text-[11px] font-semibold uppercase tracking-wider mb-1.5"
+          style={{ color: "var(--ink-400)" }}>
+          {label}
+        </div>
+        <div className="text-[28px] font-bold tabular-nums leading-none"
+          style={{ color: "var(--ink-900)" }}>
+          {loading || value === undefined ? (
+            <div className="h-8 w-36 rounded-lg bg-[var(--ink-100)] animate-pulse" />
+          ) : fmt(value)}
+        </div>
+        <div className="mt-2 text-[11px]" style={{ color: "var(--ink-400)" }}>
+          {hint ?? (loading ? "…" : "—")}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/** Compact today KPI */
+function TodayKpi({ label, value, icon: Icon, accent, loading, fmt, count, delta }: {
+  label: string; value: number|undefined; icon: any; accent: string;
+  loading: boolean; fmt: (n:number)=>string; count?: boolean; delta?: number|null;
+}) {
+  const disp = loading || value === undefined ? null : count ? value.toLocaleString("en-US") : fmt(value);
+
+  return (
+    <div className="bg-white rounded-2xl p-4 flex items-center gap-4"
+      style={{ border: "1px solid var(--ink-100)", boxShadow: "0 1px 4px rgba(0,0,0,0.05)" }}>
+      <div className="h-11 w-11 rounded-xl flex items-center justify-center shrink-0"
+        style={{ background: `${accent}12` }}>
+        <Icon className="h-5 w-5" style={{ color: accent }} />
+      </div>
+      <div className="flex-1 min-w-0">
+        <div className="text-[10.5px] font-semibold uppercase tracking-wider truncate mb-0.5"
+          style={{ color: "var(--ink-400)" }}>
+          {label}
+        </div>
+        {loading || !disp ? (
+          <div className="h-6 w-24 rounded-md bg-[var(--ink-100)] animate-pulse" />
+        ) : (
+          <div className="text-[18px] font-bold tabular-nums leading-none" style={{ color: "var(--ink-900)" }}>
+            {disp}
+          </div>
+        )}
+        {!loading && !count && delta !== undefined && delta !== null && (
+          <div className="mt-0.5 text-[10px] font-bold"
+            style={{ color: delta >= 0 ? "#059669" : "#dc2626" }}>
+            {delta >= 0 ? "▲" : "▼"} {Math.abs(delta).toFixed(1)}%
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+/** Activity timeline item */
+function ActivityRow({ item, isRTL }: { item: any; isRTL: boolean }) {
+  const meta = ACT[item.type as ActivityType] ?? ACT.sales_invoice;
+  const Icon = meta.icon;
+  const fmt = (n: number) => n.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + " QAR";
+
+  return (
+    <div className="flex items-start gap-3 py-3 group">
+      {/* Timeline dot */}
+      <div className="flex flex-col items-center shrink-0 pt-0.5">
+        <div className="h-7 w-7 rounded-lg flex items-center justify-center"
+          style={{ background: `${meta.color}12`, border: `1px solid ${meta.color}30` }}>
+          <Icon className="h-3.5 w-3.5" style={{ color: meta.color }} />
+        </div>
+      </div>
+      {/* Content */}
+      <div className="flex-1 min-w-0">
+        <div className="flex items-start justify-between gap-2">
+          <div className="min-w-0">
+            <span className="text-[12.5px] font-bold" style={{ color: "var(--ink-900)" }}>
+              {item.documentNumber}
+            </span>
+            <span className="mx-1.5 text-[var(--ink-300)]">·</span>
+            <span className="text-[11.5px]" style={{ color: "var(--ink-500)" }}>
+              {isRTL ? meta.labelAr : meta.labelEn}
+            </span>
+          </div>
+          <span className="text-[11px] font-bold tabular-nums shrink-0" style={{ color: meta.color }}>
+            {fmt(item.amount)}
+          </span>
+        </div>
+        <div className="flex items-center gap-2 mt-0.5">
+          <span className="text-[11px] truncate" style={{ color: "var(--ink-500)" }}>
+            {item.description}
+          </span>
+          <span className="text-[10px] shrink-0" style={{ color: "var(--ink-400)" }}>
+            {timeAgo(item.timestamp, isRTL)}
+          </span>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/** Quick action button */
+function QuickBtn({ href, icon: Icon, labelAr, labelEn, color, isRTL }: any) {
+  return (
+    <Link href={href}
+      className="group flex items-center gap-3 px-3 py-2.5 rounded-xl transition-all duration-150 hover:shadow-sm"
+      style={{ border: "1px solid var(--ink-100)" }}
+      onMouseEnter={(e) => (e.currentTarget as HTMLElement).style.borderColor = `${color}50`}
+      onMouseLeave={(e) => (e.currentTarget as HTMLElement).style.borderColor = "var(--ink-100)"}
+    >
+      <div className="h-8 w-8 rounded-lg flex items-center justify-center shrink-0 transition-all"
+        style={{ background: `${color}10` }}>
+        <Icon className="h-4 w-4" style={{ color }} />
+      </div>
+      <span className="text-[12.5px] font-semibold flex-1" style={{ color: "var(--ink-700)" }}>
+        {isRTL ? labelAr : labelEn}
+      </span>
+      <ChevronRight className="h-3.5 w-3.5 opacity-30 group-hover:opacity-60 transition-opacity"
+        style={{ color: "var(--ink-700)" }} />
+    </Link>
+  );
+}
+
+/** Top item row */
+function TopItemRow({ item, rank, maxRev, fmt, isRTL }: any) {
+  const pct = maxRev > 0 ? (item.totalRevenue / maxRev) * 100 : 0;
+  const rankColor = rank === 1 ? "#f59e0b" : rank === 2 ? "#94a3b8" : rank === 3 ? "#b45309" : "#cbd5e1";
+  const barColor  = rank === 1 ? "#f59e0b" : rank <= 3 ? "#6366f1" : "#cbd5e1";
+
+  return (
+    <div className="flex items-center gap-3 py-2.5 border-b last:border-0" style={{ borderColor: "var(--ink-100)" }}>
+      <div className="w-6 h-6 rounded-full flex items-center justify-center text-[10px] font-black shrink-0"
+        style={{ background: `${rankColor}20`, color: rankColor }}>
+        {rank}
+      </div>
+      <div className="flex-1 min-w-0">
+        <div className="text-[12.5px] font-semibold truncate" style={{ color: "var(--ink-900)" }}>
+          {isRTL ? item.nameAr : item.nameEn}
+        </div>
+        <div className="mt-1 h-1.5 rounded-full overflow-hidden" style={{ background: "var(--ink-100)" }}>
+          <div className="h-full rounded-full" style={{ width: `${pct}%`, background: barColor, transition: "width 0.8s ease" }} />
+        </div>
+      </div>
+      <div className="text-end shrink-0">
+        <div className="text-[12px] font-bold tabular-nums" style={{ color: "var(--ink-900)" }}>
+          {fmt(item.totalRevenue)}
+        </div>
+        <div className="text-[10.5px]" style={{ color: "var(--ink-400)" }}>
+          ×{item.totalQty.toFixed(0)}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/** Section header */
+function SectionHeader({ title, subtitle, icon: Icon, accent, action }: any) {
+  return (
+    <div className="flex items-center justify-between mb-4">
+      <div className="flex items-center gap-2.5">
+        <div className="h-7 w-7 rounded-lg flex items-center justify-center shrink-0"
+          style={{ background: `${accent}15` }}>
+          <Icon className="h-3.5 w-3.5" style={{ color: accent }} />
+        </div>
+        <div>
+          <h3 className="text-[14px] font-bold" style={{ color: "var(--ink-900)" }}>{title}</h3>
+          {subtitle && <p className="text-[10.5px]" style={{ color: "var(--ink-400)" }}>{subtitle}</p>}
+        </div>
+      </div>
+      {action}
+    </div>
+  );
+}
+
+/** Section card wrapper */
+function Card({ children, className = "", style = {} }: { children: React.ReactNode; className?: string; style?: React.CSSProperties }) {
+  return (
+    <div className={`bg-white rounded-2xl overflow-hidden ${className}`}
+      style={{ border: "1px solid var(--ink-100)", boxShadow: "0 1px 4px rgba(0,0,0,0.05)", ...style }}>
+      {children}
+    </div>
+  );
+}
+
+// ─── Custom chart tooltip ─────────────────────────────────────────────────────
+function ChartTip({ active, payload, label, fmt }: any) {
+  if (!active || !payload?.length) return null;
+  return (
+    <div className="rounded-xl px-3 py-2.5 shadow-xl text-[12px]"
+      style={{ background: "white", border: "1px solid var(--ink-200)" }}>
+      <p className="font-bold mb-1.5" style={{ color: "var(--ink-700)" }}>{label}</p>
+      {payload.map((p: any) => (
+        <div key={p.name} className="flex items-center gap-1.5 mb-0.5">
+          <div className="h-2 w-2 rounded-full" style={{ background: p.color }} />
+          <span style={{ color: "var(--ink-500)" }}>{p.name}:</span>
+          <span className="font-bold" style={{ color: "var(--ink-900)" }}>{fmt(p.value)}</span>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+// ─── Main Page ────────────────────────────────────────────────────────────────
 export default function DashboardPage() {
   const { t, formatCurrency, formatDate, lang } = useI18n();
   const isRTL = lang === "ar";
@@ -116,473 +293,342 @@ export default function DashboardPage() {
   const companies = useQuery(api.seed.getCompanies, {}) ?? [];
   const companyId = companies[0]?._id;
 
-  const today = todayISO();
+  const today    = todayISO();
   const branchArg = selectedBranch !== "all" ? selectedBranch : undefined;
 
-  const stats = useQuery(
-    api.dashboard.getDashboardStats,
-    companyId ? { companyId, date: today, branchId: branchArg } : "skip"
-  );
+  const stats    = useQuery(api.dashboard.getDashboardStats,
+    companyId ? { companyId, date: today, branchId: branchArg } : "skip");
+  const extended = useQuery(api.dashboard.getDashboardExtended,
+    companyId ? { companyId, today } : "skip");
+  const activity = useQuery(api.dashboard.getRecentActivity,
+    companyId ? { companyId, limit: 8 } : "skip");
+  const firstOfMonth = today.slice(0, 7) + "-01";
+  const topItems = useQuery(api.dashboard.getTopSellingItems,
+    companyId ? { companyId, fromDate: firstOfMonth, toDate: today, limit: 6 } : "skip") ?? [];
 
-  const extended = useQuery(
-    api.dashboard.getDashboardExtended,
-    companyId ? { companyId, today } : "skip"
-  );
-
-  const activity: ActivityItem[] | undefined = useQuery(
-    api.dashboard.getRecentActivity,
-    companyId ? { companyId, limit: 10 } : "skip"
-  );
-
-  const numFmt = (n: number) => n.toLocaleString("en-US");
-  const moneyFmt = (n: number) => formatCurrency(n);
-
-  const isLoading = !!companyId && stats === undefined;
+  const isLoading  = !!companyId && stats    === undefined;
   const extLoading = !!companyId && extended === undefined;
 
-  // ── Alert items ────────────────────────────────────────────────────────────
-  const alerts: { key: string; count: number; amount?: number; color: string; icon: any; href: string }[] = [];
-  if ((extended?.overdueCount ?? 0) > 0) {
-    alerts.push({
-      key: "kpiOverdueInvoices",
-      count: extended!.overdueCount,
-      amount: extended!.overdueAmount,
-      color: "#dc2626",
-      icon: AlertTriangle,
-      href: "/sales/invoices",
-    });
-  }
-  if ((extended?.lowStockCount ?? 0) > 0) {
-    alerts.push({
-      key: "kpiLowStock",
-      count: extended!.lowStockCount,
-      color: "#d97706",
-      icon: AlertCircle,
-      href: "/inventory/items",
-    });
-  }
-  if ((stats?.pendingInvoices ?? 0) > 0) {
-    alerts.push({
-      key: "kpiPendingAll",
-      count: (stats?.pendingInvoices ?? 0) + (extended?.pendingPurchases ?? 0),
-      color: "#7c3aed",
-      icon: AlertCircle,
-      href: "/sales/invoices",
-    });
-  }
+  const fmt = (n: number) => formatCurrency(n);
 
-  // ── Chart data ─────────────────────────────────────────────────────────────
-  const chartData = (extended?.sevenDayTrend ?? []).map((d) => ({
-    date: shortDate(d.date, lang),
-    [t("chartSalesLabel")]:    Math.round(d.sales),
-    [t("chartReceiptsLabel")]: Math.round(d.receipts),
-    [t("chartPaymentsLabel")]: Math.round(d.payments),
-  }));
+  // Chart data
+  const chartData = useMemo(() =>
+    (extended?.sevenDayTrend ?? []).map((d) => ({
+      date:     shortDate(d.date, lang),
+      [isRTL ? "مبيعات" : "Sales"]:    Math.round(d.sales),
+      [isRTL ? "تحصيل" : "Receipts"]:  Math.round(d.receipts),
+    })),
+  [extended, lang, isRTL]);
 
-  const totalInflow7d = (extended?.sevenDayTrend ?? []).reduce((acc, d) => acc + d.receipts, 0);
-  const totalOutflow7d = (extended?.sevenDayTrend ?? []).reduce((acc, d) => acc + d.payments, 0);
-  const scheduledPaymentsAmount = extended?.pendingPurchasesAmount ?? 0;
-  const maxCashFlow = Math.max(totalInflow7d, totalOutflow7d, scheduledPaymentsAmount, 1);
+  // Cash flow bar data
+  const cashData = useMemo(() => {
+    const inflow  = (extended?.sevenDayTrend ?? []).reduce((s,d) => s + d.receipts, 0);
+    const outflow = (extended?.sevenDayTrend ?? []).reduce((s,d) => s + d.payments, 0);
+    const sched   = extended?.pendingPurchasesAmount ?? 0;
+    return [
+      { name: isRTL ? "داخل" : "Inflow",   value: inflow,  color: "#10b981" },
+      { name: isRTL ? "خارج" : "Outflow",  value: outflow, color: "#f43f5e" },
+      { name: isRTL ? "مجدولة" : "Sched.", value: sched,   color: "#f59e0b" },
+    ];
+  }, [extended, isRTL]);
 
-  // ── Quick actions ──────────────────────────────────────────────────────────
-  const quick = [
-    { href: "/sales/invoices?new=true",      icon: ShoppingCart, key: "newInvoice" },
-    { href: "/treasury/receipts?new=true",   icon: Banknote,     key: "newReceipt" },
-    { href: "/treasury/payments?new=true",   icon: CreditCard,   key: "newPayment" },
-    { href: "/purchases/grn?new=true",       icon: Warehouse,    key: "newGRN" },
-    { href: "/finance/journal-entries?new=true", icon: FileText, key: "newJournal" },
-    { href: "/sales/customers?new=true",     icon: Users,        key: "newCustomer" },
+  // Alerts
+  const alerts = useMemo(() => {
+    const out: { key: string; text: string; amount?: number; color: string; icon: any; href: string }[] = [];
+    if ((extended?.overdueCount ?? 0) > 0)
+      out.push({ key: "overdue", text: isRTL ? `${extended!.overdueCount} فاتورة متأخرة` : `${extended!.overdueCount} overdue invoices`,
+        amount: extended!.overdueAmount, color: "#dc2626", icon: AlertTriangle, href: "/sales/invoices" });
+    if ((extended?.lowStockCount ?? 0) > 0)
+      out.push({ key: "stock", text: isRTL ? `${extended!.lowStockCount} صنف منخفض المخزون` : `${extended!.lowStockCount} low stock items`,
+        color: "#d97706", icon: AlertCircle, href: "/inventory/low-stock" });
+    return out;
+  }, [extended, isRTL]);
+
+  const netFlow    = (stats?.todayReceipts ?? 0) - (stats?.todayPayments ?? 0);
+  const maxTopRev  = topItems[0]?.totalRevenue ?? 1;
+
+  // Quick actions
+  const quickActions = [
+    { href: "/sales/invoices?new=true",       icon: ShoppingCart, labelAr: "فاتورة مبيعات جديدة", labelEn: "New Sales Invoice", color: "#6366f1" },
+    { href: "/treasury/receipts?new=true",    icon: Banknote,     labelAr: "إيصال قبض جديد",      labelEn: "New Cash Receipt",   color: "#10b981" },
+    { href: "/treasury/payments?new=true",    icon: CreditCard,   labelAr: "سند صرف جديد",        labelEn: "New Payment",        color: "#f43f5e" },
+    { href: "/purchases/grn?new=true",        icon: Warehouse,    labelAr: "استلام بضاعة جديد",   labelEn: "New GRN",            color: "#8b5cf6" },
+    { href: "/finance/journal-entries?new=true", icon: FileText,  labelAr: "قيد يومية",           labelEn: "Journal Entry",      color: "#f59e0b" },
+    { href: "/sales/customers?new=true",      icon: Users,        labelAr: "عميل جديد",           labelEn: "New Customer",       color: "#06b6d4" },
   ];
 
-  const netCashFlow = (stats?.todayReceipts ?? 0) - (stats?.todayPayments ?? 0);
+  // Greeting
+  const hour = new Date().getHours();
+  const greeting = isRTL
+    ? (hour < 12 ? "صباح الخير" : hour < 17 ? "مساء الخير" : "مساء الخير")
+    : (hour < 12 ? "Good Morning" : hour < 17 ? "Good Afternoon" : "Good Evening");
 
   return (
-    <div className="space-y-6 max-w-[1400px] mx-auto">
+    <div className="space-y-5 max-w-[1440px] mx-auto" dir={isRTL ? "rtl" : "ltr"}>
 
-      {/* ── Page header ─────────────────────────────────────────────────────── */}
-      <div className="flex flex-wrap items-end justify-between gap-4 mb-2">
+      {/* ── Header ──────────────────────────────────────────────────────────── */}
+      <div className="flex flex-wrap items-center justify-between gap-4">
         <div>
-          <div className="flex items-center gap-2 text-[10px] font-bold uppercase tracking-wider text-[color:var(--ink-400)] mb-1">
-            <span>{t("navQuickAccess") ?? "Home"}</span>
-            <span className="text-[color:var(--ink-300)]">/</span>
-            <span className="text-[color:var(--brand-700)]">{t("dashboardTitle")}</span>
+          <div className="text-[11px] font-semibold uppercase tracking-widest mb-1"
+            style={{ color: "var(--ink-400)" }}>
+            {isRTL ? "لوحة التحكم" : "Dashboard"}
           </div>
-          <h1 className="text-3xl font-bold tracking-tight text-[color:var(--ink-900)]">
-            {t("dashboardTitle")}
+          <h1 className="text-[26px] font-bold leading-tight" style={{ color: "var(--ink-900)" }}>
+            {greeting} 👋
           </h1>
-          <p className="mt-1 text-sm text-[color:var(--ink-500)]">
-            {t("dashboardSubtitle")}
+          <p className="text-[13px] mt-0.5" style={{ color: "var(--ink-500)" }}>
+            {isRTL
+              ? "هذا ملخص نشاطك المالي اليوم"
+              : "Here's your financial activity overview for today"}
           </p>
         </div>
-        <div className="flex items-center gap-2 text-[13px] text-[color:var(--ink-700)] bg-white border border-[color:var(--ink-200)] rounded-xl px-3.5 py-2 shadow-sm font-medium cursor-default">
-          <CalendarDays className="h-4 w-4 text-[color:var(--ink-400)]" />
-          <span>{formatDate(new Date())}</span>
-          <ChevronDown className="h-3.5 w-3.5 text-[color:var(--ink-400)] ms-1" />
+        <div className="flex items-center gap-2">
+          {/* Date chip */}
+          <div className="flex items-center gap-2 text-[12.5px] font-semibold px-3.5 py-2 rounded-xl bg-white"
+            style={{ border: "1px solid var(--ink-200)", color: "var(--ink-700)", boxShadow: "0 1px 3px rgba(0,0,0,0.05)" }}>
+            <CalendarDays className="h-3.5 w-3.5" style={{ color: "var(--ink-400)" }} />
+            {formatDate(new Date())}
+          </div>
         </div>
       </div>
 
-      {/* ── Alert bar ───────────────────────────────────────────────────────── */}
+      {/* ── Alert strip ──────────────────────────────────────────────────────── */}
       {!extLoading && alerts.length > 0 && (
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-          {alerts.map((alert) => {
-            const Icon = alert.icon;
-            return (
-              <Link
-                key={alert.key}
-                href={alert.href}
-                className="flex items-center gap-3 px-4 py-3 rounded-[14px] border text-[13px] font-semibold transition-all hover:shadow-md bg-white"
-                style={{
-                  borderColor: `color-mix(in srgb, ${alert.color} 25%, transparent)`,
-                  borderLeft: `4px solid ${alert.color}`,
-                }}
-              >
-                <div className="h-8 w-8 rounded-full flex items-center justify-center shrink-0" style={{ background: `color-mix(in srgb, ${alert.color} 12%, white)` }}>
-                  <Icon className="h-4 w-4" style={{ color: alert.color }} />
-                </div>
-                <span className="text-[color:var(--ink-800)]">
-                  {numFmt(alert.count)} {t(alert.key as any)}
-                  {alert.amount !== undefined && alert.amount > 0 && (
-                    <span className="ms-1 font-bold text-[color:var(--ink-900)] tabular-nums">— {moneyFmt(alert.amount)}</span>
-                  )}
-                </span>
-                <ArrowUpRight className="ms-auto h-3.5 w-3.5 shrink-0 opacity-40" />
-              </Link>
-            );
-          })}
+        <div className="flex flex-wrap gap-2">
+          {alerts.map((a) => (
+            <Link key={a.key} href={a.href}
+              className="inline-flex items-center gap-2 px-3.5 py-2 rounded-xl text-[12px] font-semibold transition-all hover:shadow-md"
+              style={{
+                background: `${a.color}08`,
+                border: `1px solid ${a.color}30`,
+                color: a.color,
+              }}>
+              <a.icon className="h-3.5 w-3.5 shrink-0" />
+              {a.text}
+              {a.amount !== undefined && a.amount > 0 && (
+                <span className="font-bold">— {fmt(a.amount)}</span>
+              )}
+              <ArrowUpRight className="h-3 w-3 opacity-60" />
+            </Link>
+          ))}
         </div>
       )}
 
-      {/* ── Financial KPIs (AR / AP / Cash / Net Flow) ──────────────────────── */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        <FinancialKPI
-          title={t("kpiAROutstanding")}
-          value={extended?.arOutstanding}
-          accent="#10b981"
-          icon={TrendingUp}
-          loading={extLoading}
-          moneyFmt={moneyFmt}
-        />
-        <FinancialKPI
-          title={t("kpiAPOutstanding")}
-          value={extended?.apOutstanding}
-          accent="#8b5cf6"
-          icon={TrendingDown}
-          loading={extLoading}
-          moneyFmt={moneyFmt}
-        />
-        <FinancialKPI
-          title={t("kpiCashBalance")}
-          value={stats?.cashOnHand}
-          accent="#3b82f6"
-          icon={Landmark}
-          loading={isLoading}
-          moneyFmt={moneyFmt}
-        />
-        <FinancialKPI
-          title={t("kpiNetCashFlow")}
-          value={netCashFlow}
-          accent="#f43f5e"
-          icon={BarChart3}
-          loading={isLoading}
-          moneyFmt={moneyFmt}
-        />
+      {/* ── Row 1: Financial KPIs ─────────────────────────────────────────────── */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
+        <FinKpi label={isRTL ? "مستحقات العملاء" : "AR Outstanding"}
+          value={extended?.arOutstanding} accent="#10b981" icon={TrendingUp}
+          loading={extLoading} fmt={fmt}
+          hint={isRTL ? "إجمالي الفواتير غير المسددة" : "Total unpaid invoices"} />
+        <FinKpi label={isRTL ? "مستحقات الموردين" : "AP Outstanding"}
+          value={extended?.apOutstanding} accent="#8b5cf6" icon={TrendingDown}
+          loading={extLoading} fmt={fmt}
+          hint={isRTL ? "مشتريات غير مسددة" : "Unpaid purchases"} />
+        <FinKpi label={isRTL ? "الرصيد النقدي" : "Cash Balance"}
+          value={stats?.cashOnHand} accent="#3b82f6" icon={Landmark}
+          loading={isLoading} fmt={fmt}
+          hint={isRTL ? "نقداً وبنوك" : "Cash & banks combined"} />
+        <FinKpi label={isRTL ? "صافي التدفق النقدي" : "Net Cash Flow"}
+          value={netFlow} accent={netFlow >= 0 ? "#f59e0b" : "#f43f5e"} icon={BarChart3}
+          loading={isLoading} fmt={fmt}
+          hint={isRTL ? "قبض – صرف اليوم" : "Today: receipts – payments"} />
       </div>
 
-      {/* ── Operational KPIs (Today's) ───────────────────────────────────────── */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-        <OperationalKPI title={t("kpiSalesToday")}    value={stats?.todaySales}    icon={TrendingUp} accent="#10b981" loading={isLoading} moneyFmt={moneyFmt}
-          deltaVsYesterday={extLoading ? undefined : calcDelta(stats?.todaySales ?? 0, extended?.yesterdaySales ?? 0)} />
-        <OperationalKPI title={t("kpiReceipts")}      value={stats?.todayReceipts} icon={Banknote}   accent="#3b82f6" loading={isLoading} moneyFmt={moneyFmt}
-          deltaVsYesterday={extLoading ? undefined : calcDelta(stats?.todayReceipts ?? 0, extended?.yesterdayReceipts ?? 0)} />
-        <OperationalKPI title={t("kpiPaymentsToday")} value={stats?.todayPayments} icon={CreditCard} accent="#8b5cf6" loading={isLoading} moneyFmt={moneyFmt}
-          deltaVsYesterday={extLoading ? undefined : calcDelta(stats?.todayPayments ?? 0, extended?.yesterdayPayments ?? 0)} />
-        <OperationalKPI title={t("kpiCustomers")}     value={stats?.customerCount} icon={Users}      accent="#f59e0b" loading={isLoading} moneyFmt={moneyFmt} count />
+      {/* ── Row 2: Today KPIs ─────────────────────────────────────────────────── */}
+      <div className="grid grid-cols-2 xl:grid-cols-4 gap-3">
+        <TodayKpi label={isRTL ? "مبيعات اليوم" : "Today's Sales"}
+          value={stats?.todaySales} icon={TrendingUp} accent="#6366f1"
+          loading={isLoading} fmt={fmt}
+          delta={extLoading ? undefined : calcDelta(stats?.todaySales ?? 0, extended?.yesterdaySales ?? 0)} />
+        <TodayKpi label={isRTL ? "تحصيلات اليوم" : "Today's Receipts"}
+          value={stats?.todayReceipts} icon={Banknote} accent="#10b981"
+          loading={isLoading} fmt={fmt}
+          delta={extLoading ? undefined : calcDelta(stats?.todayReceipts ?? 0, extended?.yesterdayReceipts ?? 0)} />
+        <TodayKpi label={isRTL ? "مدفوعات اليوم" : "Today's Payments"}
+          value={stats?.todayPayments} icon={CreditCard} accent="#f43f5e"
+          loading={isLoading} fmt={fmt}
+          delta={extLoading ? undefined : calcDelta(stats?.todayPayments ?? 0, extended?.yesterdayPayments ?? 0)} />
+        <TodayKpi label={isRTL ? "إجمالي العملاء" : "Total Customers"}
+          value={stats?.customerCount} icon={Users} accent="#f59e0b"
+          loading={isLoading} fmt={fmt} count />
       </div>
 
-      {/* ── Charts ──────────────────────────────────────────────────────────── */}
+      {/* ── Row 3: Charts ────────────────────────────────────────────────────── */}
       {!extLoading && chartData.length > 0 && (
-        <div className="grid grid-cols-1 lg:grid-cols-5 gap-6">
-          {/* Sales & Receipts trend */}
-          <div className="bg-white rounded-[16px] p-6 lg:col-span-3 shadow-sm flex flex-col" style={{ border: "1px solid var(--ink-100)" }}>
-            <h3 className="text-[15px] font-bold text-[color:var(--ink-900)] mb-6">
-              {t("chartSalesTrend")} (7 {t("days")})
-            </h3>
-            <div className="flex-1 min-h-[240px]">
+        <div className="grid grid-cols-1 lg:grid-cols-5 gap-4">
+
+          {/* Area chart — 3/5 */}
+          <Card className="lg:col-span-3 p-5 flex flex-col">
+            <SectionHeader
+              title={isRTL ? "تحليل المبيعات والتحصيل (7 أيام)" : "Sales & Receipts Trend (7 days)"}
+              icon={TrendingUp} accent="#6366f1"
+              action={
+                <Link href="/reports/sales-report"
+                  className="text-[11.5px] font-semibold px-2.5 py-1 rounded-lg transition-colors hover:bg-[var(--ink-50)]"
+                  style={{ color: "var(--brand-600)" }}>
+                  {isRTL ? "تقرير ← " : "→ Report"}
+                </Link>
+              }
+            />
+            <div style={{ height: 220 }}>
               <ResponsiveContainer width="100%" height="100%">
-                <AreaChart data={chartData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
+                <AreaChart data={chartData} margin={{ top: 4, right: 4, left: -24, bottom: 0 }}>
                   <defs>
-                    <linearGradient id="salesGrad" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="5%"  stopColor="#4f46e5" stopOpacity={0.15} />
-                      <stop offset="95%" stopColor="#4f46e5" stopOpacity={0} />
+                    <linearGradient id="gSales" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="0%" stopColor="#6366f1" stopOpacity={0.18} />
+                      <stop offset="100%" stopColor="#6366f1" stopOpacity={0} />
                     </linearGradient>
-                    <linearGradient id="receiptsGrad" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="5%"  stopColor="#10b981" stopOpacity={0.15} />
-                      <stop offset="95%" stopColor="#10b981" stopOpacity={0} />
+                    <linearGradient id="gReceipts" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="0%" stopColor="#10b981" stopOpacity={0.18} />
+                      <stop offset="100%" stopColor="#10b981" stopOpacity={0} />
                     </linearGradient>
                   </defs>
-                  <CartesianGrid strokeDasharray="4 4" vertical={false} stroke="var(--ink-100)" />
-                  <XAxis dataKey="date" tick={{ fontSize: 11, fill: "var(--ink-400)" }} tickLine={false} axisLine={false} dy={10} />
-                  <YAxis tick={{ fontSize: 11, fill: "var(--ink-400)" }} tickLine={false} axisLine={false} tickFormatter={(v) => v === 0 ? "0" : `${(v/1000).toFixed(0)}k`} />
-                  <Tooltip
-                    contentStyle={{ fontSize: 12, borderRadius: 12, border: "1px solid var(--ink-200)", boxShadow: "0 4px 12px rgba(0,0,0,0.05)" }}
-                    formatter={(value: number) => moneyFmt(value)}
-                  />
-                  <Legend wrapperStyle={{ fontSize: 12, paddingTop: 10 }} iconType="circle" />
-                  <Area type="monotone" dataKey={t("chartSalesLabel")}    stroke="#4f46e5" strokeWidth={3} fill="url(#salesGrad)" activeDot={{ r: 6, strokeWidth: 0 }} />
-                  <Area type="monotone" dataKey={t("chartReceiptsLabel")} stroke="#10b981" strokeWidth={3} fill="url(#receiptsGrad)" activeDot={{ r: 6, strokeWidth: 0 }} />
+                  <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="var(--ink-100)" />
+                  <XAxis dataKey="date" tick={{ fontSize: 10.5, fill: "var(--ink-400)" }} tickLine={false} axisLine={false} dy={6} />
+                  <YAxis tick={{ fontSize: 10.5, fill: "var(--ink-400)" }} tickLine={false} axisLine={false}
+                    tickFormatter={(v) => v >= 1000 ? `${(v/1000).toFixed(0)}k` : `${v}`} />
+                  <Tooltip content={<ChartTip fmt={fmt} />} />
+                  <Area type="monotone" dataKey={isRTL ? "مبيعات" : "Sales"}
+                    stroke="#6366f1" strokeWidth={2.5} fill="url(#gSales)" dot={false} activeDot={{ r: 5, strokeWidth: 0 }} />
+                  <Area type="monotone" dataKey={isRTL ? "تحصيل" : "Receipts"}
+                    stroke="#10b981" strokeWidth={2.5} fill="url(#gReceipts)" dot={false} activeDot={{ r: 5, strokeWidth: 0 }} />
                 </AreaChart>
               </ResponsiveContainer>
             </div>
-          </div>
-
-          {/* Cash Flow Horizontal Bars */}
-          <div className="bg-white rounded-[16px] p-6 lg:col-span-2 shadow-sm flex flex-col justify-between" style={{ border: "1px solid var(--ink-100)" }}>
-            <h3 className="text-[15px] font-bold text-[color:var(--ink-900)] mb-6">
-              {t("chartCashFlow")} (7 {t("days")})
-            </h3>
-            
-            <div className="space-y-6 flex-1 py-2">
-              <CashFlowBar label={isRTL ? "التدفقات النقدية الداخلة" : "Inflow"} value={totalInflow7d} max={maxCashFlow} color="#10b981" moneyFmt={moneyFmt} />
-              <CashFlowBar label={isRTL ? "التدفقات النقدية الخارجة" : "Outflow"} value={totalOutflow7d} max={maxCashFlow} color="#ef4444" moneyFmt={moneyFmt} />
-              <CashFlowBar label={isRTL ? "الدفعات المجدولة" : "Scheduled Payments"} value={scheduledPaymentsAmount} max={maxCashFlow} color="#f59e0b" moneyFmt={moneyFmt} />
+            {/* Legend */}
+            <div className="flex items-center gap-5 mt-3 justify-center">
+              {[{ color: "#6366f1", label: isRTL ? "مبيعات" : "Sales" }, { color: "#10b981", label: isRTL ? "تحصيل" : "Receipts" }].map((l) => (
+                <div key={l.label} className="flex items-center gap-1.5 text-[11.5px]" style={{ color: "var(--ink-500)" }}>
+                  <div className="h-2.5 w-2.5 rounded-full" style={{ background: l.color }} />
+                  {l.label}
+                </div>
+              ))}
             </div>
+          </Card>
 
-            <div className="mt-6 pt-4 flex items-start gap-3 rounded-xl bg-[color:var(--ink-50)] p-4 border border-[color:var(--ink-100)]">
-              <div className="h-6 w-6 rounded-full bg-white flex items-center justify-center shrink-0 shadow-sm">
-                <Info className="h-3.5 w-3.5 text-[color:var(--ink-700)]" />
-              </div>
-              <div>
-                <p className="text-[12px] font-bold text-[color:var(--ink-900)] mb-0.5">{isRTL ? "حالة النقدية: يعتمد على التحصيل" : "Cash Health: Data-driven"}</p>
-                <p className="text-[11px] text-[color:var(--ink-500)] leading-relaxed">
-                  {isRTL ? "تعكس هذه المؤشرات حركات الدفع والقبض الفعّالة خلال الأسبوع الماضي." : "These indicators reflect the actual cash in/out movements over the past week."}
-                </p>
-              </div>
+          {/* Cash flow bars — 2/5 */}
+          <Card className="lg:col-span-2 p-5 flex flex-col">
+            <SectionHeader
+              title={isRTL ? "التدفق النقدي (7 أيام)" : "Cash Flow (7 days)"}
+              icon={BarChart3} accent="#f59e0b"
+            />
+            <div className="flex-1" style={{ minHeight: 160 }}>
+              <ResponsiveContainer width="100%" height="100%">
+                <BarChart data={cashData} layout="vertical" margin={{ top: 0, right: 60, left: 0, bottom: 0 }}>
+                  <XAxis type="number" hide />
+                  <YAxis type="category" dataKey="name" width={55}
+                    tick={{ fontSize: 11, fill: "var(--ink-500)" }} tickLine={false} axisLine={false} />
+                  <Tooltip formatter={(v: number) => fmt(v)} contentStyle={{ fontSize: 12, borderRadius: 10, border: "1px solid var(--ink-200)" }} />
+                  <Bar dataKey="value" radius={[0, 6, 6, 0]} barSize={22}>
+                    {cashData.map((d, i) => <Cell key={i} fill={d.color} fillOpacity={0.85} />)}
+                  </Bar>
+                </BarChart>
+              </ResponsiveContainer>
             </div>
-          </div>
+            {/* Summary */}
+            <div className="mt-4 rounded-xl p-3 flex items-start gap-2"
+              style={{ background: "var(--ink-50)", border: "1px solid var(--ink-100)" }}>
+              <Info className="h-3.5 w-3.5 shrink-0 mt-0.5" style={{ color: "var(--ink-400)" }} />
+              <p className="text-[11px] leading-relaxed" style={{ color: "var(--ink-500)" }}>
+                {isRTL
+                  ? "يعكس هذا الرسم حركات النقد الفعلية خلال آخر 7 أيام."
+                  : "Reflects actual cash movements over the last 7 days."}
+              </p>
+            </div>
+          </Card>
         </div>
       )}
 
-      {/* ── Bottom: Quick actions + Recent activity ──────────────────────────── */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Quick actions */}
-        <div className="bg-white rounded-[16px] p-6 lg:col-span-1 shadow-sm flex flex-col" style={{ border: "1px solid var(--ink-100)" }}>
-          <h3 className="text-[15px] font-bold text-[color:var(--ink-900)] mb-5">
-            {t("quickActions")}
-          </h3>
-          <div className="space-y-1">
-            {quick.map(({ href, icon: Icon, key }) => (
-              <Link
-                key={href}
-                href={href}
-                className="group flex items-center gap-4 px-3 py-3 rounded-xl hover:bg-[color:var(--ink-50)] transition-all"
-              >
-                <div
-                  className="h-10 w-10 rounded-[12px] flex items-center justify-center shrink-0 bg-[color:var(--ink-50)] group-hover:bg-white group-hover:shadow-sm transition-all"
-                  style={{ color: "var(--ink-600)", border: "1px solid var(--ink-100)" }}
-                >
-                  <Icon className="h-[18px] w-[18px]" />
-                </div>
-                <span className="text-[13px] font-semibold text-[color:var(--ink-700)] group-hover:text-[color:var(--ink-900)] flex-1">
-                  {t(key as any)}
-                </span>
-                <ChevronRight className="h-4 w-4 text-[color:var(--ink-300)] group-hover:text-[color:var(--ink-500)] shrink-0 transition-transform group-hover:translate-x-0.5" />
-              </Link>
-            ))}
-          </div>
-        </div>
+      {/* ── Row 4: Quick Actions + Recent Activity ────────────────────────────── */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
 
-        {/* Recent activity */}
-        <div className="bg-white rounded-[16px] p-0 lg:col-span-2 shadow-sm flex flex-col overflow-hidden" style={{ border: "1px solid var(--ink-100)" }}>
-          <div className="p-6 pb-4 flex items-center justify-between border-b border-[color:var(--ink-100)]">
-            <h3 className="text-[15px] font-bold text-[color:var(--ink-900)]">
-              {t("recentActivity")}
-            </h3>
-            <Link href="/finance/journal-entries" className="text-[12px] font-semibold text-[color:var(--brand-600)] hover:text-[color:var(--brand-700)]">
-              {isRTL ? "عرض الكل" : "View All"}
+        {/* Quick Actions */}
+        <Card className="p-5 flex flex-col">
+          <SectionHeader
+            title={isRTL ? "إجراءات سريعة" : "Quick Actions"}
+            icon={Zap} accent="#f59e0b"
+          />
+          <div className="space-y-1.5 flex-1">
+            {quickActions.map((a) => <QuickBtn key={a.href} {...a} isRTL={isRTL} />)}
+          </div>
+        </Card>
+
+        {/* Recent Activity */}
+        <Card className="lg:col-span-2 flex flex-col overflow-hidden">
+          <div className="flex items-center justify-between px-5 pt-5 pb-4"
+            style={{ borderBottom: "1px solid var(--ink-100)" }}>
+            <div className="flex items-center gap-2.5">
+              <div className="h-7 w-7 rounded-lg flex items-center justify-center" style={{ background: "#6366f115" }}>
+                <Circle className="h-3.5 w-3.5" style={{ color: "#6366f1" }} />
+              </div>
+              <h3 className="text-[14px] font-bold" style={{ color: "var(--ink-900)" }}>
+                {isRTL ? "النشاط الأخير" : "Recent Activity"}
+              </h3>
+            </div>
+            <Link href="/finance/journal-entries"
+              className="text-[11.5px] font-semibold px-2.5 py-1 rounded-lg hover:bg-[var(--ink-50)] transition-colors"
+              style={{ color: "var(--brand-600)" }}>
+              {isRTL ? "عرض الكل →" : "View All →"}
             </Link>
           </div>
 
-          {isLoading ? (
-            <div className="p-6"><ActivitySkeleton /></div>
-          ) : !activity || activity.length === 0 ? (
-            <div className="flex-1 flex flex-col items-center justify-center py-16 px-6 text-center bg-[color:var(--ink-50)]/50">
-              <div className="h-16 w-16 bg-white rounded-full flex items-center justify-center shadow-sm mb-4">
-                <Archive className="h-6 w-6 text-[color:var(--ink-300)]" />
+          <div className="flex-1 overflow-y-auto px-5" style={{ maxHeight: 360 }}>
+            {isLoading ? (
+              <div className="space-y-3 py-4 animate-pulse">
+                {[...Array(5)].map((_, i) => (
+                  <div key={i} className="flex items-center gap-3">
+                    <div className="h-7 w-7 rounded-lg bg-[var(--ink-100)] shrink-0" />
+                    <div className="flex-1 space-y-1.5">
+                      <div className="h-3 w-1/2 rounded bg-[var(--ink-100)]" />
+                      <div className="h-2.5 w-1/3 rounded bg-[var(--ink-50)]" />
+                    </div>
+                    <div className="h-3 w-16 rounded bg-[var(--ink-100)]" />
+                  </div>
+                ))}
               </div>
-              <p className="text-[14px] font-bold text-[color:var(--ink-800)] mb-1">{isRTL ? "لا توجد أنشطة حديثة" : "No recent activity"}</p>
-              <p className="text-[12px] text-[color:var(--ink-500)] max-w-xs">{isRTL ? "لم يتم تسجيل أي حركات مالية أو مخزنية حتى الآن في هذا النظام." : "No financial or inventory movements have been recorded yet in this system."}</p>
-            </div>
-          ) : (
-            <div className="overflow-x-auto">
-              <table className="w-full text-[13px]">
-                <thead>
-                  <tr className="bg-[color:var(--ink-50)]">
-                    <th className="px-6 py-3 text-start text-[10px] font-bold text-[color:var(--ink-400)] uppercase tracking-wider">{t("type")}</th>
-                    <th className="px-6 py-3 text-start text-[10px] font-bold text-[color:var(--ink-400)] uppercase tracking-wider">{t("description")}</th>
-                    <th className="px-6 py-3 text-start text-[10px] font-bold text-[color:var(--ink-400)] uppercase tracking-wider">{t("date")}</th>
-                    <th className="px-6 py-3 text-end text-[10px] font-bold text-[color:var(--ink-400)] uppercase tracking-wider">{t("amount")}</th>
-                    <th className="px-6 py-3 text-end text-[10px] font-bold text-[color:var(--ink-400)] uppercase tracking-wider">{t("status")}</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-[color:var(--ink-100)]">
-                  {activity.map((item, idx) => {
-                    const meta = TYPE_META[item.type] ?? TYPE_META.sales_invoice;
-                    const Icon = meta.icon;
-                    return (
-                      <tr key={`${item.type}-${item.documentNumber}-${idx}`} className="hover:bg-[color:var(--ink-50)]/50 transition-colors">
-                        <td className="px-6 py-4">
-                          <div className="flex flex-col">
-                            <span className="font-bold text-[color:var(--ink-900)] leading-none mb-1">{item.documentNumber}</span>
-                            <span className="text-[11px] text-[color:var(--ink-500)]">{t(meta.labelKey as any)}</span>
-                          </div>
-                        </td>
-                        <td className="px-6 py-4 text-[color:var(--ink-600)] max-w-[200px] truncate">{item.description}</td>
-                        <td className="px-6 py-4 text-[color:var(--ink-500)] whitespace-nowrap">{item.date}</td>
-                        <td className="px-6 py-4 text-end font-bold tabular-nums text-[color:var(--ink-900)] whitespace-nowrap">{moneyFmt(item.amount)}</td>
-                        <td className="px-6 py-4 text-end">
-                          <span
-                            className="inline-flex items-center px-2.5 py-1 rounded-md text-[10px] font-bold tracking-wide"
-                            style={{ background: meta.badgeBg, color: meta.badgeColor }}
-                          >
-                            {t("statusPosted") ?? "Posted"}
-                          </span>
-                        </td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
-            </div>
-          )}
-        </div>
+            ) : !activity || activity.length === 0 ? (
+              <div className="flex flex-col items-center justify-center py-14 text-center">
+                <Archive className="h-10 w-10 mb-3" style={{ color: "var(--ink-200)" }} />
+                <p className="text-[13px] font-semibold" style={{ color: "var(--ink-700)" }}>
+                  {isRTL ? "لا توجد أنشطة حديثة" : "No recent activity"}
+                </p>
+                <p className="text-[11.5px] mt-1 max-w-xs" style={{ color: "var(--ink-400)" }}>
+                  {isRTL ? "لم تُسجَّل حركات مالية بعد" : "No financial movements recorded yet"}
+                </p>
+              </div>
+            ) : (
+              <div className="divide-y" style={{ borderColor: "var(--ink-50)" }}>
+                {activity.map((item: any, idx: number) => (
+                  <ActivityRow key={`${item.type}-${item.documentNumber}-${idx}`} item={item} isRTL={isRTL} />
+                ))}
+              </div>
+            )}
+          </div>
+        </Card>
       </div>
-    </div>
-  );
-}
 
-// ── sub-components ────────────────────────────────────────────────────────────
-
-function FinancialKPI({
-  title, value, accent, icon: Icon, loading, moneyFmt, hint,
-}: {
-  title: string; value: number | undefined; accent: string; icon: any;
-  loading: boolean; moneyFmt: (n: number) => string; hint?: string;
-}) {
-  const { lang } = useI18n();
-  const defaultHint = lang === "ar" ? "مقارنة بالفترة السابقة: —" : "v.s. last period: —";
-
-  return (
-    <div
-      className="bg-white rounded-[16px] p-5 relative overflow-hidden flex flex-col justify-between shadow-sm"
-      style={{ border: "1px solid var(--ink-100)" }}
-    >
-      <div className="absolute top-0 left-0 right-0 h-1" style={{ background: accent }} />
-      
-      <div className="flex items-center justify-between mb-4">
-        <div
-          className="h-10 w-10 rounded-[12px] flex items-center justify-center shrink-0"
-          style={{ background: `color-mix(in srgb, ${accent} 12%, white)` }}
-        >
-          <Icon className="h-5 w-5" style={{ color: accent }} />
-        </div>
-        <div 
-          className="px-2.5 py-1 rounded-full text-[11px] font-bold tracking-wider bg-[color:var(--ink-50)] text-[color:var(--ink-400)]"
-        >
-          —
-        </div>
-      </div>
-      
-      <div className="text-[11px] font-bold uppercase tracking-wider text-[color:var(--ink-500)] mb-1">
-        {title}
-      </div>
-      <div className="text-[26px] leading-[1.1] font-bold tabular-nums text-[color:var(--ink-900)] mb-1.5 mt-0.5">
-        {loading || value === undefined ? "—" : moneyFmt(value)}
-      </div>
-      <div className="text-[11px] font-medium text-[color:var(--ink-400)]">
-        {hint ?? defaultHint}
-      </div>
-    </div>
-  );
-}
-
-function OperationalKPI({
-  title, value, icon: Icon, accent, loading, moneyFmt, count = false,
-  deltaVsYesterday,
-}: {
-  title: string; value: number | undefined; icon: any; accent: string;
-  loading: boolean; moneyFmt: (n: number) => string; count?: boolean;
-  deltaVsYesterday?: number | null;
-}) {
-  const displayVal = loading || value === undefined
-    ? "—"
-    : count
-      ? value.toLocaleString("en-US")
-      : moneyFmt(value);
-
-  return (
-    <div className="bg-white rounded-[16px] px-5 py-4 flex flex-col justify-center shadow-sm"
-      style={{ border: "1px solid var(--ink-100)" }}>
-      <div className="flex items-center gap-3 mb-2">
-        <div
-          className="h-8 w-8 rounded-full flex items-center justify-center shrink-0"
-          style={{ background: `color-mix(in srgb, ${accent} 10%, white)`, color: accent }}
-        >
-          <Icon className="h-[15px] w-[15px]" />
-        </div>
-        <div className="text-[10px] font-bold uppercase tracking-wider text-[color:var(--ink-400)] leading-tight">{title}</div>
-      </div>
-      <div className="text-[19px] font-bold tabular-nums text-[color:var(--ink-900)] ps-11">
-        {displayVal}
-      </div>
-      {!loading && !count && deltaVsYesterday !== undefined && (
-        <div className="mt-0.5 ps-11">
-          <DeltaBadge delta={deltaVsYesterday} />
-        </div>
+      {/* ── Row 5: Top Selling Items ──────────────────────────────────────────── */}
+      {topItems.length > 0 && (
+        <Card className="p-5">
+          <SectionHeader
+            title={isRTL ? "أكثر الأصناف مبيعاً — هذا الشهر" : "Top Selling Items — This Month"}
+            icon={TrendingUp} accent="#f59e0b"
+            action={
+              <Link href="/reports/item-sales"
+                className="text-[11.5px] font-semibold px-2.5 py-1 rounded-lg hover:bg-[var(--ink-50)] transition-colors"
+                style={{ color: "var(--brand-600)" }}>
+                {isRTL ? "تقرير كامل →" : "Full Report →"}
+              </Link>
+            }
+          />
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-x-8">
+            {topItems.map((item: any, idx: number) => (
+              <TopItemRow key={item.itemId} item={item} rank={idx + 1} maxRev={maxTopRev} fmt={fmt} isRTL={isRTL} />
+            ))}
+          </div>
+        </Card>
       )}
-    </div>
-  );
-}
 
-function DeltaBadge({ delta }: { delta: number | null }) {
-  if (delta === 0 || delta === null) {
-    return <span className="text-[10px] font-medium text-[color:var(--ink-400)]">—</span>;
-  }
-  const pct = Math.abs(delta).toFixed(1);
-  const isUp = delta > 0;
-  return (
-    <span
-      className="text-[10px] font-bold tracking-wide"
-      style={{ color: isUp ? "#10b981" : "#ef4444" }}
-    >
-      {isUp ? "↑" : "↓"} {pct}%
-    </span>
-  );
-}
-
-function CashFlowBar({ label, value, max, color, moneyFmt }: { label: string, value: number, max: number, color: string, moneyFmt: (v: number) => string }) {
-  const percentage = max > 0 ? Math.min(100, Math.max(0, (value / max) * 100)) : 0;
-  return (
-    <div>
-      <div className="flex items-center justify-between text-[12px] mb-1.5 font-medium">
-        <span className="text-[color:var(--ink-600)]">{label}</span>
-        <span className="font-bold tabular-nums text-[color:var(--ink-900)]">{moneyFmt(value)}</span>
-      </div>
-      <div className="h-2.5 w-full bg-[color:var(--ink-100)] rounded-full overflow-hidden">
-        <div 
-          className="h-full rounded-full transition-all duration-1000 ease-out" 
-          style={{ width: `${percentage}%`, background: color }} 
-        />
-      </div>
-    </div>
-  );
-}
-
-function ActivitySkeleton() {
-  return (
-    <div className="space-y-3 animate-pulse">
-      {Array.from({ length: 4 }).map((_, i) => (
-        <div key={i} className="h-12 rounded-xl bg-[color:var(--ink-100)]" style={{ opacity: 1 - i * 0.2 }} />
-      ))}
     </div>
   );
 }

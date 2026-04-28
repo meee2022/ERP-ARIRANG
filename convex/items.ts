@@ -299,3 +299,89 @@ export const toggleWarehouseActive = mutation({
     await ctx.db.patch(args.id, { isActive: !wh.isActive });
   },
 });
+
+// ─── LOW STOCK ALERT QUERY ────────────────────────────────────────────────────
+/** Returns all active items whose total stock across all warehouses is at or
+ *  below their reorderPoint. Items with no reorderPoint are excluded. */
+export const getLowStockItems = query({
+  args: { companyId: v.id("companies") },
+  handler: async (ctx, args) => {
+    const [items, stockBalances, warehouses] = await Promise.all([
+      ctx.db.query("items").withIndex("by_company", (q) => q.eq("companyId", args.companyId)).collect(),
+      ctx.db.query("stockBalance").collect(),
+      ctx.db.query("warehouses").withIndex("by_company", (q) => q.eq("companyId", args.companyId)).collect(),
+    ]);
+
+    const whMap = new Map(warehouses.map((w) => [w._id as string, w.nameAr || w.nameEn || "—"]));
+
+    // Group stock by itemId
+    const stockByItem = new Map<string, { totalQty: number; avgCost: number; lines: any[] }>();
+    for (const sb of stockBalances) {
+      const key = sb.itemId as string;
+      if (!stockByItem.has(key)) stockByItem.set(key, { totalQty: 0, avgCost: 0, lines: [] });
+      const entry = stockByItem.get(key)!;
+      entry.totalQty += sb.quantity;
+      entry.avgCost  = sb.avgCost; // latest
+      entry.lines.push({ warehouseName: whMap.get(sb.warehouseId as string) ?? "—", qty: sb.quantity });
+    }
+
+    const result = [];
+    for (const item of items) {
+      if (!item.isActive) continue;
+      if (item.reorderPoint == null || item.reorderPoint <= 0) continue;
+      const stock = stockByItem.get(item._id as string);
+      const totalQty = stock?.totalQty ?? 0;
+      if (totalQty <= item.reorderPoint) {
+        result.push({
+          ...item,
+          totalQty,
+          avgCost: stock?.avgCost ?? 0,
+          reorderPoint: item.reorderPoint,
+          shortage: item.reorderPoint - totalQty,
+          warehouseLines: stock?.lines ?? [],
+          status: totalQty <= 0 ? "out_of_stock" : "low_stock",
+        });
+      }
+    }
+
+    // Sort: out_of_stock first, then by shortage desc
+    result.sort((a, b) => {
+      if (a.status !== b.status) return a.status === "out_of_stock" ? -1 : 1;
+      return b.shortage - a.shortage;
+    });
+
+    return result;
+  },
+});
+
+// ─── Get Item by Barcode ───────────────────────────────────────────────────────
+export const getItemByBarcode = query({
+  args: { companyId: v.id("companies"), barcode: v.string() },
+  handler: async (ctx, args) => {
+    if (!args.barcode.trim()) return null;
+    // Try barcode field first
+    const byBarcode = await ctx.db
+      .query("items")
+      .withIndex("by_company", (q) => q.eq("companyId", args.companyId))
+      .filter((q) =>
+        q.and(
+          q.eq(q.field("barcode"), args.barcode.trim()),
+          q.eq(q.field("isActive"), true)
+        )
+      )
+      .first();
+    if (byBarcode) return byBarcode;
+    // Fallback: try matching code
+    const byCode = await ctx.db
+      .query("items")
+      .withIndex("by_company", (q) => q.eq("companyId", args.companyId))
+      .filter((q) =>
+        q.and(
+          q.eq(q.field("code"), args.barcode.trim()),
+          q.eq(q.field("isActive"), true)
+        )
+      )
+      .first();
+    return byCode ?? null;
+  },
+});

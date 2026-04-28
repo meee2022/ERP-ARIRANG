@@ -1,6 +1,7 @@
 // @ts-nocheck
 "use client";
 import React, { useState } from "react";
+import { formatCurrency } from "@/lib/i18n";
 import { useI18n } from "@/hooks/useI18n";
 import { useQuery, useMutation } from "convex/react";
 import { api } from "../../../../convex/_generated/api";
@@ -65,8 +66,8 @@ function NewGRNForm({ company, onClose }: any) {
         lines: lines.filter(l => l.itemId).map(l => ({
           itemId: l.itemId as any, quantity: Number(l.quantity),
           uomId: (l.uomId || units?.[0]?._id) as any,
-          unitCost: Math.round(Number(l.unitCost) * 100),
-          totalCost: Math.round(Number(l.quantity) * Number(l.unitCost) * 100),
+          unitCost: Math.round(Number(l.unitCost) * 100) / 100,
+          totalCost: Math.round(Number(l.quantity) * Number(l.unitCost) * 100) / 100,
         })),
       });
       onClose();
@@ -275,7 +276,25 @@ export default function GRNPage() {
             )}
           />
         ) : (
-          <div className="overflow-x-auto">
+          <>
+          <div className="mobile-list p-3 space-y-2.5">
+            {filtered.map((g: any) => (
+              <div key={g._id} className="record-card cursor-pointer" onClick={() => router.push(`/purchases/grn/${g._id}`)}>
+                <div className="flex items-start justify-between gap-2 mb-2">
+                  <div className="min-w-0 flex-1">
+                    <span className="text-[11px] font-bold px-2 py-0.5 rounded bg-[var(--ink-100)] text-[var(--ink-600)] inline-block mb-1">{g.grnNumber}</span>
+                    <p className="text-[14px] font-bold text-[var(--ink-900)]">{g.supplierName ?? "—"}</p>
+                    <p className="text-[11px] text-[var(--ink-400)] mt-0.5">{g.grnDate}</p>
+                  </div>
+                  <div className="text-end shrink-0">
+                    <p className="text-[17px] font-bold tabular-nums text-[var(--ink-900)]">{formatCurrency(g.totalAmount)}</p>
+                    <StatusBadge status={g.postingStatus} type="posting" />
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+          <div className="desktop-table overflow-x-auto">
             <table className="w-full text-sm text-left border-collapse" dir={isRTL ? "rtl" : "ltr"}>
               <thead>
                 <tr className="bg-gray-50/50 border-b border-gray-100">
@@ -312,6 +331,7 @@ export default function GRNPage() {
               </tbody>
             </table>
           </div>
+          </>
         )}
       </div>
     </div>

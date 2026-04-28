@@ -1356,7 +1356,7 @@ export function buildCashReceiptJournal(
 
       accountId: voucher.cashAccountId,
 
-      description: `سند قبض - ${voucher.voucherNumber}`,
+      description: `Cash Receipt / سند قبض - ${voucher.voucherNumber}`,
 
       debit: voucher.amount,
 
@@ -1372,7 +1372,7 @@ export function buildCashReceiptJournal(
 
       subAccountId: voucher.customerId ? String(voucher.customerId) : undefined,
 
-      description: `سند قبض - ${voucher.voucherNumber}`,
+      description: `Cash Receipt / سند قبض - ${voucher.voucherNumber}`,
 
       debit: 0,
 
@@ -1436,7 +1436,7 @@ export function buildCashPaymentJournal(
 
       subAccountId: voucher.supplierId ? String(voucher.supplierId) : undefined,
 
-      description: `سند صرف - ${voucher.voucherNumber}`,
+      description: `Cash Payment / سند صرف - ${voucher.voucherNumber}`,
 
       debit: voucher.amount,
 
@@ -1448,7 +1448,7 @@ export function buildCashPaymentJournal(
 
       accountId: voucher.cashAccountId,
 
-      description: `سند صرف - ${voucher.voucherNumber}`,
+      description: `Cash Payment / سند صرف - ${voucher.voucherNumber}`,
 
       debit: 0,
 

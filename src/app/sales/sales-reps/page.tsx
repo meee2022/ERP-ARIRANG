@@ -4,7 +4,7 @@
 import { useMemo, useState } from "react";
 import { useMutation, useQuery } from "convex/react";
 import { api } from "../../../../convex/_generated/api";
-import { User, Plus, Search, Edit2, Power, Phone } from "lucide-react";
+import { User, Plus, Search, Edit2, Power, Phone, RefreshCw, Trash2 } from "lucide-react";
 import { useI18n } from "@/hooks/useI18n";
 import { useAuth } from "@/hooks/useAuth";
 import { usePermissions } from "@/hooks/usePermissions";
@@ -23,6 +23,9 @@ export default function SalesRepsPage() {
   const createRep = useMutation(api.salesMasters.createSalesRep);
   const updateRep = useMutation(api.salesMasters.updateSalesRep);
   const toggleRep = useMutation(api.salesMasters.toggleSalesRepActive);
+  const deleteSalesRep = useMutation(api.salesMasters.deleteSalesRep);
+  const seedSalesReps = useMutation(api.seedStaff.seedSalesReps);
+  const [seeding, setSeeding] = useState(false);
 
   const [search, setSearch] = useState("");
   const [showForm, setShowForm] = useState(false);
@@ -45,6 +48,32 @@ export default function SalesRepsPage() {
       [rep.code, rep.nameAr, rep.nameEn, rep.phone].filter(Boolean).some((v: string) => String(v).toLowerCase().includes(q))
     );
   }, [reps, search]);
+
+  function friendlyError(e: any): string {
+    const msg = String(e?.message || e || "Unknown error");
+    // Strip Convex server prefixes
+    const clean = msg
+      .replace(/\[CONVEX.*?\]\s*/g, "")
+      .replace(/Server Error\s*/gi, "")
+      .replace(/Uncaught Error:\s*/gi, "")
+      .replace(/Error:\s*/gi, "")
+      .trim();
+    return clean || "Something went wrong. Please try again.";
+  }
+
+  async function handleSeedSalesReps() {
+    if (!companyId) return;
+    if (!window.confirm("This will import 15 sales reps from the routes file. Existing reps with matching codes will be updated. Continue?")) return;
+    setSeeding(true);
+    try {
+      const result = await seedSalesReps({});
+      alert(`Import complete! Processed ${result.total} sales reps.\n\n${result.results.join("\n")}`);
+    } catch (e: any) {
+      alert("Import failed: " + friendlyError(e));
+    } finally {
+      setSeeding(false);
+    }
+  }
 
   function resetForm() {
     setForm({ code: "", nameAr: "", nameEn: "", phone: "", branchId: "", notes: "" });
@@ -124,9 +153,21 @@ export default function SalesRepsPage() {
         title={t("salesRepsTitle")}
         badge={<span className="badge-soft">{filtered.length}</span>}
         actions={
-          canCreate("sales") ? <button onClick={openCreate} className="btn-primary h-10 px-4 rounded-lg inline-flex items-center gap-2 text-sm font-semibold">
-            <Plus className="h-4 w-4" /> {t("newSalesRep")}
-          </button> : undefined
+          canCreate("sales") ? (
+            <div className="flex items-center gap-2">
+              <button
+                onClick={handleSeedSalesReps}
+                disabled={seeding || !companyId}
+                className="h-10 px-4 rounded-lg inline-flex items-center gap-2 text-sm font-semibold bg-orange-500 hover:bg-orange-600 text-white disabled:opacity-50"
+              >
+                <RefreshCw className={`h-4 w-4 ${seeding ? "animate-spin" : ""}`} />
+                {seeding ? "جاري الاستيراد..." : "استيراد مناديب الروتات"}
+              </button>
+              <button onClick={openCreate} className="btn-primary h-10 px-4 rounded-lg inline-flex items-center gap-2 text-sm font-semibold">
+                <Plus className="h-4 w-4" /> {t("newSalesRep")}
+              </button>
+            </div>
+          ) : undefined
         }
       />
 
@@ -186,6 +227,19 @@ export default function SalesRepsPage() {
                           </button>}
                           {canEdit("sales") && <button onClick={() => toggleRep({ id: rep._id, userId: currentUser?._id })} className="h-8 w-8 rounded-lg hover:bg-[color:var(--brand-50)] inline-flex items-center justify-center">
                             <Power className="h-4 w-4" />
+                          </button>}
+                          {canEdit("sales") && <button
+                            onClick={async () => {
+                              if (!window.confirm(`Delete sales rep "${rep.nameEn || rep.nameAr}"? This action cannot be undone.`)) return;
+                              try {
+                                await deleteSalesRep({ id: rep._id, userId: currentUser?._id });
+                              } catch (e: any) {
+                                alert("Delete failed: " + friendlyError(e));
+                              }
+                            }}
+                            className="h-8 w-8 rounded-lg hover:bg-red-50 text-red-500 inline-flex items-center justify-center"
+                          >
+                            <Trash2 className="h-4 w-4" />
                           </button>}
                         </div>
                       </td>

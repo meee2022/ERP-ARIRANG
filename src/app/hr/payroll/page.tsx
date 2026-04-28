@@ -319,7 +319,24 @@ function RunsTab({ isRTL, currentUserId }: { isRTL: boolean; currentUserId: stri
         {runs.length === 0 ? (
           <EmptyState icon={DollarSign} title="No payroll runs yet" />
         ) : (
-          <div className="overflow-x-auto">
+          <>
+          <div className="mobile-list p-3 space-y-2.5">
+            {runs.map((run: any) => (
+              <div key={run._id} className="record-card">
+                <div className="flex items-start justify-between gap-2">
+                  <div className="min-w-0 flex-1">
+                    <p className="text-[14px] font-bold text-[var(--ink-900)]">{run.periodLabel ?? run.month}</p>
+                    <p className="text-[11.5px] text-[var(--ink-500)]">{run.employeeCount ?? 0} {isRTL ? "موظف" : "employees"}</p>
+                  </div>
+                  <div className="text-end shrink-0">
+                    <p className="text-[16px] font-bold tabular-nums text-[var(--ink-900)]">{formatCurrency(run.totalNetPay ?? 0)}</p>
+                    <RunStatusBadge status={run.status} />
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+          <div className="desktop-table overflow-x-auto">
             <table className="w-full text-sm border-collapse" dir={isRTL ? "rtl" : "ltr"}>
               <thead>
                 <tr className="bg-gray-50/60 border-b border-gray-100">
@@ -358,6 +375,7 @@ function RunsTab({ isRTL, currentUserId }: { isRTL: boolean; currentUserId: stri
               </tbody>
             </table>
           </div>
+          </>
         )}
       </div>
 

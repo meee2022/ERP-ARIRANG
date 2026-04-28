@@ -3,15 +3,13 @@
 import { Sidebar } from "./Sidebar";
 import { Header } from "./header";
 import { useAppStore } from "@/store/useAppStore";
-import { cn } from "@/lib/utils";
 import { useI18n } from "@/hooks/useI18n";
 import { useEffect } from "react";
 
 export function AppShell({ children }: { children: React.ReactNode }) {
-  const collapsed = useAppStore((s) => s.sidebarCollapsed);
-  const sidebarOpen = useAppStore((s) => s.sidebarOpen);
+  const sidebarOpen    = useAppStore((s) => s.sidebarOpen);
   const setSidebarOpen = useAppStore((s) => s.setSidebarOpen);
-  const { isRTL } = useI18n();
+  const { isRTL }      = useI18n();
 
   // On mobile, close sidebar on initial load
   useEffect(() => {
@@ -27,36 +25,40 @@ export function AppShell({ children }: { children: React.ReactNode }) {
     } else {
       document.body.style.overflow = "";
     }
-    return () => {
-      document.body.style.overflow = "";
-    };
+    return () => { document.body.style.overflow = ""; };
   }, [sidebarOpen]);
 
   return (
     <div className="flex h-screen w-full overflow-hidden surface-base relative">
+
       {/* Mobile Overlay */}
       {sidebarOpen && (
-        <div 
-          className="fixed inset-0 z-40 bg-black/60 backdrop-blur-sm lg:hidden transition-opacity"
+        <div
+          className="fixed inset-0 z-40 bg-black/60 backdrop-blur-sm lg:hidden"
           onClick={() => setSidebarOpen(false)}
         />
       )}
 
-      {/* Sidebar */}
+      {/* Icon Rail — always 76px wide */}
       <div
-        className={cn(
-          "shrink-0 transition-transform duration-300 ease-out z-50",
-          "fixed inset-y-0 lg:relative",
-          isRTL ? "right-0" : "left-0",
-          sidebarOpen 
-            ? "translate-x-0" 
-            : (isRTL ? "translate-x-full lg:translate-x-0" : "-translate-x-full lg:translate-x-0"),
-          collapsed ? "w-[72px]" : "w-[260px]"
-        )}
+        className="shrink-0 z-50 fixed inset-y-0 lg:sticky lg:top-0 lg:h-screen"
+        style={{
+          width: 76,
+          [isRTL ? "right" : "left"]: 0,
+        }}
       >
-        <Sidebar />
+        {/* On mobile, slide in/out; on desktop: always visible */}
+        <div
+          className="h-full lg:!transform-none"
+          style={{
+            transform: sidebarOpen ? "translateX(0)" : isRTL ? "translateX(100%)" : "translateX(-100%)",
+            transition: "transform 0.3s ease-out",
+          }}
+        >
+          <Sidebar />
+        </div>
       </div>
-      
+
       <div className="flex-1 flex flex-col min-w-0 w-full lg:w-auto">
         <Header />
         <main className="flex-1 overflow-y-auto custom-scrollbar">

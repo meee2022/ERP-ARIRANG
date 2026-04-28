@@ -180,7 +180,24 @@ export default function InventoryMovementsPage() {
             title={isRTL ? "لا توجد حركات في هذه الفترة" : "No movements in this period"}
           />
         ) : (
-          <div className="overflow-x-auto">
+          <>
+          <div className="mobile-list p-3 space-y-2.5">
+            {filtered.map((m: any) => (
+              <div key={m._id} className="record-card">
+                <div className="flex items-start justify-between gap-2">
+                  <div className="min-w-0 flex-1">
+                    <span className="font-mono text-[11px] font-bold px-2 py-0.5 rounded bg-[var(--ink-100)] text-[var(--ink-600)] inline-block mb-1">{m.movementNumber}</span>
+                    <p className="text-[13px] font-semibold text-[var(--ink-800)]">{m.itemName ?? m.itemId}</p>
+                    <p className="text-[11px] text-[var(--ink-400)] mt-0.5">{m.movementDate} · {m.movementType}</p>
+                  </div>
+                  <div className="text-end shrink-0">
+                    <p className="text-[14px] font-bold tabular-nums">{m.quantity > 0 ? "+" : ""}{m.quantity}</p>
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+          <div className="desktop-table overflow-x-auto">
             <table className="data-table">
               <thead>
                 <tr>
@@ -222,6 +239,7 @@ export default function InventoryMovementsPage() {
               </tbody>
             </table>
           </div>
+          </>
         )}
       </div>
     </div>

@@ -84,7 +84,7 @@ export function StatementPdf({ data }: { data: StatementPdfData }) {
         {/* Opening balance */}
         <View style={[S.openingBox, { flexDirection: dir }]}>
           <Text style={{ fontSize: 9, color: "#64748b", textAlign: start }}>{labels.openingBalance}</Text>
-          <Text style={{ fontSize: 10, fontWeight: 700, textAlign: end }}>{formatCurrency(data.openingBalance / 100)}</Text>
+          <Text style={{ fontSize: 10, fontWeight: 700, textAlign: end }}>{formatCurrency(data.openingBalance)}</Text>
         </View>
 
         {/* Transactions table */}
@@ -99,17 +99,17 @@ export function StatementPdf({ data }: { data: StatementPdfData }) {
           <View key={i} style={[S.tableRow, { flexDirection: dir }, i % 2 === 1 ? S.tableRowAlt : {}]} wrap={false}>
             <Text style={[base.tdText, { width: 60,  fontSize: 8,   textAlign: start }]}>{line.date}</Text>
             <Text style={[base.tdText, { flex: 1,                   textAlign: start }]}>{line.description}</Text>
-            <Text style={[base.tdText, { width: 60,                 textAlign: end   }]}>{line.debit  > 0 ? formatCurrency(line.debit  / 100) : "—"}</Text>
-            <Text style={[base.tdText, { width: 60,                 textAlign: end   }]}>{line.credit > 0 ? formatCurrency(line.credit / 100) : "—"}</Text>
-            <Text style={[base.tdText, { width: 70, fontWeight: 700, textAlign: end  }]}>{formatCurrency(line.balance / 100)}</Text>
+            <Text style={[base.tdText, { width: 60,                 textAlign: end   }]}>{line.debit  > 0 ? formatCurrency(line.debit) : "—"}</Text>
+            <Text style={[base.tdText, { width: 60,                 textAlign: end   }]}>{line.credit > 0 ? formatCurrency(line.credit) : "—"}</Text>
+            <Text style={[base.tdText, { width: 70, fontWeight: 700, textAlign: end  }]}>{formatCurrency(line.balance)}</Text>
           </View>
         ))}
 
         {/* Totals */}
         <View style={{ marginTop: 8 }}>
           {[
-            [labels.totalDebit,    formatCurrency(data.totalDebit    / 100)],
-            [labels.totalCredit,   formatCurrency(data.totalCredit   / 100)],
+            [labels.totalDebit,    formatCurrency(data.totalDebit)],
+            [labels.totalCredit,   formatCurrency(data.totalCredit)],
           ].map(([label, value]) => (
             <View key={label} style={[S.summaryRow, { flexDirection: dir }]}>
               <Text style={{ fontSize: 9, color: "#64748b", textAlign: start }}>{label}</Text>
@@ -118,7 +118,7 @@ export function StatementPdf({ data }: { data: StatementPdfData }) {
           ))}
           <View style={[S.summaryFinal, { flexDirection: dir }]}>
             <Text style={{ fontSize: 10, fontWeight: 700, textAlign: start }}>{labels.closingBalance}</Text>
-            <Text style={{ fontSize: 10, fontWeight: 700, textAlign: end }}>{formatCurrency(data.closingBalance / 100)}</Text>
+            <Text style={{ fontSize: 10, fontWeight: 700, textAlign: end }}>{formatCurrency(data.closingBalance)}</Text>
           </View>
         </View>
 

@@ -420,3 +420,67 @@ export const getRecentActivity = query({
     return all.slice(0, limit);
   },
 });
+
+// ─── TOP SELLING ITEMS ────────────────────────────────────────────────────────
+export const getTopSellingItems = query({
+  args: {
+    companyId: v.id("companies"),
+    fromDate:  v.string(),
+    toDate:    v.string(),
+    limit:     v.optional(v.number()),
+  },
+  handler: async (ctx, args) => {
+    const limit = args.limit ?? 10;
+
+    const invoices = await ctx.db
+      .query("salesInvoices")
+      .filter((q) =>
+        q.and(
+          q.eq(q.field("companyId"), args.companyId),
+          q.eq(q.field("postingStatus"), "posted")
+        )
+      )
+      .collect();
+
+    const inRange = invoices.filter(
+      (inv) => inv.invoiceDate >= args.fromDate && inv.invoiceDate <= args.toDate
+    );
+
+    if (inRange.length === 0) return [];
+
+    const invoiceIds = new Set(inRange.map((i) => i._id as string));
+
+    // Aggregate lines
+    const allLines = await ctx.db.query("salesInvoiceLines").collect();
+    const filtered = allLines.filter((l) => invoiceIds.has(l.invoiceId as string));
+
+    const itemMap = new Map<string, { qty: number; revenue: number; itemId: string }>();
+    for (const line of filtered) {
+      const key = line.itemId as string;
+      if (!itemMap.has(key)) itemMap.set(key, { qty: 0, revenue: 0, itemId: key });
+      const entry = itemMap.get(key)!;
+      entry.qty     += line.quantity;
+      entry.revenue += line.lineTotal;
+    }
+
+    // Sort by revenue, take top N
+    const sorted = [...itemMap.values()]
+      .sort((a, b) => b.revenue - a.revenue)
+      .slice(0, limit);
+
+    // Enrich with item details
+    return await Promise.all(
+      sorted.map(async ({ itemId, qty, revenue }) => {
+        const item = await ctx.db.get(itemId as any);
+        return {
+          itemId,
+          nameAr:   (item as any)?.nameAr  ?? "—",
+          nameEn:   (item as any)?.nameEn  ?? (item as any)?.nameAr ?? "—",
+          code:     (item as any)?.code    ?? "—",
+          totalQty: Math.round(qty * 100) / 100,
+          totalRevenue: revenue,
+        };
+      })
+    );
+  },
+});

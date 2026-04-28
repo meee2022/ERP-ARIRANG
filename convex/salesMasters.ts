@@ -160,3 +160,12 @@ export const toggleVehicleActive = mutation({
     await ctx.db.patch(args.id, { isActive: !vehicle.isActive });
   },
 });
+export const deleteSalesRep = mutation({
+  args: { id: v.id("salesReps"), userId: v.optional(v.id("users")) },
+  handler: async (ctx, args) => {
+    if (args.userId) {
+      await assertUserPermission(ctx, args.userId, "sales", "edit");
+    }
+    await ctx.db.delete(args.id);
+  },
+});

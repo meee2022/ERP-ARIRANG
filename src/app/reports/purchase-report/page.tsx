@@ -37,7 +37,7 @@ export default function PurchaseReportPage() {
   );
 
   const loading = report === undefined;
-  const totalAmt = (report?.totalPurchases ?? 0) / 100;
+  const totalAmt = (report?.totalPurchases ?? 0);
   const invoiceCount = report?.invoiceCount ?? 0;
 
   return (
@@ -137,17 +137,17 @@ export default function PurchaseReportPage() {
                     {groupBy === "day" && <>
                       <td className="muted tabular-nums">{row.date}</td>
                       <td className="numeric text-end">{row.count}</td>
-                      <td className="numeric text-end font-semibold">{formatCurrency((row.total ?? 0) / 100)}</td>
+                      <td className="numeric text-end font-semibold">{formatCurrency((row.total ?? 0))}</td>
                     </>}
                     {groupBy === "supplier" && <>
                       <td>{row.supplierName}</td>
                       <td className="numeric text-end">{row.count}</td>
-                      <td className="numeric text-end font-semibold">{formatCurrency((row.total ?? 0) / 100)}</td>
+                      <td className="numeric text-end font-semibold">{formatCurrency((row.total ?? 0))}</td>
                     </>}
                     {groupBy === "item" && <>
                       <td>{row.itemName}</td>
                       <td className="numeric text-end">{(row.qty ?? 0).toFixed(2)}</td>
-                      <td className="numeric text-end font-semibold">{formatCurrency((row.total ?? 0) / 100)}</td>
+                      <td className="numeric text-end font-semibold">{formatCurrency((row.total ?? 0))}</td>
                     </>}
                   </tr>
                 ))}

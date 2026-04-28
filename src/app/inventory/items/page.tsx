@@ -6,7 +6,7 @@ import { useQuery, useMutation } from "convex/react";
 import { api } from "../../../../convex/_generated/api";
 import {
   Package, Search, Plus, Edit2, Power, X, ChevronRight,
-  Users, TrendingUp, Trash2,
+  Users, TrendingUp, Trash2, RefreshCw,
   Box, Layers, ShoppingCart, Percent
 } from "lucide-react";
 import { useI18n } from "@/hooks/useI18n";
@@ -100,6 +100,12 @@ export default function ItemsPage() {
   const toggleActive = useMutation(api.items.toggleItemActive);
   const deleteItem   = useMutation(api.items.deleteItem);
   const createLink   = useMutation(api.supplierItems.createLink);
+  const seedFGItems  = useMutation(api.seedStaff.seedFGItems);
+  const seedWHItems         = useMutation(api.seedStaff.seedWHItems);
+  const seedSupplierLinks   = useMutation(api.seedStaff.seedSupplierLinks);
+  const [seedingFG, setSeedingFG]               = useState(false);
+  const [seedingWH, setSeedingWH]               = useState(false);
+  const [seedingSuppliers, setSeedingSuppliers] = useState(false);
 
   const [purchaseTypeTab, setPurchaseTypeTab] = useState("all");
   const [categoryFilter, setCategoryFilter]   = useState("all");
@@ -170,6 +176,75 @@ export default function ItemsPage() {
     setEditId(null); setErr(null);
     setLinkSupplierId(""); setLinkUom(""); setLinkRefPrice("");
   }
+  async function handleSeedFG() {
+    if (!window.confirm("This will DELETE all existing Finished Goods and replace them with 85 items from the F-26 price list. Continue?")) return;
+    setSeedingFG(true);
+    try {
+      const res = await seedFGItems({});
+      alert(`Done!\n\nItems:\n  ✅ Inserted: ${res.inserted}\n  🔄 Updated (names only, prices kept): ${res.updated}\n  🗑️ Deleted: ${res.deleted}\n\nRecipes:\n  🗑️ Deleted (orphaned): ${res.recipesDeleted}\n  ✅ Kept (valid): ${res.recipesKept}`);
+    } catch (e: any) {
+      const msg = String(e?.message || e).replace(/\[CONVEX.*?\]\s*/g, "").replace(/Server Error\s*/gi, "").trim();
+      alert("Error: " + msg);
+    } finally {
+      setSeedingFG(false);
+    }
+  }
+
+  async function handleSeedWH() {
+    if (!window.confirm(
+      "This will:\n" +
+      "  ✅ Keep all existing FG items (85 items)\n" +
+      "  🔄 Upsert 154 RM/Packaging/Others items from WH.xlsx\n" +
+      "  🗑️ DELETE all other non-FG items not in WH list\n\n" +
+      "Continue?"
+    )) return;
+    setSeedingWH(true);
+    try {
+      const res = await seedWHItems({});
+      alert(
+        `WH Import Done!\n\n` +
+        `  ✅ Inserted: ${res.inserted}\n` +
+        `  🔄 Updated (name + price): ${res.updated}\n` +
+        `  🗑️ Deleted (not in WH): ${res.deleted}\n` +
+        `  🔒 FG items kept untouched: ${res.fgKept}\n` +
+        `  📦 Total WH RM items: ${res.totalWH}`
+      );
+    } catch (e: any) {
+      const msg = String(e?.message || e).replace(/\[CONVEX.*?\]\s*/g, "").replace(/Server Error\s*/gi, "").trim();
+      alert("Error: " + msg);
+    } finally {
+      setSeedingWH(false);
+    }
+  }
+
+  async function handleSeedSupplierLinks() {
+    if (!window.confirm(
+      "This will:\n" +
+      "  🏭 Upsert 20 suppliers from April 2026 purchases\n" +
+      "  🔗 Create 65 supplier-item price links\n" +
+      "  🗑️ Delete ALL existing supplierItems for this company first\n" +
+      "  ➕ Add 3 missing April items (APR-001/002/003)\n\n" +
+      "Continue?"
+    )) return;
+    setSeedingSuppliers(true);
+    try {
+      const res = await seedSupplierLinks({});
+      alert(
+        `Supplier Links Done!\n\n` +
+        `  🏭 Suppliers created: ${res.suppCreated}\n` +
+        `  ✅ Suppliers existing: ${res.suppExisting}\n` +
+        `  ➕ New items added: ${res.newItemsAdded}\n` +
+        `  🔗 Links created: ${res.supplierLinksCreated}\n` +
+        `  ⚠️ Skipped (no supplier): ${res.skipped}`
+      );
+    } catch (e: any) {
+      const msg = String(e?.message || e).replace(/\[CONVEX.*?\]\s*/g, "").replace(/Server Error\s*/gi, "").trim();
+      alert("Error: " + msg);
+    } finally {
+      setSeedingSuppliers(false);
+    }
+  }
+
   function openNew() { reset(); setShowModal(true); }
   function openEdit(i: any) {
     setEditId(i._id);
@@ -222,9 +297,35 @@ export default function ItemsPage() {
           badge={<span className="badge-soft">{itemsWithStats.length} {t("itemsCount")}</span>}
           actions={
             canCreate("inventory") ? (
-              <button onClick={openNew} className="btn-primary h-10 px-4 rounded-lg inline-flex items-center gap-2 text-sm font-semibold" disabled={units.length === 0}>
-                <Plus className="h-4 w-4" /> {t("newItem")}
-              </button>
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={handleSeedSupplierLinks}
+                  disabled={seedingSuppliers}
+                  className="h-10 px-4 rounded-lg inline-flex items-center gap-2 text-sm font-semibold bg-purple-600 hover:bg-purple-700 text-white disabled:opacity-50"
+                >
+                  <Users className={`h-4 w-4 ${seedingSuppliers ? "animate-spin" : ""}`} />
+                  {seedingSuppliers ? "Linking..." : "Seed Supplier Links"}
+                </button>
+                <button
+                  onClick={handleSeedWH}
+                  disabled={seedingWH}
+                  className="h-10 px-4 rounded-lg inline-flex items-center gap-2 text-sm font-semibold bg-green-600 hover:bg-green-700 text-white disabled:opacity-50"
+                >
+                  <RefreshCw className={`h-4 w-4 ${seedingWH ? "animate-spin" : ""}`} />
+                  {seedingWH ? "Importing..." : "Import WH Items (154)"}
+                </button>
+                <button
+                  onClick={handleSeedFG}
+                  disabled={seedingFG}
+                  className="h-10 px-4 rounded-lg inline-flex items-center gap-2 text-sm font-semibold bg-orange-500 hover:bg-orange-600 text-white disabled:opacity-50"
+                >
+                  <RefreshCw className={`h-4 w-4 ${seedingFG ? "animate-spin" : ""}`} />
+                  {seedingFG ? "Importing..." : "Replace FG Items"}
+                </button>
+                <button onClick={openNew} className="btn-primary h-10 px-4 rounded-lg inline-flex items-center gap-2 text-sm font-semibold" disabled={units.length === 0}>
+                  <Plus className="h-4 w-4" /> {t("newItem")}
+                </button>
+              </div>
             ) : undefined
           }
         />
@@ -336,7 +437,44 @@ export default function ItemsPage() {
             }
           />
         ) : (
-          <div className="overflow-x-auto">
+          <>
+          {/* Mobile item cards */}
+          <div className="mobile-list p-3 space-y-2.5">
+            {filtered.map((i: any) => {
+              const cost = i.standardCost ?? i.refPrice ?? null;
+              const sell = i.sellingPrice ?? null;
+              const gp   = (sell && cost && sell > 0) ? Math.round(((sell - cost) / sell) * 100) : null;
+              const typeCfg = ITEM_TYPE_CONFIG[i.itemType] ?? { label: i.itemType, color: "bg-gray-100 text-gray-600", dot: "bg-gray-400" };
+              return (
+                <div key={i._id} className="record-card cursor-pointer" onClick={() => setDetailItem(i)}>
+                  <div className="flex items-start justify-between gap-3 mb-2">
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-center gap-2 flex-wrap mb-1">
+                        <span className="font-mono text-[11px] font-semibold px-2 py-0.5 rounded bg-[var(--ink-100)] text-[var(--ink-600)]">{i.code}</span>
+                        <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded ${typeCfg.color}`}>{typeCfg.label}</span>
+                        <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-bold ${i.isActive ? "bg-green-50 text-green-700" : "bg-gray-100 text-gray-500"}`}>
+                          {i.isActive ? "Active" : "Inactive"}
+                        </span>
+                      </div>
+                      <p className="text-[14px] font-bold text-[var(--ink-900)]">{isRTL ? i.nameAr : (i.nameEn || i.nameAr)}</p>
+                      {i.nameEn && i.nameAr && <p className="text-[11px] text-[var(--ink-400)]">{isRTL ? i.nameEn : i.nameAr}</p>}
+                    </div>
+                    <div className="text-end shrink-0">
+                      {sell != null && sell > 0 && <p className="text-[15px] font-bold text-green-700 tabular-nums">{formatCurrency(sell)}</p>}
+                      {cost != null && cost > 0 && <p className="text-[11.5px] text-[var(--ink-500)] tabular-nums">{formatCurrency(cost)}</p>}
+                      {gp !== null && <p className="text-[11px] font-bold text-blue-600">GP: {gp}%</p>}
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-2 pt-2 border-t border-[var(--ink-100)] text-[11px] text-[var(--ink-500)]">
+                    {i.purchaseCategory && <span>{catLabel(i.purchaseCategory)}</span>}
+                    <ChevronRight className="h-3.5 w-3.5 text-[var(--ink-300)] ms-auto" />
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+          {/* Desktop table */}
+          <div className="desktop-table overflow-x-auto">
             <table className="data-table">
               <thead>
                 <tr className="bg-gray-50/50 border-b border-gray-100">
@@ -471,6 +609,7 @@ export default function ItemsPage() {
               </tbody>
             </table>
           </div>
+          </>
         )}
       </div>
 

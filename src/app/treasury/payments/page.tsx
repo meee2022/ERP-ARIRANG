@@ -3,9 +3,10 @@
 
 import React, { useState } from "react";
 import { useI18n } from "@/hooks/useI18n";
+import { useRouter } from "next/navigation";
 import { useQuery, useMutation } from "convex/react";
 import { api } from "../../../../convex/_generated/api";
-import { formatDateShort } from "@/lib/utils";
+import { formatDateShort, friendlyError } from "@/lib/utils";
 import { StatusBadge } from "@/components/ui/status-badge";
 import { Plus, Eye, X, Check, Search, CreditCard, WalletCards, CheckCircle2, Scale, Calendar, Filter, Clock } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
@@ -13,6 +14,7 @@ import { usePermissions } from "@/hooks/usePermissions";
 import { useAppStore } from "@/store/useAppStore";
 import { PageHeader } from "@/components/ui/page-header";
 import { FilterPanel, FilterField } from "@/components/ui/filter-panel";
+import { SearchableSelect } from "@/components/ui/searchable-select";
 import { CostCenterSelect } from "@/components/ui/cost-center-select";
 import { SummaryStrip, LoadingState } from "@/components/ui/data-display";
 import { EmptyState } from "@/components/ui/empty-state";
@@ -88,7 +90,7 @@ function NewPaymentForm({ onClose }: { onClose: () => void }) {
         supplierId: form.supplierId ? (form.supplierId as any) : undefined,
         paymentType: form.paymentType as any,
         cashAccountId: form.cashAccountId as any,
-        amount: Math.round(Number(form.amount) * 100),
+        amount: Math.round(Number(form.amount) * 100) / 100,
         currencyId: defaultCurrency._id,
         exchangeRate: 1,
         paymentMethod: form.paymentMethod as any,
@@ -147,18 +149,18 @@ function NewPaymentForm({ onClose }: { onClose: () => void }) {
           <label className="block text-xs font-medium text-[color:var(--ink-600)] mb-1">
             {t("supplier")}
           </label>
-          <select
+          <SearchableSelect
+            isRTL={isRTL}
             value={form.supplierId}
-            onChange={(e) => set("supplierId", e.target.value)}
-            className="input-field h-9"
-          >
-            <option value="">{t("selectSupplier")}</option>
-            {(suppliers ?? []).map((s: any) => (
-              <option key={s._id} value={s._id}>
-                {isRTL ? s.nameAr : (s.nameEn || s.nameAr)}
-              </option>
-            ))}
-          </select>
+            onChange={(v) => set("supplierId", v)}
+            placeholder={t("selectSupplier")}
+            searchPlaceholder={isRTL ? "ابحث باسم المورد..." : "Search supplier..."}
+            emptyMessage={isRTL ? "لا توجد نتائج" : "No results"}
+            options={(suppliers ?? []).map((s: any) => ({
+              value: s._id,
+              label: isRTL ? s.nameAr : (s.nameEn || s.nameAr),
+            }))}
+          />
         </div>
 
         {/* Payment Type */}
@@ -228,19 +230,21 @@ function NewPaymentForm({ onClose }: { onClose: () => void }) {
           <label className="block text-xs font-medium text-[color:var(--ink-600)] mb-1">
             {t("cashOrBankAccount")} *
           </label>
-          <select
+          <SearchableSelect
+            isRTL={isRTL}
             required
             value={form.cashAccountId}
-            onChange={(e) => set("cashAccountId", e.target.value)}
-            className="input-field h-9"
-          >
-            <option value="">{t("selectAccount")}</option>
-            {postableAccounts.map((a: any) => (
-              <option key={a._id} value={a._id}>
-                {a.code} — {isRTL ? a.nameAr : (a.nameEn || a.nameAr)}
-              </option>
-            ))}
-          </select>
+            onChange={(v) => set("cashAccountId", v)}
+            placeholder={t("selectAccount")}
+            searchPlaceholder={isRTL ? "ابحث بالاسم أو الكود..." : "Search account..."}
+            emptyMessage={isRTL ? "لا توجد نتائج" : "No results"}
+            options={postableAccounts
+              .filter((a: any) => String(a.code ?? "").startsWith("11"))
+              .map((a: any) => ({
+                value: a._id,
+                label: `${a.code} — ${isRTL ? a.nameAr : (a.nameEn || a.nameAr)}`,
+              }))}
+          />
         </div>
 
         {/* Reference */}
@@ -310,19 +314,46 @@ function PaymentMethodLabel({ method, t }: { method: string; t: (k: any) => stri
 }
 
 function PaymentLifecycleActions({ payment, userId, companyId }: { payment: any; userId: string | undefined; companyId: string | undefined }) {
-  const { t } = useI18n();
-  const [loadingAction, setLoadingAction] = useState<"delete" | "cancel" | "reverse" | null>(null);
+  const { t, isRTL } = useI18n();
+  const [loadingAction, setLoadingAction] = useState<"delete" | "cancel" | "reverse" | "post" | null>(null);
   const [err, setErr] = useState("");
   const removeDraft = useMutation(api.treasury.deleteDraftCashPaymentVoucher);
   const cancelPayment = useMutation(api.treasury.cancelCashPaymentVoucher);
   const reversePayment = useMutation(api.treasury.reverseCashPaymentVoucher);
+  const postPayment = useMutation(api.treasury.postCashPaymentVoucher);
   const today = new Date().toISOString().split("T")[0];
   const openPeriod = useQuery(
     api.helpers.getOpenPeriod,
     companyId ? { companyId: companyId as any, date: today } : "skip"
   );
+  const postingRules = useQuery(
+    api.postingRules.getPostingRules,
+    companyId ? { companyId: companyId as any } : "skip"
+  );
 
   if (!userId) return null;
+
+  const handlePost = async () => {
+    if (!postingRules?.apAccountId) {
+      setErr(isRTL
+        ? "لم يتم تحديد حساب الذمم الدائنة. روح Settings → Posting Rules وحدد AP Account."
+        : "AP account not configured. Go to Settings → Posting Rules and set the AP Account.");
+      return;
+    }
+    setLoadingAction("post");
+    setErr("");
+    try {
+      await postPayment({
+        voucherId: payment._id,
+        userId: userId as any,
+        apAccountId: postingRules.apAccountId as any,
+      });
+    } catch (e: any) {
+      setErr(friendlyError(e, isRTL));
+    } finally {
+      setLoadingAction(null);
+    }
+  };
 
   const handleDelete = async () => {
     if (!window.confirm("سيتم حذف مسودة سند الصرف نهائيًا. هل تريد المتابعة؟")) return;
@@ -338,7 +369,7 @@ function PaymentLifecycleActions({ payment, userId, companyId }: { payment: any;
   };
 
   const handleCancel = async () => {
-    if (!window.confirm("سيتم إلغاء سند الصرف قبل الترحيل. هل تريد المتابعة؟")) return;
+    if (!window.confirm(isRTL ? "سيتم إلغاء سند الصرف قبل الترحيل. هل تريد المتابعة؟" : "This payment will be cancelled. Continue?")) return;
     setLoadingAction("cancel");
     setErr("");
     try {
@@ -373,6 +404,12 @@ function PaymentLifecycleActions({ payment, userId, companyId }: { payment: any;
     <div className="inline-flex flex-col items-end gap-1">
       {err ? <span className="text-xs text-red-600 max-w-[220px] text-end leading-tight">{err}</span> : null}
       <div className="inline-flex items-center gap-1">
+        {payment.postingStatus === "unposted" ? (
+          <button onClick={handlePost} disabled={loadingAction !== null}
+            className="h-7 px-3 rounded-md text-xs font-semibold inline-flex items-center gap-1 bg-green-50 text-green-700 hover:bg-green-100 border border-green-200 disabled:opacity-60">
+            {loadingAction === "post" ? t("loading") : <><Check className="h-3.5 w-3.5" /> {t("post")}</>}
+          </button>
+        ) : null}
         {payment.documentStatus === "draft" && payment.postingStatus === "unposted" ? (
           <button onClick={handleDelete} disabled={loadingAction !== null} className="h-7 px-3 rounded-md text-xs font-semibold inline-flex items-center gap-1 bg-red-50 text-red-700 hover:bg-red-100 border border-red-200 disabled:opacity-60">
             {loadingAction === "delete" ? t("loading") : t("delete")}
@@ -420,6 +457,7 @@ export default function PaymentsPage() {
   const { t, isRTL, formatCurrency } = useI18n();
   const { canCreate, canPost } = usePermissions();
   const { currentUser: defaultUser } = useAuth();
+  const router = useRouter();
   const searchParams = useSearchParams();
   const [showForm, setShowForm] = useState(searchParams.get("new") === "true");
   const [fromDate, setFromDate] = useState(startOfMonthISO());
@@ -546,19 +584,19 @@ export default function PaymentsPage() {
         />
         <PaymentStatCard 
           title={isRTL ? "إجمالي المبالغ" : "Total Amount"} 
-          value={formatCurrency(totalAmount / 100)} 
+          value={formatCurrency(totalAmount)} 
           icon={WalletCards}
           color="from-green-500 to-green-600"
         />
         <PaymentStatCard 
           title={isRTL ? "المرحل" : "Posted"} 
-          value={formatCurrency(postedAmount / 100)} 
+          value={formatCurrency(postedAmount)} 
           icon={CheckCircle2}
           color="from-emerald-500 to-emerald-600"
         />
         <PaymentStatCard 
           title={isRTL ? "المعلق" : "Unposted"} 
-          value={formatCurrency((totalAmount - postedAmount) / 100)} 
+          value={formatCurrency((totalAmount - postedAmount))} 
           icon={Clock}
           color="from-amber-500 to-amber-600"
         />
@@ -580,7 +618,28 @@ export default function PaymentsPage() {
             ) : undefined}
           />
         ) : (
-          <div className="overflow-x-auto">
+          <>
+          {/* Mobile cards */}
+          <div className="mobile-list p-3 space-y-2.5">
+            {filtered.map((p: any) => (
+              <div key={p._id} className="record-card">
+                <div className="flex items-start justify-between gap-2 mb-2">
+                  <div className="min-w-0 flex-1">
+                    <span className="text-[11px] font-bold px-2 py-0.5 rounded bg-[var(--ink-100)] text-[var(--ink-600)] inline-block mb-1">{p.voucherNumber}</span>
+                    <p className="text-[14px] font-bold text-[var(--ink-900)]">{p.paidTo ?? "—"}</p>
+                    {p.supplierName && <p className="text-[11px] text-[var(--ink-500)]">{p.supplierName}</p>}
+                    <p className="text-[11px] text-[var(--ink-400)] mt-0.5">{p.voucherDate} · <PaymentMethodLabel method={p.paymentMethod} t={t} /></p>
+                  </div>
+                  <div className="text-end shrink-0">
+                    <p className="text-[18px] font-bold tabular-nums text-rose-600">{formatCurrency((p.amount ?? 0))}</p>
+                    <StatusBadge status={p.postingStatus} type="posting" />
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+          {/* Desktop table */}
+          <div className="desktop-table overflow-x-auto">
             <table className="w-full text-sm text-left border-collapse" dir={isRTL ? "rtl" : "ltr"}>
               <thead>
                 <tr className="bg-gray-50/50 border-b border-gray-100">
@@ -597,7 +656,7 @@ export default function PaymentsPage() {
                 {filtered.map((p: any) => (
                   <tr key={p._id} className="group hover:bg-gray-50/80 transition-all duration-200">
                     <td className="px-6 py-4">
-                      <span className="inline-flex items-center px-2 py-0.5 rounded text-[11px] font-bold bg-gray-100 text-gray-600 border border-gray-200">
+                      <span className="inline-flex items-center px-2 py-0.5 rounded text-[11px] ld bg-gray-100 text-gray-600 border border-gray-200">
                         {p.voucherNumber}
                       </span>
                     </td>
@@ -606,13 +665,13 @@ export default function PaymentsPage() {
                       <div className="font-bold text-gray-900 text-sm">{p.paidTo ?? "—"}</div>
                       {p.supplierName && <div className="text-[10px] text-gray-400 font-medium mt-0.5">{p.supplierName}</div>}
                     </td>
-                    <td className="px-6 py-4 text-end tabular-nums font-bold text-gray-900 text-sm">{formatCurrency((p.amount ?? 0) / 100)}</td>
+                    <td className="px-6 py-4 text-end tabular-nums font-bold text-gray-900 text-sm">{formatCurrency((p.amount ?? 0))}</td>
                     <td className="px-6 py-4 text-xs text-gray-500 font-medium"><PaymentMethodLabel method={p.paymentMethod} t={t} /></td>
                     <td className="px-6 py-4"><StatusBadge status={p.postingStatus} type="posting" /></td>
                     <td className="px-6 py-4 text-end">
                       <div className="flex items-center justify-end gap-1 opacity-0 group-hover:opacity-100 transition-opacity duration-200">
                         <PaymentLifecycleActions payment={p} userId={defaultUser?._id} companyId={company?._id} />
-                        <button className="h-8 w-8 rounded-lg bg-white border border-gray-200 text-gray-400 hover:text-blue-600 hover:border-blue-200 hover:shadow-sm flex items-center justify-center transition-all" title={t("view")}>
+                        <button onClick={() => router.push(`/treasury/payments/${p._id}`)} className="h-8 w-8 rounded-lg bg-white border border-gray-200 text-gray-400 hover:text-blue-600 hover:border-blue-200 hover:shadow-sm flex items-center justify-center transition-all" title={t("view")}>
                           <Eye className="h-4 w-4" />
                         </button>
                       </div>
@@ -622,6 +681,7 @@ export default function PaymentsPage() {
               </tbody>
             </table>
           </div>
+          </>
         )}
       </div>
     </div>

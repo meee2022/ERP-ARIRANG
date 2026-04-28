@@ -74,7 +74,7 @@ export default function StockValuationPage() {
           <div>
             <div className="text-xs text-[color:var(--ink-500)]">{t("totalInventoryValue")}</div>
             <div className="text-xl font-bold text-[color:var(--ink-900)] tabular-nums">
-              {formatCurrency((report.totalValue ?? 0) / 100)}
+              {formatCurrency((report.totalValue ?? 0))}
             </div>
           </div>
           <div>
@@ -111,8 +111,8 @@ export default function StockValuationPage() {
                     <td>{isRTL ? row.itemNameAr : (row.itemNameEn || row.itemNameAr)}</td>
                     <td className="muted">{row.warehouseNameAr}</td>
                     <td className="numeric text-end font-semibold">{row.quantity.toFixed(3)}</td>
-                    <td className="numeric text-end">{formatCurrency((row.avgCost ?? 0) / 100)}</td>
-                    <td className="numeric text-end font-semibold">{formatCurrency((row.totalValue ?? 0) / 100)}</td>
+                    <td className="numeric text-end">{formatCurrency((row.avgCost ?? 0))}</td>
+                    <td className="numeric text-end font-semibold">{formatCurrency((row.totalValue ?? 0))}</td>
                     <td className="muted text-xs">{formatDateShort(row.lastUpdated)}</td>
                   </tr>
                 ))}
@@ -121,7 +121,7 @@ export default function StockValuationPage() {
                 <tr className="row-total">
                   <td colSpan={5}>{t("total")}</td>
                   <td className="numeric text-end font-bold">
-                    {formatCurrency((report.totalValue ?? 0) / 100)}
+                    {formatCurrency((report.totalValue ?? 0))}
                   </td>
                   <td />
                 </tr>

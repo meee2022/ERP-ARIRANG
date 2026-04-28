@@ -414,7 +414,22 @@ export default function StockAdjustmentsPage() {
             }
           />
         ) : (
-          <div className="overflow-x-auto">
+          <>
+          <div className="mobile-list p-3 space-y-2.5">
+            {filtered.map((a: any) => (
+              <div key={a._id} className="record-card cursor-pointer" onClick={() => router.push && router.push(`/inventory/adjustments/${a._id}`)}>
+                <div className="flex items-start justify-between gap-2">
+                  <div className="min-w-0 flex-1">
+                    <span className="font-mono text-[11px] font-bold px-2 py-0.5 rounded bg-[var(--ink-100)] text-[var(--ink-600)] inline-block mb-1">{a.adjustmentNumber}</span>
+                    <p className="text-[13px] font-semibold text-[var(--ink-800)]">{a.warehouseName ?? "—"}</p>
+                    <p className="text-[11px] text-[var(--ink-400)] mt-0.5">{a.adjustmentDate} · {a.reason ?? ""}</p>
+                  </div>
+                  <StatusBadge status={a.postingStatus} type="posting" />
+                </div>
+              </div>
+            ))}
+          </div>
+          <div className="desktop-table overflow-x-auto">
             <table className="w-full text-sm text-left border-collapse" dir={isRTL ? "rtl" : "ltr"}>
               <thead>
                 <tr className="bg-gray-50/50 border-b border-gray-100">
@@ -448,6 +463,7 @@ export default function StockAdjustmentsPage() {
               </tbody>
             </table>
           </div>
+          </>
         )}
       </div>
     </div>

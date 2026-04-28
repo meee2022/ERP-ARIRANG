@@ -605,6 +605,7 @@ export const translations = {
   cashPayments: { ar: "سندات الصرف", en: "Cash Payments" },
   cheques: { ar: "الشيكات", en: "Cheques" },
   bankTransfers: { ar: "التحويلات البنكية", en: "Bank Transfers" },
+  bankAccounts:  { ar: "الحسابات البنكية",  en: "Bank Accounts" },
   purchaseInvoices: { ar: "فواتير المشتريات", en: "Purchase Invoices" },
   grn: { ar: "استلام البضاعة", en: "Goods Receipts" },
   warehouses: { ar: "المستودعات", en: "Warehouses" },
@@ -722,6 +723,7 @@ export const translations = {
   mobileQuickEntry: { ar: "إدخال سريع للمندوب",    en: "Mobile quick entry" },
   invoiceReadyForReview:{ ar: "الفاتورة جاهزة للمراجعة", en: "Invoice ready for review" },
   noDraftsYet:      { ar: "لا توجد مسودات حتى الآن", en: "No drafts yet" },
+  noInvoices:        { ar: "لا توجد فواتير", en: "No invoices" },
   noRejectedYet:    { ar: "لا توجد فواتير تحتاج تعديل", en: "No rejected invoices" },
   noSubmittedYet:   { ar: "لا توجد فواتير مرسلة للمراجعة", en: "No submitted invoices" },
   salesReviewTitle: { ar: "مراجعة فواتير المبيعات", en: "Sales Invoice Review" },
@@ -836,6 +838,19 @@ export const translations = {
 
   // ── Audit Log ─────────────────────────────────────────
   auditLog:          { ar: "سجل التدقيق",        en: "Audit Log" },
+  backup:            { ar: "النسخ الاحتياطي",    en: "Backup" },
+  resetTestData:     { ar: "مسح بيانات الاختبار", en: "Reset Test Data" },
+  postingRules:        { ar: "قواعد الترحيل",          en: "Posting Rules" },
+  lowStockAlerts:      { ar: "تنبيهات المخزون",        en: "Low Stock Alerts" },
+  wastage:             { ar: "الهدر والتالف",           en: "Wastage & Spoilage" },
+  recipeCosts:         { ar: "تكاليف الوصفات",         en: "Recipe Costs" },
+  vatReport:           { ar: "تقرير الضريبة",           en: "VAT Report" },
+  supplierComparison:  { ar: "مقارنة أسعار الموردين",   en: "Supplier Comparison" },
+  monthEndClose:       { ar: "إغلاق نهاية الشهر",       en: "Month-End Close" },
+  barcodeScanner:      { ar: "مسح الباركود",            en: "Barcode Scanner" },
+  routeSheet:          { ar: "ورقة مسار التوزيع",       en: "Route Sheet" },
+  inventoryAging:      { ar: "تقادم المخزون",            en: "Inventory Aging" },
+  bulkPost:            { ar: "ترحيل الكل",               en: "Bulk Post" },
 
   // ── Company Settings ──────────────────────────────────
   companySettings:      { ar: "إعدادات الشركة",      en: "Company Settings" },
@@ -1166,6 +1181,7 @@ export const translations = {
   viewDetails:           { ar: "عرض التفاصيل",                   en: "View Details" },
   errMissingInventoryAccounts: { ar: "يرجى تصنيف حسابات المخزون والذمم الدائنة في دليل الحسابات أولاً.", en: "Please classify inventory and payable accounts in the chart of accounts first." },
   authorizedBy:          { ar: "اعتمده",                       en: "Authorized By" },
+  receivedBy:            { ar: "استلمه",                      en: "Received By" },
   grnLines:              { ar: "أصناف الاستلام",                en: "Receipt Lines" },
   documentNotFound:      { ar: "المستند غير موجود",             en: "Document not found" },
 
@@ -1446,15 +1462,15 @@ export function formatCurrency(
 }
 
 export function formatNumber(
-  value: number | null | undefined,
-  lang: Language
+  value: number,
+  lang: string = "en",
+  decimals: number = 2
 ): string {
-  if (value == null) return "—";
   const locale = lang === "ar" ? "ar-QA" : "en-QA";
   try {
     return new Intl.NumberFormat(locale, {
-      minimumFractionDigits: 0,
-      maximumFractionDigits: 2,
+      minimumFractionDigits: decimals,
+      maximumFractionDigits: decimals,
     }).format(value);
   } catch {
     return String(value);
@@ -1462,18 +1478,18 @@ export function formatNumber(
 }
 
 export function formatDate(
-  value: string | number | Date,
-  lang: Language
+  date: Date | string,
+  lang: string = "en"
 ): string {
+  const d = typeof date === "string" ? new Date(date) : date;
+  const locale = lang === "ar" ? "ar-QA" : "en-GB";
   try {
-    const d = typeof value === "string" ? new Date(value) : value;
-    const locale = lang === "ar" ? "ar-QA" : "en-QA";
-    return new Intl.DateTimeFormat(locale, {
+    return d.toLocaleDateString(locale, {
       year: "numeric",
-      month: "short",
+      month: "long",
       day: "numeric",
-    }).format(d);
+    });
   } catch {
-    return String(value);
+      return String(date);
   }
 }

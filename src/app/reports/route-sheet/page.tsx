@@ -1,0 +1,323 @@
+// @ts-nocheck
+"use client";
+
+import { useState } from "react";
+import { useQuery } from "convex/react";
+import { api } from "../../../../convex/_generated/api";
+import { useI18n } from "@/hooks/useI18n";
+import { useCompanySettings } from "@/hooks/useCompanySettings";
+import { PageHeader } from "@/components/ui/page-header";
+import { LoadingState } from "@/components/ui/data-display";
+import { Truck, Printer, Package, CreditCard, Banknote, MapPin, ChevronDown, ChevronUp } from "lucide-react";
+import { useState as useLocalState } from "react";
+
+const ACCENT = "#0ea5e9";
+
+function todayISO() { return new Date().toISOString().slice(0, 10); }
+
+function moneyFmt(n: number) {
+  return new Intl.NumberFormat("ar-QA", { style: "currency", currency: "QAR" }).format(n);
+}
+
+// ─── Vehicle Block ─────────────────────────────────────────────────────────────
+function VehicleBlock({ v: veh, isRTL, idx }: { v: any; isRTL: boolean; idx: number }) {
+  const [open, setOpen] = useState(true);
+
+  const typeColor = (type: string) =>
+    type === "cash_sale" ? "#10b981" : type === "credit_sale" ? "#f59e0b" : "#6366f1";
+
+  return (
+    <div className="rounded-2xl border overflow-hidden print:rounded-none print:border-0 print:border-b-2 print:border-gray-800 print:mb-4"
+      style={{ background: "white", borderColor: "var(--ink-200)" }}>
+      {/* Vehicle header */}
+      <button
+        onClick={() => setOpen((v) => !v)}
+        className="w-full flex items-center gap-4 px-5 py-4 print:cursor-default"
+        style={{ background: "var(--ink-50)", borderBottom: "1px solid var(--ink-200)" }}
+      >
+        <div className="h-10 w-10 rounded-xl flex items-center justify-center shrink-0"
+          style={{ background: `${ACCENT}15`, border: `1px solid ${ACCENT}30` }}>
+          <Truck className="h-5 w-5" style={{ color: ACCENT }} />
+        </div>
+        <div className="flex-1 text-start">
+          <div className="flex items-center gap-2">
+            <span className="text-[13px] font-black" style={{ color: "var(--ink-900)" }}>
+              {veh.vehicleCode}
+            </span>
+            <span className="text-[12px] font-semibold" style={{ color: "var(--ink-600)" }}>
+              — {isRTL ? veh.vehicleDescAr : veh.vehicleDescEn}
+            </span>
+            {veh.driverName && (
+              <span className="text-[11px] px-2 py-0.5 rounded-full"
+                style={{ background: "#10b98115", color: "#059669" }}>
+                {veh.driverName}
+              </span>
+            )}
+          </div>
+          <div className="flex items-center gap-4 mt-1">
+            <span className="text-[11px]" style={{ color: "var(--ink-500)" }}>
+              {veh.invoiceCount} {isRTL ? "فاتورة" : "invoices"}
+            </span>
+            <span className="text-[12px] font-bold tabular-nums" style={{ color: ACCENT }}>
+              {moneyFmt(veh.totalAmount)}
+            </span>
+          </div>
+        </div>
+        <div className="print:hidden">
+          {open ? <ChevronUp className="h-4 w-4" style={{ color: "var(--ink-400)" }} />
+                : <ChevronDown className="h-4 w-4" style={{ color: "var(--ink-400)" }} />}
+        </div>
+      </button>
+
+      {/* Invoices table */}
+      {(open) && (
+        <div className="overflow-x-auto">
+          <table className="w-full text-sm border-collapse">
+            <thead>
+              <tr style={{ background: "var(--ink-50)", borderBottom: "1px solid var(--ink-100)" }}>
+                {["#", isRTL ? "رقم الفاتورة" : "Invoice", isRTL ? "العميل" : "Customer",
+                  isRTL ? "النوع" : "Type", isRTL ? "المبلغ" : "Amount",
+                  isRTL ? "تحصيل نقدي" : "Cash", isRTL ? "آجل" : "Credit",
+                  isRTL ? "الحالة" : "Status", isRTL ? "توقيع الاستلام" : "Signature"].map((h, i) => (
+                  <th key={i} className="px-4 py-2.5 text-[10px] font-bold uppercase tracking-wider text-start"
+                    style={{ color: "var(--ink-500)" }}>{h}</th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {veh.invoices.map((inv: any, i: number) => (
+                <tr key={inv._id}
+                  style={{
+                    background: i % 2 === 0 ? "white" : "var(--ink-50)",
+                    borderBottom: "1px solid var(--ink-100)",
+                  }}>
+                  <td className="px-4 py-3 text-[11px]" style={{ color: "var(--ink-500)" }}>{i + 1}</td>
+                  <td className="px-4 py-3">
+                    <span className="font-mono text-[12px] font-bold px-2 py-0.5 rounded"
+                      style={{ background: "var(--ink-100)", color: "var(--ink-700)" }}>
+                      {inv.invoiceNumber}
+                    </span>
+                    {inv.externalInvoiceNumber && (
+                      <div className="text-[10px] mt-0.5" style={{ color: "var(--ink-400)" }}>
+                        {inv.externalInvoiceNumber}
+                      </div>
+                    )}
+                  </td>
+                  <td className="px-4 py-3">
+                    <span className="text-[13px] font-semibold" style={{ color: "var(--ink-900)" }}>
+                      {inv.customerName}
+                    </span>
+                  </td>
+                  <td className="px-4 py-3">
+                    <span className="inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-full"
+                      style={{
+                        background: `${typeColor(inv.invoiceType)}15`,
+                        color: typeColor(inv.invoiceType),
+                      }}>
+                      {inv.invoiceType === "cash_sale"
+                        ? (isRTL ? "نقدي" : "Cash")
+                        : inv.invoiceType === "credit_sale"
+                        ? (isRTL ? "آجل" : "Credit")
+                        : (isRTL ? "مختلط" : "Mixed")}
+                    </span>
+                  </td>
+                  <td className="px-4 py-3 tabular-nums text-[13px] font-bold" style={{ color: "var(--ink-900)" }}>
+                    {moneyFmt(inv.totalAmount)}
+                  </td>
+                  <td className="px-4 py-3 tabular-nums text-[12px]" style={{ color: "#059669" }}>
+                    {inv.cashReceived > 0 ? moneyFmt(inv.cashReceived) : "—"}
+                  </td>
+                  <td className="px-4 py-3 tabular-nums text-[12px]" style={{ color: "#d97706" }}>
+                    {inv.creditAmount > 0 ? moneyFmt(inv.creditAmount) : "—"}
+                  </td>
+                  <td className="px-4 py-3">
+                    <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
+                      inv.postingStatus === "posted"
+                        ? "bg-green-50 text-green-700"
+                        : "bg-amber-50 text-amber-700"
+                    }`}>
+                      {inv.postingStatus === "posted"
+                        ? (isRTL ? "مرحل" : "Posted")
+                        : (isRTL ? "غير مرحل" : "Unposted")}
+                    </span>
+                  </td>
+                  {/* Signature box for print */}
+                  <td className="px-4 py-3">
+                    <div className="h-8 w-24 rounded border" style={{ borderColor: "var(--ink-300)" }} />
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+            {/* Vehicle subtotal */}
+            <tfoot>
+              <tr style={{ background: `${ACCENT}08`, borderTop: `2px solid ${ACCENT}30` }}>
+                <td colSpan={4} className="px-4 py-2.5 text-[11px] font-bold" style={{ color: "var(--ink-700)" }}>
+                  {isRTL ? `إجمالي ${veh.vehicleCode}` : `${veh.vehicleCode} Total`}
+                </td>
+                <td className="px-4 py-2.5 tabular-nums text-[13px] font-black" style={{ color: ACCENT }}>
+                  {moneyFmt(veh.totalAmount)}
+                </td>
+                <td className="px-4 py-2.5 tabular-nums text-[12px] font-bold" style={{ color: "#059669" }}>
+                  {moneyFmt(veh.cashAmount)}
+                </td>
+                <td className="px-4 py-2.5 tabular-nums text-[12px] font-bold" style={{ color: "#d97706" }}>
+                  {moneyFmt(veh.creditAmount)}
+                </td>
+                <td colSpan={2} />
+              </tr>
+            </tfoot>
+          </table>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ─── KPI Chip ──────────────────────────────────────────────────────────────────
+function Chip({ icon: Icon, label, value, color }: any) {
+  return (
+    <div className="rounded-2xl border p-4 flex items-center gap-3"
+      style={{ background: "white", borderColor: "var(--ink-200)" }}>
+      <div className="h-10 w-10 rounded-xl flex items-center justify-center shrink-0"
+        style={{ background: `${color}12` }}>
+        <Icon className="h-5 w-5" style={{ color }} />
+      </div>
+      <div>
+        <p className="text-[10.5px] font-semibold uppercase tracking-wide" style={{ color: "var(--ink-400)" }}>{label}</p>
+        <p className="text-[18px] font-bold tabular-nums" style={{ color: "var(--ink-900)" }}>{value}</p>
+      </div>
+    </div>
+  );
+}
+
+// ─── Main Page ─────────────────────────────────────────────────────────────────
+export default function RouteSheetPage() {
+  const { isRTL, formatCurrency } = useI18n();
+  const { company } = useCompanySettings();
+  const companies = useQuery(api.seed.getCompanies, {}) ?? [];
+  const companyId = companies[0]?._id;
+
+  const [date, setDate] = useState(todayISO());
+
+  const data = useQuery(
+    api.reports.getRouteSheet,
+    companyId ? { companyId, date } : "skip"
+  );
+
+  const t = (key: string, ar: string, en: string) => isRTL ? ar : en;
+
+  return (
+    <div className="space-y-5 max-w-5xl mx-auto" dir={isRTL ? "rtl" : "ltr"}>
+      {/* Header */}
+      <div className="print:hidden">
+        <PageHeader
+          title={isRTL ? "ورقة مسار التوزيع" : "Route Sheet"}
+          subtitle={isRTL
+            ? "تقرير يومي مفصل لكل مركبة — يطبع قبل الخروج"
+            : "Daily delivery manifest per vehicle — print before dispatch"}
+          icon={Truck}
+          iconColor={ACCENT}
+          actions={
+            <div className="flex items-center gap-2">
+              <input
+                type="date"
+                value={date}
+                onChange={(e) => setDate(e.target.value)}
+                className="h-10 px-3 rounded-xl border text-[13px] font-medium outline-none"
+                style={{ borderColor: "var(--ink-200)", color: "var(--ink-700)", background: "white" }}
+              />
+              <button
+                onClick={() => window.print()}
+                className="h-10 px-4 rounded-xl flex items-center gap-2 text-[13px] font-semibold text-white"
+                style={{ background: ACCENT }}>
+                <Printer className="h-4 w-4" />
+                {isRTL ? "طباعة" : "Print"}
+              </button>
+            </div>
+          }
+        />
+      </div>
+
+      {/* Print header */}
+      <div className="hidden print:block mb-6">
+        <div className="flex items-center justify-between border-b-2 border-gray-800 pb-4 mb-4">
+          <div>
+            <h1 className="text-xl font-black">{isRTL ? company?.nameAr : (company?.nameEn || company?.nameAr)}</h1>
+          </div>
+          <div className="text-end">
+            <h2 className="text-lg font-black">{isRTL ? "ورقة مسار التوزيع" : "Route Sheet"}</h2>
+            <p className="text-sm font-bold">{date}</p>
+            <p className="text-xs text-gray-500">{isRTL ? "طُبع:" : "Printed:"} {new Date().toLocaleTimeString()}</p>
+          </div>
+        </div>
+      </div>
+
+      {!companyId || !data ? (
+        <LoadingState />
+      ) : data.vehicles.length === 0 ? (
+        <div className="rounded-2xl border-2 border-dashed py-16 text-center print:hidden"
+          style={{ borderColor: "var(--ink-200)" }}>
+          <Truck className="h-12 w-12 mx-auto mb-3 opacity-30" style={{ color: ACCENT }} />
+          <p className="text-[14px] font-semibold" style={{ color: "var(--ink-600)" }}>
+            {isRTL ? "لا توجد فواتير لهذا اليوم" : "No invoices for this date"}
+          </p>
+          <p className="text-[12px] mt-1" style={{ color: "var(--ink-400)" }}>
+            {isRTL ? "حدد تاريخاً آخر أو أضف فواتير مبيعات" : "Select another date or add sales invoices"}
+          </p>
+        </div>
+      ) : (
+        <>
+          {/* KPIs */}
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 print:hidden">
+            <Chip icon={Truck}    color={ACCENT}    label={isRTL ? "مركبات" : "Vehicles"} value={data.totals.vehicleCount} />
+            <Chip icon={Package}  color="#6366f1"   label={isRTL ? "فواتير" : "Invoices"} value={data.totals.invoiceCount} />
+            <Chip icon={Banknote} color="#10b981"   label={isRTL ? "نقدي" : "Cash"}       value={moneyFmt(data.totals.cashAmount)} />
+            <Chip icon={CreditCard} color="#f59e0b" label={isRTL ? "آجل" : "Credit"}      value={moneyFmt(data.totals.creditAmount)} />
+          </div>
+
+          {/* Vehicle blocks */}
+          <div className="space-y-4">
+            {data.vehicles.map((v: any, i: number) => (
+              <VehicleBlock key={v.vehicleId ?? v.vehicleCode} v={v} isRTL={isRTL} idx={i} />
+            ))}
+          </div>
+
+          {/* Grand total */}
+          <div className="rounded-2xl border-2 p-5 print:rounded-none print:border-t-2 print:border-b-0 print:border-x-0"
+            style={{ borderColor: ACCENT, background: `${ACCENT}08` }}>
+            <div className="flex items-center justify-between">
+              <span className="text-[15px] font-black" style={{ color: "var(--ink-800)" }}>
+                {isRTL ? "الإجمالي العام" : "Grand Total"} — {date}
+              </span>
+              <span className="text-[22px] font-black tabular-nums" style={{ color: ACCENT }}>
+                {moneyFmt(data.totals.totalAmount)}
+              </span>
+            </div>
+            <div className="flex items-center gap-6 mt-2">
+              <span className="text-[12px] font-semibold" style={{ color: "#059669" }}>
+                {isRTL ? "نقدي:" : "Cash:"} {moneyFmt(data.totals.cashAmount)}
+              </span>
+              <span className="text-[12px] font-semibold" style={{ color: "#d97706" }}>
+                {isRTL ? "آجل:" : "Credit:"} {moneyFmt(data.totals.creditAmount)}
+              </span>
+              <span className="text-[12px] font-semibold" style={{ color: "var(--ink-500)" }}>
+                {isRTL ? `${data.totals.vehicleCount} مركبة · ${data.totals.invoiceCount} فاتورة`
+                        : `${data.totals.vehicleCount} vehicles · ${data.totals.invoiceCount} invoices`}
+              </span>
+            </div>
+          </div>
+
+          {/* Print signatures */}
+          <div className="hidden print:grid grid-cols-3 gap-8 mt-8 pt-6 border-t-2 border-gray-300">
+            {[isRTL ? "أعدّه" : "Prepared by", isRTL ? "اعتمده" : "Approved by", isRTL ? "استلمه" : "Received by"].map((l) => (
+              <div key={l} className="text-center">
+                <div className="h-12 border-b border-gray-600 mx-4 mb-2" />
+                <p className="text-xs text-gray-500 font-medium">{l}</p>
+              </div>
+            ))}
+          </div>
+        </>
+      )}
+    </div>
+  );
+}

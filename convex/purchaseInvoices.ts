@@ -13,6 +13,7 @@ import {
 import { assertUserPermission, assertUserBranch } from "./lib/permissions";
 import { logAudit } from "./lib/audit";
 import { assertPeriodOpen } from "./lib/fiscalControl";
+import { requirePostingRules } from "./postingRules";
 
 
 
@@ -216,23 +217,20 @@ export const createGRN = mutation({
     for (const line of args.lines) {
 
       await ctx.db.insert("grnLines", {
-
         grnId,
-
         poLineId: line.poLineId,
-
+        companyId: args.companyId,
+        warehouseId: args.warehouseId,
+        grnDate: args.receiptDate,
         itemId: line.itemId,
-
         quantity: line.quantity,
-
         uomId: line.uomId,
-
         unitCost: line.unitCost,
-
         totalCost: line.totalCost,
-
         invoicedQty: 0,
-
+        batchNumber: (line as any).batchNumber ?? undefined,
+        expiryDate: (line as any).expiryDate ?? undefined,
+        lotNumber: (line as any).lotNumber ?? undefined,
       });
 
     }
@@ -933,9 +931,9 @@ export const postPurchaseInvoice = mutation({
 
     userId: v.id("users"),
 
-    apAccountId: v.id("accounts"),
+    apAccountId:            v.optional(v.id("accounts")),
 
-    vatReceivableAccountId: v.id("accounts"),
+    vatReceivableAccountId: v.optional(v.id("accounts")),
 
   },
 
@@ -962,6 +960,17 @@ export const postPurchaseInvoice = mutation({
     await validatePeriodOpen(ctx, invoice.periodId);
 
     await assertPeriodOpen(ctx, invoice.invoiceDate, invoice.companyId);
+
+    // ── Auto-load posting rules if args missing ──
+    const rules = (!args.apAccountId || !args.vatReceivableAccountId)
+      ? await requirePostingRules(ctx, invoice.companyId)
+      : null;
+
+    const apAccountId            = args.apAccountId            ?? rules?.apAccountId;
+    const vatReceivableAccountId = args.vatReceivableAccountId ?? rules?.vatReceivableAccountId;
+
+    if (!apAccountId)            throw new Error("حساب الذمم الدائنة غير محدد — يرجى ضبط قواعد الترحيل");
+    if (!vatReceivableAccountId) throw new Error("حساب ضريبة المدخلات غير محدد — يرجى ضبط قواعد الترحيل");
 
     const lines = await ctx.db
 
@@ -1043,9 +1052,9 @@ export const postPurchaseInvoice = mutation({
 
       })),
 
-      args.apAccountId,
+      apAccountId,
 
-      args.vatReceivableAccountId
+      vatReceivableAccountId
 
     );
 
@@ -1521,54 +1530,113 @@ export const listPurchaseInvoices = query({
     if (args.supplierId) {
 
       invoices = invoices.filter((i) => i.supplierId === args.supplierId);
-
-    }
-
-    if (args.documentStatus) {
-
-      invoices = invoices.filter((i) => i.documentStatus === args.documentStatus);
-
     }
 
     if (args.postingStatus) {
-
       invoices = invoices.filter((i) => i.postingStatus === args.postingStatus);
-
     }
 
-    if (args.paymentStatus) {
+    invoices.sort((a, b) => b.invoiceNumber.localeCompare(a.invoiceNumber));
 
-      invoices = invoices.filter((i) => i.paymentStatus === args.paymentStatus);
-
-    }
-
-
-
-    invoices.sort((a, b) => b.invoiceDate.localeCompare(a.invoiceDate));
-
-
-
-    const enriched = await Promise.all(
-
-      invoices.map(async (inv) => {
-
-        const supplier = await ctx.db.get(inv.supplierId);
-
-        return { ...inv, supplierName: supplier?.nameAr ?? "—" };
-
+    // Enrich with supplier name
+    const supplierIds = [...new Set(invoices.map((i) => i.supplierId as string))];
+    const supplierMap = new Map<string, any>();
+    await Promise.all(
+      supplierIds.map(async (id) => {
+        const s = await ctx.db.get(id as any);
+        if (s) supplierMap.set(id, s);
       })
-
     );
 
-
-
-    return enriched;
-
+    return invoices.map((inv) => ({
+      ...inv,
+      supplierName: supplierMap.get(inv.supplierId as string)?.nameAr
+        ?? supplierMap.get(inv.supplierId as string)?.nameEn
+        ?? "—",
+    }));
   },
-
 });
 
+// ─── UPDATE DRAFT PURCHASE INVOICE ───────────────────────────────────────────
+export const updateDraftPurchaseInvoice = mutation({
+  args: {
+    invoiceId: v.id("purchaseInvoices"),
+    userId: v.id("users"),
+    supplierId: v.id("suppliers"),
+    supplierInvoiceNo: v.optional(v.string()),
+    invoiceDate: v.string(),
+    dueDate: v.string(),
+    notes: v.optional(v.string()),
+    lines: v.array(v.object({
+      itemId: v.optional(v.id("items")),
+      description: v.optional(v.string()),
+      quantity: v.number(),
+      unitPrice: v.number(),
+      uomId: v.optional(v.id("unitOfMeasure")),
+      lineType: v.optional(v.string()),
+    })),
+  },
+  handler: async (ctx, args) => {
+    const invoice = await ctx.db.get(args.invoiceId);
+    if (!invoice) throw new Error("الفاتورة غير موجودة");
+    if (invoice.documentStatus !== "draft") throw new Error("يمكن تعديل المسودات فقط");
+    if (invoice.postingStatus !== "unposted") throw new Error("لا يمكن تعديل فاتورة مرحلة");
 
+    const user = await assertUserPermission(ctx, args.userId, "purchases", "edit");
+    assertUserBranch(user, invoice.branchId);
 
+    // Recalculate totals
+    const subtotal = args.lines.reduce((s, l) => s + l.quantity * l.unitPrice, 0);
+    const vatRate = 0.05;
+    const vatAmount = Math.round(subtotal * vatRate * 100) / 100;
+    const totalAmount = Math.round((subtotal + vatAmount) * 100) / 100;
 
+    // Get default inventory account for lines
+    const rules = await ctx.db
+      .query("postingRules")
+      .withIndex("by_company", (q) => q.eq("companyId", invoice.companyId))
+      .first();
+    const defaultAccountId = rules?.inventoryAccountId ?? rules?.purchaseAccountId;
+    if (!defaultAccountId) throw new Error("يرجى ضبط قواعد الترحيل (حساب المشتريات)");
 
+    // Update header
+    await ctx.db.patch(args.invoiceId, {
+      supplierId: args.supplierId,
+      supplierInvoiceNo: args.supplierInvoiceNo,
+      invoiceDate: args.invoiceDate,
+      dueDate: args.dueDate,
+      subtotal,
+      vatAmount,
+      totalAmount,
+      notes: args.notes,
+    });
+
+    // Delete old lines
+    const oldLines = await ctx.db
+      .query("purchaseInvoiceLines")
+      .withIndex("by_invoice", (q) => q.eq("invoiceId", args.invoiceId))
+      .collect();
+    await Promise.all(oldLines.map((l) => ctx.db.delete(l._id)));
+
+    // Insert new lines
+    for (let i = 0; i < args.lines.length; i++) {
+      const l = args.lines[i];
+      const lineTotal = Math.round(l.quantity * l.unitPrice * 100) / 100;
+      await ctx.db.insert("purchaseInvoiceLines", {
+        invoiceId: args.invoiceId,
+        itemId: l.itemId,
+        description: l.description,
+        quantity: l.quantity,
+        unitPrice: l.unitPrice,
+        uomId: l.uomId,
+        lineType: (l.lineType ?? "stock_item") as any,
+        lineTotal,
+        vatRate,
+        vatAmount: Math.round(lineTotal * vatRate * 100) / 100,
+        accountId: defaultAccountId,
+      });
+    }
+
+    return { invoiceId: args.invoiceId, totalAmount };
+  },
+});

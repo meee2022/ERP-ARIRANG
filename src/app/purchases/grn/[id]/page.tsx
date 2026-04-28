@@ -40,8 +40,8 @@ function GRNLinesTable({ lines, t, isRTL, formatCurrency }: any) {
                 {isRTL ? line.itemNameAr : (line.itemNameEn || line.itemNameAr)}
               </td>
               <td className="numeric text-end">{line.quantity}</td>
-              <td className="numeric text-end">{formatCurrency((line.unitCost ?? 0) / 100)}</td>
-              <td className="numeric text-end font-semibold">{formatCurrency((line.totalCost ?? 0) / 100)}</td>
+              <td className="numeric text-end">{formatCurrency((line.unitCost ?? 0))}</td>
+              <td className="numeric text-end font-semibold">{formatCurrency((line.totalCost ?? 0))}</td>
             </tr>
           ))}
         </tbody>
@@ -239,7 +239,7 @@ export default function GRNDetailPage() {
           <div className="w-72">
             <div className="flex justify-between border-t-2 border-[color:var(--ink-800)] pt-2 text-base font-extrabold text-[color:var(--ink-900)]">
               <span>{t("total")}</span>
-              <span className="tabular-nums">{formatCurrency(totalValue / 100)}</span>
+              <span className="tabular-nums">{formatCurrency(totalValue)}</span>
             </div>
           </div>
         </div>

@@ -2,6 +2,7 @@
 "use client";
 
 import React, { useState } from "react";
+import { formatCurrency } from "@/lib/i18n";
 import { useQuery } from "convex/react";
 import { api } from "../../../../convex/_generated/api";
 import { useI18n } from "@/hooks/useI18n";
@@ -9,6 +10,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { PdfDownloadButton } from "@/components/ui/PdfDownloadButton";
 import { CashMovementPdf } from "@/lib/pdf/CashMovementPdf";
 import { Printer, Search, TrendingUp, TrendingDown } from "lucide-react";
+import { SearchableSelect } from "@/components/ui/searchable-select";
 import { LoadingState } from "@/components/ui/data-display";
 import { EmptyState } from "@/components/ui/empty-state";
 import { CompanyPrintHeader } from "@/components/ui/company-print-header";
@@ -47,7 +49,7 @@ export default function CashMovementReportPage() {
       style: "currency",
       currency: "QAR",
       minimumFractionDigits: 2,
-    }).format(n / 100);
+    }).format(n);
 
   const kpis = report
     ? [
@@ -82,18 +84,18 @@ export default function CashMovementReportPage() {
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-4">
           <div className="sm:col-span-2">
             <label className="block text-xs font-medium text-[color:var(--ink-700)] mb-1">{t("account")}</label>
-            <select
+            <SearchableSelect
+              isRTL={isRTL}
               value={selectedAccount}
-              onChange={(e) => { setSelectedAccount(e.target.value); setSubmitted(false); }}
-              className="input-field w-full"
-            >
-              <option value="">{t("selectAccount")}</option>
-              {(accounts ?? []).map((a: any) => (
-                <option key={a._id} value={a._id}>
-                  {a.code ? `${a.code} — ` : ""}{a.nameAr}
-                </option>
-              ))}
-            </select>
+              onChange={(v) => { setSelectedAccount(v); setSubmitted(false); }}
+              placeholder={t("selectAccount")}
+              searchPlaceholder={isRTL ? "ابحث بالاسم أو الكود..." : "Search by name or code..."}
+              emptyMessage={isRTL ? "لا توجد نتائج" : "No results"}
+              options={(accounts ?? []).map((a: any) => ({
+                value: a._id,
+                label: `${a.code ? `${a.code} — ` : ""}${isRTL ? a.nameAr : (a.nameEn || a.nameAr)}`,
+              }))}
+            />
           </div>
           <div>
             <label className="block text-xs font-medium text-[color:var(--ink-700)] mb-1">{t("statementFrom")}</label>
@@ -256,15 +258,12 @@ export default function CashMovementReportPage() {
                     </td>
                     <td className="numeric text-end text-[color:var(--brand-800)]">{fmt(report.closingBalance)}</td>
                   </tr>
-                </tfoot>
-              </table>
-            </div>
+
+              </tfoot>
+            </table>
+          </div>
           )}
         </div>
-      )}
-
-      {submitted && report === undefined && (
-        <LoadingState label={t("loading")} />
       )}
     </div>
   );

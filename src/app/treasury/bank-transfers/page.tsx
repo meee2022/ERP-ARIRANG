@@ -1,6 +1,7 @@
 // @ts-nocheck
 "use client";
 import React, { useState } from "react";
+import { StatusBadge } from "@/components/ui/status-badge";
 import { useI18n } from "@/hooks/useI18n";
 import { useQuery, useMutation } from "convex/react";
 import { api } from "../../../../convex/_generated/api";
@@ -72,7 +73,7 @@ function NewBankTransferForm({ onClose }: { onClose: () => void }) {
         currencyId: defaultCurrency._id,
         fromBankAccountId: fromBankAccountId as any,
         toBankAccountId: toBankAccountId as any,
-        amount: Math.round(parsedAmount * 100),
+        amount: Math.round(parsedAmount * 100) / 100,
         transferDate,
         reference: reference || undefined,
         description: description || undefined,
@@ -285,7 +286,25 @@ export default function BankTransfersPage() {
             }
           />
         ) : (
-          <div className="overflow-x-auto">
+          <>
+          <div className="mobile-list p-3 space-y-2.5">
+            {data.map((tr: any) => (
+              <div key={tr._id} className="record-card">
+                <div className="flex items-start justify-between gap-2 mb-2">
+                  <div className="min-w-0 flex-1">
+                    <span className="font-mono text-[11px] font-bold px-2 py-0.5 rounded bg-[var(--ink-100)] text-[var(--ink-600)] inline-block mb-1">{tr.transferNumber}</span>
+                    <p className="text-[13px] font-semibold text-[var(--ink-800)]">{tr.fromAccountName} → {tr.toAccountName}</p>
+                    <p className="text-[11px] text-[var(--ink-400)] mt-0.5">{tr.transferDate}</p>
+                  </div>
+                  <div className="text-end shrink-0">
+                    <p className="text-[17px] font-bold tabular-nums text-[var(--ink-900)]">{formatCurrency(tr.amount)}</p>
+                    <StatusBadge status={tr.postingStatus} type="posting" />
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+          <div className="desktop-table overflow-x-auto">
             <table className="data-table">
               <thead>
                 <tr>
@@ -304,7 +323,7 @@ export default function BankTransfersPage() {
                     <td className="px-4 py-2.5 muted">{formatDateShort(tr.transferDate)}</td>
                     <td className="px-4 py-2.5 muted">{accountMap[tr.fromAccountId] ?? tr.fromAccountId}</td>
                     <td className="px-4 py-2.5 muted">{accountMap[tr.toAccountId] ?? tr.toAccountId}</td>
-                    <td className="px-4 py-2.5 numeric text-end">{formatCurrency(tr.amount / 100)}</td>
+                    <td className="px-4 py-2.5 numeric text-end">{formatCurrency(tr.amount)}</td>
                     <td className="px-4 py-2.5">
                       <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${tr.postingStatus === "posted" ? "bg-emerald-50 text-emerald-700" : "bg-[color:var(--ink-100)] text-[color:var(--ink-600)]"}`}>
                         {t(tr.postingStatus === "posted" ? "statusPosted" : "statusDraft")}
@@ -315,6 +334,7 @@ export default function BankTransfersPage() {
               </tbody>
             </table>
           </div>
+          </>
         )}
       </div>
     </div>

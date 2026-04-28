@@ -199,7 +199,7 @@ export default function BalanceSheetPage() {
                         unbalanced:                t("unbalanced"),
                         printedBy:                 t("printedBy"),
                       },
-                      formatCurrency: (n: number) => new Intl.NumberFormat("en-QA", { style: "currency", currency: "QAR", minimumFractionDigits: 2 }).format(n / 100),
+                      formatCurrency: (n: number) => new Intl.NumberFormat("en-QA", { style: "currency", currency: "QAR", minimumFractionDigits: 2 }).format(n),
                     }} />
                   }
                   fileName={`balance-sheet-${asOfDate}.pdf`}

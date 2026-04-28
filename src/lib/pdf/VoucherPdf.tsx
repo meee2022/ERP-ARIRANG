@@ -65,7 +65,7 @@ export function VoucherPdf({ data }: { data: VoucherPdfData }) {
         {/* Amount highlight box */}
         <View style={S.amountBox}>
           <Text style={S.amountLabel}>{labels.amountLabel}</Text>
-          <Text style={S.amountValue}>{formatCurrency(data.amount / 100)}</Text>
+          <Text style={S.amountValue}>{formatCurrency(data.amount)}</Text>
         </View>
 
         {/* Details */}

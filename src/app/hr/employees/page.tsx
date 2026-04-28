@@ -6,7 +6,7 @@ import { useQuery, useMutation } from "convex/react";
 import { api } from "../../../../convex/_generated/api";
 import {
   Users, Search, Plus, Edit2, Eye, ChevronDown, UserCheck,
-  Briefcase, DollarSign, Filter, Trash2,
+  Briefcase, DollarSign, Filter, Trash2, AlertTriangle, RefreshCw, ShieldAlert,
 } from "lucide-react";
 import { useI18n } from "@/hooks/useI18n";
 import { PageHeader } from "@/components/ui/page-header";
@@ -90,6 +90,10 @@ const EMPTY_FORM = {
   gender: "",
   dateOfBirth: "",
   notes: "",
+  qidExpiryDate: "",
+  sponsorshipStatus: "",
+  passportNumber: "",
+  passportExpiryDate: "",
 };
 
 function EmployeeFormModal({
@@ -136,6 +140,10 @@ function EmployeeFormModal({
           gender: employee.gender ?? "",
           dateOfBirth: employee.dateOfBirth ?? "",
           notes: employee.notes ?? "",
+          qidExpiryDate: employee.qidExpiryDate ?? "",
+          sponsorshipStatus: employee.sponsorshipStatus ?? "",
+          passportNumber: employee.passportNumber ?? "",
+          passportExpiryDate: employee.passportExpiryDate ?? "",
         }
       : {}),
   });
@@ -176,6 +184,10 @@ function EmployeeFormModal({
           gender: form.gender as any || undefined,
           dateOfBirth: form.dateOfBirth || undefined,
           notes: form.notes || undefined,
+          qidExpiryDate: form.qidExpiryDate || undefined,
+          sponsorshipStatus: form.sponsorshipStatus || undefined,
+          passportNumber: form.passportNumber || undefined,
+          passportExpiryDate: form.passportExpiryDate || undefined,
         });
       } else {
         await createEmployee({
@@ -353,12 +365,28 @@ function EmployeeFormModal({
           {/* ── Personal & Contact ── */}
           <SectionTitle>{t("personalAndContact") || "البيانات الشخصية والتواصل"}</SectionTitle>
 
-          <Field label={t("nationalId")}>
+          <Field label={t("nationalId") || "QID / Iqama"}>
             <input className="input-field" value={form.nationalId} onChange={f("nationalId")} />
+          </Field>
+
+          <Field label="QID Expiry Date">
+            <input className="input-field" type="date" value={form.qidExpiryDate} onChange={f("qidExpiryDate")} />
+          </Field>
+
+          <Field label="Sponsorship">
+            <input className="input-field" value={form.sponsorshipStatus} onChange={f("sponsorshipStatus")} placeholder="e.g. Arirang Bakery / Outside" />
           </Field>
 
           <Field label={t("nationality")}>
             <input className="input-field" value={form.nationality} onChange={f("nationality")} />
+          </Field>
+
+          <Field label="Passport No.">
+            <input className="input-field" value={form.passportNumber} onChange={f("passportNumber")} />
+          </Field>
+
+          <Field label="Passport Expiry">
+            <input className="input-field" type="date" value={form.passportExpiryDate} onChange={f("passportExpiryDate")} />
           </Field>
 
           <Field label={t("dateOfBirth")}>
@@ -504,6 +532,22 @@ export default function EmployeesPage() {
   const [showModal, setShowModal] = useState(false);
   const [editEmployee, setEditEmployee] = useState<any>(null);
 
+  const seedStaff = useMutation(api.seedStaff.seedRealStaff);
+  const [seeding, setSeeding] = useState(false);
+  const [showAlerts, setShowAlerts] = useState(true);
+
+  const qidAlerts = useQuery(api.hr.getQidExpiryAlerts, {});
+
+  const handleSeedStaff = async () => {
+    if (!confirm(isRTL ? "سيتم حذف جميع الموظفين الحاليين وإضافة 76 موظف من الملف. هل أنت متأكد؟" : "This will delete all current employees and add 76 from the Excel file. Confirm?")) return;
+    setSeeding(true);
+    try {
+      const res = await seedStaff({});
+      alert(isRTL ? `تم بنجاح! ${(res as any).total} موظف` : `Done! ${(res as any).total} employees added`);
+    } catch (e: any) { alert(e.message); }
+    finally { setSeeding(false); }
+  };
+
   // Queries
   const employees = useQuery(api.hr.listEmployees, {
     status: statusFilter || undefined,
@@ -548,15 +592,128 @@ export default function EmployeesPage() {
           </span>
         }
         actions={
-          <button
-            onClick={openAdd}
-            className="btn-primary h-10 px-4 rounded-lg inline-flex items-center gap-2 text-sm font-semibold"
-          >
-            <Plus className="h-4 w-4" />
-            {t("addEmployee") || "إضافة موظف"}
-          </button>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={handleSeedStaff}
+              disabled={seeding}
+              className="h-10 px-3 rounded-lg inline-flex items-center gap-2 text-sm font-semibold border border-orange-300 bg-orange-50 text-orange-700 hover:bg-orange-100 disabled:opacity-50"
+            >
+              <RefreshCw className={`h-4 w-4 ${seeding ? "animate-spin" : ""}`} />
+              {seeding ? (isRTL ? "جاري الاستيراد..." : "Importing...") : (isRTL ? "استيراد موظفين Excel" : "Import from Excel")}
+            </button>
+            <button
+              onClick={openAdd}
+              className="btn-primary h-10 px-4 rounded-lg inline-flex items-center gap-2 text-sm font-semibold"
+            >
+              <Plus className="h-4 w-4" />
+              {t("addEmployee") || "إضافة موظف"}
+            </button>
+          </div>
         }
       />
+
+      {/* ── QID / Iqama Expiry Alerts ────────────────────────────────────── */}
+      {qidAlerts && (qidAlerts.expired.length > 0 || qidAlerts.nearExpiry.length > 0 || qidAlerts.expiringSoon.length > 0) && (
+        <div className="rounded-xl border overflow-hidden">
+          <button
+            onClick={() => setShowAlerts((v) => !v)}
+            className="w-full flex items-center justify-between px-4 py-3 bg-red-50 border-b border-red-200 hover:bg-red-100 transition-colors"
+          >
+            <div className="flex items-center gap-2">
+              <ShieldAlert className="h-5 w-5 text-red-600" />
+              <span className="font-bold text-red-700 text-sm">
+                {isRTL ? "تنبيهات انتهاء الإقامة / QID" : "QID / Iqama Expiry Alerts"}
+              </span>
+              <span className="bg-red-600 text-white text-[10px] font-bold px-2 py-0.5 rounded-full">
+                {qidAlerts.expired.length + qidAlerts.nearExpiry.length + qidAlerts.expiringSoon.length}
+              </span>
+            </div>
+            <span className="text-xs text-red-500">{showAlerts ? "▲" : "▼"}</span>
+          </button>
+          {showAlerts && (
+            <div className="bg-white p-4 space-y-4">
+              {/* Expired */}
+              {qidAlerts.expired.length > 0 && (
+                <div>
+                  <div className="flex items-center gap-2 mb-2">
+                    <AlertTriangle className="h-4 w-4 text-red-600" />
+                    <span className="text-xs font-bold text-red-700 uppercase tracking-wider">
+                      {isRTL ? `منتهية الصلاحية (${qidAlerts.expired.length})` : `Expired (${qidAlerts.expired.length})`}
+                    </span>
+                  </div>
+                  <div className="grid grid-cols-1 gap-1.5">
+                    {qidAlerts.expired.map((e: any) => (
+                      <div key={e._id} className="flex items-center justify-between px-3 py-2 rounded-lg bg-red-50 border border-red-200">
+                        <div>
+                          <span className="text-sm font-semibold text-red-800">{e.nameEn}</span>
+                          <span className="text-xs text-red-500 mx-2">#{e.employeeCode}</span>
+                          {e.sponsorshipStatus && <span className="text-[10px] bg-red-100 text-red-600 px-1.5 py-0.5 rounded">{e.sponsorshipStatus}</span>}
+                        </div>
+                        <div className="text-end">
+                          <div className="text-xs font-bold text-red-700">{e.qidExpiryDate}</div>
+                          <div className="text-[10px] text-red-500">{Math.abs(e.daysLeft)} {isRTL ? "يوم منذ الانتهاء" : "days overdue"}</div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+              {/* Near Expiry 0-30 days */}
+              {qidAlerts.nearExpiry.length > 0 && (
+                <div>
+                  <div className="flex items-center gap-2 mb-2">
+                    <AlertTriangle className="h-4 w-4 text-amber-600" />
+                    <span className="text-xs font-bold text-amber-700 uppercase tracking-wider">
+                      {isRTL ? `تنتهي خلال 30 يوم (${qidAlerts.nearExpiry.length})` : `Expiring in 30 days (${qidAlerts.nearExpiry.length})`}
+                    </span>
+                  </div>
+                  <div className="grid grid-cols-1 gap-1.5">
+                    {qidAlerts.nearExpiry.map((e: any) => (
+                      <div key={e._id} className="flex items-center justify-between px-3 py-2 rounded-lg bg-amber-50 border border-amber-200">
+                        <div>
+                          <span className="text-sm font-semibold text-amber-800">{e.nameEn}</span>
+                          <span className="text-xs text-amber-500 mx-2">#{e.employeeCode}</span>
+                          {e.sponsorshipStatus && <span className="text-[10px] bg-amber-100 text-amber-600 px-1.5 py-0.5 rounded">{e.sponsorshipStatus}</span>}
+                        </div>
+                        <div className="text-end">
+                          <div className="text-xs font-bold text-amber-700">{e.qidExpiryDate}</div>
+                          <div className="text-[10px] text-amber-600">{e.daysLeft} {isRTL ? "يوم متبقي" : "days left"}</div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+              {/* Expiring 31-60 days */}
+              {qidAlerts.expiringSoon.length > 0 && (
+                <div>
+                  <div className="flex items-center gap-2 mb-2">
+                    <AlertTriangle className="h-4 w-4 text-blue-500" />
+                    <span className="text-xs font-bold text-blue-700 uppercase tracking-wider">
+                      {isRTL ? `تنتهي خلال 60 يوم (${qidAlerts.expiringSoon.length})` : `Expiring in 60 days (${qidAlerts.expiringSoon.length})`}
+                    </span>
+                  </div>
+                  <div className="grid grid-cols-1 gap-1.5">
+                    {qidAlerts.expiringSoon.map((e: any) => (
+                      <div key={e._id} className="flex items-center justify-between px-3 py-2 rounded-lg bg-blue-50 border border-blue-200">
+                        <div>
+                          <span className="text-sm font-semibold text-blue-800">{e.nameEn}</span>
+                          <span className="text-xs text-blue-400 mx-2">#{e.employeeCode}</span>
+                          {e.sponsorshipStatus && <span className="text-[10px] bg-blue-100 text-blue-600 px-1.5 py-0.5 rounded">{e.sponsorshipStatus}</span>}
+                        </div>
+                        <div className="text-end">
+                          <div className="text-xs font-bold text-blue-700">{e.qidExpiryDate}</div>
+                          <div className="text-[10px] text-blue-500">{e.daysLeft} {isRTL ? "يوم متبقي" : "days left"}</div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+      )}
 
       {/* Filter Bar */}
       <div className="bg-white rounded-xl border border-gray-200 p-3 flex flex-wrap items-center gap-3 shadow-sm">
@@ -632,7 +789,27 @@ export default function EmployeesPage() {
             }
           />
         ) : (
-          <div className="overflow-x-auto">
+          <>
+          <div className="mobile-list p-3 space-y-2.5">
+            {filtered.map((emp: any) => (
+              <div key={emp._id} className="record-card">
+                <div className="flex items-start justify-between gap-3 mb-2">
+                  <div className="min-w-0 flex-1">
+                    <span className="font-mono text-[11px] font-bold px-2 py-0.5 rounded bg-[var(--ink-100)] text-[var(--ink-600)] inline-block mb-1">{emp.employeeCode}</span>
+                    <p className="text-[14px] font-bold text-[var(--ink-900)]">{isRTL ? emp.nameAr : (emp.nameEn || emp.nameAr)}</p>
+                    <p className="text-[11.5px] text-[var(--ink-500)] mt-0.5">{emp.jobTitle ?? "—"} {emp.departmentName ? `· ${emp.departmentName}` : ""}</p>
+                  </div>
+                  <div className="text-end shrink-0">
+                    <p className="text-[14px] font-bold tabular-nums text-[var(--ink-900)]">{formatCurrency(emp.basicSalary ?? 0)}</p>
+                    <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full border ${emp.isActive !== false ? "bg-green-50 text-green-700 border-green-200" : "bg-gray-50 text-gray-400 border-gray-200"}`}>
+                      {emp.isActive !== false ? t("active") : t("inactive")}
+                    </span>
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+          <div className="desktop-table overflow-x-auto">
             <table className="w-full text-sm text-left border-collapse" dir={isRTL ? "rtl" : "ltr"}>
               <thead>
                 <tr className="bg-gray-50/70 border-b border-gray-100">
@@ -738,6 +915,7 @@ export default function EmployeesPage() {
               </tbody>
             </table>
           </div>
+          </>
         )}
       </div>
 

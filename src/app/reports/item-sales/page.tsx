@@ -48,8 +48,8 @@ export default function ItemSalesPage() {
         ? [
             { label: t("items"), value: String(totals.itemCount), borderColor: "var(--brand-600)", accent: "var(--ink-900)" },
             { label: t("quantitySold"), value: String(totals.quantitySold), borderColor: "#0ea5e9", accent: "#0f172a" },
-            { label: t("totalSales"), value: formatCurrency(totals.grossSales / 100), borderColor: "#f59e0b", accent: "#92400e" },
-            { label: t("net"), value: formatCurrency(totals.netSales / 100), borderColor: "#16a34a", accent: "#166534" },
+            { label: t("totalSales"), value: formatCurrency(totals.grossSales), borderColor: "#f59e0b", accent: "#92400e" },
+            { label: t("net"), value: formatCurrency(totals.netSales), borderColor: "#16a34a", accent: "#166534" },
           ]
         : [],
     [totals, t, formatCurrency]
@@ -117,9 +117,9 @@ export default function ItemSalesPage() {
                     <td className="code">{row.itemCode}</td>
                     <td>{isRTL ? row.itemNameAr : (row.itemNameEn || row.itemNameAr)}</td>
                     <td className="numeric text-end">{row.quantitySold}</td>
-                    <td className="numeric text-end">{formatCurrency(row.grossSales / 100)}</td>
-                    <td className="numeric text-end font-semibold">{formatCurrency(row.netSales / 100)}</td>
-                    <td className="numeric text-end">{formatCurrency(row.averageSellingPrice / 100)}</td>
+                    <td className="numeric text-end">{formatCurrency(row.grossSales)}</td>
+                    <td className="numeric text-end font-semibold">{formatCurrency(row.netSales)}</td>
+                    <td className="numeric text-end">{formatCurrency(row.averageSellingPrice)}</td>
                   </tr>
                 ))}
               </tbody>

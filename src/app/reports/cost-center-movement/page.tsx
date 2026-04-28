@@ -9,6 +9,7 @@ import { useAppStore } from "@/store/useAppStore";
 import { PageHeader } from "@/components/ui/page-header";
 import { FilterPanel, FilterField } from "@/components/ui/filter-panel";
 import { CostCenterSelect } from "@/components/ui/cost-center-select";
+import { SearchableSelect } from "@/components/ui/searchable-select";
 import { EmptyState } from "@/components/ui/empty-state";
 import { LoadingState } from "@/components/ui/data-display";
 import { CompanyPrintHeader } from "@/components/ui/company-print-header";
@@ -168,18 +169,18 @@ export default function CostCenterMovementPage() {
 
         {/* Account */}
         <FilterField label={t("account")}>
-          <select
+          <SearchableSelect
+            isRTL={isRTL}
             value={accountFilter}
-            onChange={(e) => setAccountFilter(e.target.value)}
-            className="input-field h-9 min-w-[220px]"
-          >
-            <option value="">{t("account")} — {t("total")}</option>
-            {postableAccounts.map((a: any) => (
-              <option key={a._id} value={a._id}>
-                {a.code} — {isRTL ? a.nameAr : a.nameEn || a.nameAr}
-              </option>
-            ))}
-          </select>
+            onChange={(v) => setAccountFilter(v)}
+            placeholder={`${t("account")} — ${t("total")}`}
+            searchPlaceholder={isRTL ? "ابحث بالاسم أو الكود..." : "Search by name or code..."}
+            emptyMessage={isRTL ? "لا توجد نتائج" : "No results"}
+            options={postableAccounts.map((a: any) => ({
+              value: a._id,
+              label: `${a.code} — ${isRTL ? a.nameAr : (a.nameEn || a.nameAr)}`,
+            }))}
+          />
         </FilterField>
       </FilterPanel>
       </div>
@@ -326,6 +327,7 @@ export default function CostCenterMovementPage() {
                   <td className="px-4 py-3 text-end tabular-nums text-red-600 text-sm">
                     {formatCurrency(totalCredit)}
                   </td>
+                  <td className="px-4 py-3"></td>
                 </tr>
               </tfoot>
             </table>

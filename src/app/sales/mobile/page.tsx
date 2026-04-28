@@ -8,7 +8,7 @@ import { useI18n } from "@/hooks/useI18n";
 import { useAuth } from "@/hooks/useAuth";
 import { useAppStore } from "@/store/useAppStore";
 import { StatusBadge } from "@/components/ui/status-badge";
-import { Plus, FileText, Send, TriangleAlert, Clock3, ChevronRight } from "lucide-react";
+import { Plus, FileText, Send, TriangleAlert, Clock3, ChevronRight, Barcode } from "lucide-react";
 
 function todayISO() {
   return new Date().toISOString().split("T")[0];
@@ -70,7 +70,7 @@ function MobileInvoiceCard({ invoice, t, isRTL, onSubmit, submitting }: any) {
           {invoice.invoiceDate}
         </div>
         <div className="text-lg font-bold text-[color:var(--brand-700)]">
-          {invoice.totalAmount ? new Intl.NumberFormat(isRTL ? "ar-QA" : "en-QA", { style: "currency", currency: "QAR" }).format(invoice.totalAmount / 100) : "QAR 0.00"}
+          {invoice.totalAmount ? new Intl.NumberFormat(isRTL ? "ar-QA" : "en-QA", { style: "currency", currency: "QAR" }).format(invoice.totalAmount) : "QAR 0.00"}
         </div>
       </div>
 
@@ -182,20 +182,31 @@ export default function MobileSalesPage() {
           <MobileBucketCard title={t("recentInvoices")} count={recent.length} icon={FileText} active={activeBucket === "recent"} onClick={() => setActiveBucket("recent")} />
         </div>
 
-        <div className="rounded-2xl border border-[color:var(--ink-200)] bg-white p-4">
-          <Link href="/sales/invoices" className="flex items-center justify-between text-sm font-semibold text-[color:var(--ink-800)]">
-            <span>{t("salesInvoicesTitle")}</span>
-            <ChevronRight className="h-4 w-4" />
-          </Link>
+        <div className="grid grid-cols-2 gap-3">
+          <div className="rounded-2xl border border-[color:var(--ink-200)] bg-white p-4">
+            <Link href="/sales/invoices" className="flex items-center justify-between text-sm font-semibold text-[color:var(--ink-800)]">
+              <span>{t("salesInvoicesTitle")}</span>
+              <ChevronRight className="h-4 w-4" />
+            </Link>
+          </div>
+          <div className="rounded-2xl border border-[color:var(--brand-200)] bg-[color:var(--brand-50)] p-4">
+            <Link href="/sales/mobile/barcode" className="flex items-center justify-between text-sm font-semibold text-[color:var(--brand-700)]">
+              <span className="flex items-center gap-1.5">
+                <Barcode className="h-4 w-4" />
+                {isRTL ? "مسح الباركود" : "Barcode Scan"}
+              </span>
+              <ChevronRight className="h-4 w-4" />
+            </Link>
+          </div>
         </div>
 
         <div className="space-y-3">
           {currentList.length === 0 ? (
-            <div className="rounded-2xl border border-dashed border-[color:var(--ink-200)] bg-white p-8 text-center text-sm text-[color:var(--ink-500)]">
-              {activeBucket === "drafts" ? t("noDraftsYet") : activeBucket === "rejected" ? t("noRejectedYet") : activeBucket === "submitted" ? t("noSubmittedYet") : t("noResults")}
+            <div className="rounded-2xl border border-dashed border-[color:var(--ink-200)] bg-white p-8 text-center text-sm text-[color:var(--ink-400)]">
+              {t("noInvoices")}
             </div>
           ) : (
-            currentList.map((invoice: any) => (
+            currentList.map((invoice) => (
               <MobileInvoiceCard
                 key={invoice._id}
                 invoice={invoice}

@@ -3,9 +3,10 @@
 
 import React, { useState, useRef, useEffect } from "react";
 import { useI18n } from "@/hooks/useI18n";
+import { useRouter } from "next/navigation";
 import { useQuery, useMutation } from "convex/react";
 import { api } from "../../../../convex/_generated/api";
-import { formatDateShort } from "@/lib/utils";
+import { formatDateShort, friendlyError } from "@/lib/utils";
 import { StatusBadge } from "@/components/ui/status-badge";
 import { Plus, Eye, X, Check, Search, FileCheck, ChevronDown } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
@@ -15,6 +16,7 @@ import { PageHeader } from "@/components/ui/page-header";
 import { FilterPanel, FilterField } from "@/components/ui/filter-panel";
 import { LoadingState } from "@/components/ui/data-display";
 import { EmptyState } from "@/components/ui/empty-state";
+import { SearchableSelect } from "@/components/ui/searchable-select";
 
 function todayISO() { return new Date().toISOString().split("T")[0]; }
 function startOfMonthISO() {
@@ -93,7 +95,7 @@ function StatusDropdown({ cheque, onUpdate }: { cheque: any; onUpdate: (chequeId
         )}
       </button>
       {open && (
-        <div className="absolute z-30 mt-1 end-0 w-44 rounded-lg shadow-lg border border-[color:var(--ink-100)] bg-white py-1">
+        <div className="absolute z-50 mt-1 end-0 w-44 rounded-lg shadow-xl border border-[color:var(--ink-100)] bg-white py-1">
           {actions.map(({ status, labelKey }) => (
             <button
               key={status}
@@ -135,16 +137,16 @@ function NewChequeForm({ onClose }: { onClose: () => void }) {
   const effectiveBranchId = selectedBranchStore !== "all" ? selectedBranchStore : branch?._id;
   const { currentUser: defaultUser } = useAuth();
   const defaultCurrency = useQuery(api.helpers.getDefaultCurrency, {});
+  const bankAccounts = useQuery(api.treasury.listBankAccounts, company ? { companyId: company._id } : "skip");
   const createCheque = useMutation(api.treasury.createCheque);
 
   const [form, setForm] = useState({
     chequeType: "received",
     chequeNumber: "",
-    drawnOnBank: "",        // displayed as "Bank Name" in UI
-    drawerName: "",         // stored in notes for display; actual schema uses customerId/supplierId
+    drawnOnBank: "",
     amount: "",
-    dueDate: todayISO(),    // chequeDate in UI
-    issueDate: todayISO(),  // voucherDate in UI
+    dueDate: todayISO(),
+    issueDate: todayISO(),
     glAccountId: "",
     bankAccountId: "",
     customerId: "",
@@ -165,40 +167,33 @@ function NewChequeForm({ onClose }: { onClose: () => void }) {
     if (!defaultCurrency) { setError("لا توجد عملة افتراضية في النظام"); return; }
     if (!form.chequeNumber.trim()) { setError(t("chequeNo") + " " + t("required")); return; }
     if (!form.amount || Number(form.amount) <= 0) { setError(t("errInvalidAmount")); return; }
-    if (!form.glAccountId) { setError(t("glAccount") + " " + t("required")); return; }
+    if (!form.glAccountId) { setError(isRTL ? "يرجى اختيار الحساب المحاسبي" : "Please select a GL account"); return; }
+    if (!form.bankAccountId) { setError(isRTL ? "يرجى اختيار الحساب البنكي للشركة" : "Please select our bank account"); return; }
 
     setSaving(true);
     setError("");
     try {
-      // bankAccountId is required by schema; we use glAccountId as a stand-in
-      // when a real bank account picker is not available
-      const notesWithDrawer = form.drawerName
-        ? `${form.drawerName}${form.notes ? " | " + form.notes : ""}`
-        : form.notes;
-
       await createCheque({
         companyId: company._id,
         branchId: (effectiveBranchId ?? branch?._id) as any,
         chequeNumber: form.chequeNumber,
         chequeType: form.chequeType as any,
-        bankAccountId: form.glAccountId as any,  // best-effort mapping
-        customerId: (form.chequeType === "received" && form.customerId)
-          ? (form.customerId as any) : undefined,
-        supplierId: (form.chequeType === "issued" && form.supplierId)
-          ? (form.supplierId as any) : undefined,
-        amount: Math.round(Number(form.amount) * 100),
+        bankAccountId: form.bankAccountId as any,
+        customerId: (form.chequeType === "received" && form.customerId) ? (form.customerId as any) : undefined,
+        supplierId: (form.chequeType === "issued" && form.supplierId) ? (form.supplierId as any) : undefined,
+        amount: Math.round(Number(form.amount) * 100) / 100,
         currencyId: defaultCurrency._id,
         exchangeRate: 1,
         issueDate: form.issueDate,
         dueDate: form.dueDate,
         drawnOnBank: form.drawnOnBank || undefined,
         glAccountId: form.glAccountId as any,
-        notes: notesWithDrawer || undefined,
+        notes: form.notes || undefined,
         createdBy: defaultUser._id,
       });
       onClose();
     } catch (e: any) {
-      setError(e.message);
+      setError(friendlyError(e, isRTL));
     } finally {
       setSaving(false);
     }
@@ -259,23 +254,12 @@ function NewChequeForm({ onClose }: { onClose: () => void }) {
         {/* Bank Name */}
         <div>
           <label className="block text-xs font-medium text-[color:var(--ink-600)] mb-1">
-            {t("bankName")}
+            {isRTL ? "بنك العميل (المسحوب عليه)" : "Customer's Bank"}
           </label>
           <input
             value={form.drawnOnBank}
             onChange={(e) => set("drawnOnBank", e.target.value)}
-            className="input-field h-9"
-          />
-        </div>
-
-        {/* Drawer Name (stored in notes) */}
-        <div>
-          <label className="block text-xs font-medium text-[color:var(--ink-600)] mb-1">
-            {t("drawerName")}
-          </label>
-          <input
-            value={form.drawerName}
-            onChange={(e) => set("drawerName", e.target.value)}
+            placeholder={isRTL ? "مثال: QNB، QIIB، CBQ" : "e.g. QNB, QIIB, CBQ"}
             className="input-field h-9"
           />
         </div>
@@ -329,57 +313,80 @@ function NewChequeForm({ onClose }: { onClose: () => void }) {
             <label className="block text-xs font-medium text-[color:var(--ink-600)] mb-1">
               {t("customer")}
             </label>
-            <select
+            <SearchableSelect
+              isRTL={isRTL}
               value={form.customerId}
-              onChange={(e) => set("customerId", e.target.value)}
-              className="input-field h-9"
-            >
-              <option value="">{t("selectCustomer")}</option>
-              {(customers ?? []).map((c: any) => (
-                <option key={c._id} value={c._id}>
-                  {isRTL ? c.nameAr : (c.nameEn || c.nameAr)}
-                </option>
-              ))}
-            </select>
+              onChange={(v) => set("customerId", v)}
+              placeholder={t("selectCustomer")}
+              searchPlaceholder={isRTL ? "ابحث باسم العميل..." : "Search customer..."}
+              emptyMessage={isRTL ? "لا توجد نتائج" : "No results"}
+              options={(customers ?? []).map((c: any) => ({
+                value: c._id,
+                label: isRTL ? c.nameAr : (c.nameEn || c.nameAr),
+              }))}
+            />
           </div>
         ) : (
           <div>
             <label className="block text-xs font-medium text-[color:var(--ink-600)] mb-1">
               {t("supplier")}
             </label>
-            <select
+            <SearchableSelect
+              isRTL={isRTL}
               value={form.supplierId}
-              onChange={(e) => set("supplierId", e.target.value)}
-              className="input-field h-9"
-            >
-              <option value="">{t("selectSupplier")}</option>
-              {(suppliers ?? []).map((s: any) => (
-                <option key={s._id} value={s._id}>
-                  {isRTL ? s.nameAr : (s.nameEn || s.nameAr)}
-                </option>
-              ))}
-            </select>
+              onChange={(v) => set("supplierId", v)}
+              placeholder={t("selectSupplier")}
+              searchPlaceholder={isRTL ? "ابحث باسم المورد..." : "Search supplier..."}
+              emptyMessage={isRTL ? "لا توجد نتائج" : "No results"}
+              options={(suppliers ?? []).map((s: any) => ({
+                value: s._id,
+                label: isRTL ? s.nameAr : (s.nameEn || s.nameAr),
+              }))}
+            />
           </div>
         )}
 
-        {/* GL Account */}
+        {/* Our Bank Account (bankAccounts table) */}
         <div>
           <label className="block text-xs font-medium text-[color:var(--ink-600)] mb-1">
-            {t("glAccount")} *
+            {isRTL ? "حسابنا البنكي *" : "Our Bank Account *"}
           </label>
-          <select
+          <SearchableSelect
+            isRTL={isRTL}
+            required
+            value={form.bankAccountId}
+            onChange={(v) => set("bankAccountId", v)}
+            placeholder={isRTL ? "اختر البنك..." : "Select bank account..."}
+            searchPlaceholder={isRTL ? "ابحث..." : "Search..."}
+            emptyMessage={isRTL ? "لا توجد حسابات بنكية" : "No bank accounts found"}
+            options={(bankAccounts ?? []).map((b: any) => ({
+              value: b._id,
+              label: `${b.accountName} — ${b.bankName}`,
+              sublabel: b.accountNumber,
+            }))}
+          />
+        </div>
+
+        {/* GL Account — filtered to cash/cheque accounts (11xx) */}
+        <div>
+          <label className="block text-xs font-medium text-[color:var(--ink-600)] mb-1">
+            {isRTL ? "الحساب المحاسبي *" : "GL Account *"}
+          </label>
+          <SearchableSelect
+            isRTL={isRTL}
             required
             value={form.glAccountId}
-            onChange={(e) => set("glAccountId", e.target.value)}
-            className="input-field h-9"
-          >
-            <option value="">{t("selectAccount")}</option>
-            {postableAccounts.map((a: any) => (
-              <option key={a._id} value={a._id}>
-                {a.code} — {isRTL ? a.nameAr : (a.nameEn || a.nameAr)}
-              </option>
-            ))}
-          </select>
+            onChange={(v) => set("glAccountId", v)}
+            placeholder={t("selectAccount")}
+            searchPlaceholder={isRTL ? "ابحث بالاسم أو الكود..." : "Search by name or code..."}
+            emptyMessage={isRTL ? "لا توجد نتائج" : "No results"}
+            options={postableAccounts
+              .filter((a: any) => String(a.code ?? "").startsWith("11"))
+              .map((a: any) => ({
+                value: a._id,
+                label: `${a.code} — ${isRTL ? a.nameAr : (a.nameEn || a.nameAr)}`,
+              }))}
+          />
         </div>
 
         {/* Notes */}
@@ -446,6 +453,7 @@ function TypeTab({
 export default function ChequesPage() {
   const { t, isRTL, formatCurrency } = useI18n();
   const { canCreate, canEdit } = usePermissions();
+  const router = useRouter();
   const [showForm, setShowForm] = useState(false);
   const [typeFilter, setTypeFilter] = useState<"all" | "received" | "issued">("all");
   const [fromDate, setFromDate] = useState(startOfMonthISO());
@@ -576,7 +584,7 @@ export default function ChequesPage() {
         </div>
         <div>
           <span className="text-[color:var(--ink-500)]">{t("totalCheques")}: </span>
-          <span className="font-semibold tabular-nums">{formatCurrency(totalAmount / 100)}</span>
+          <span className="font-semibold tabular-nums">{formatCurrency(totalAmount)}</span>
         </div>
         <div>
           <span className="text-[color:var(--ink-500)]">{t("receivedCheques")}: </span>
@@ -593,7 +601,7 @@ export default function ChequesPage() {
       </div>
 
       {/* ── Table ─────────────────────────────────────────────── */}
-      <div className="surface-card overflow-hidden">
+      <div className="surface-card overflow-visible">
         {loading ? (
           <LoadingState label={t("loading")} />
         ) : filtered.length === 0 ? (
@@ -612,7 +620,25 @@ export default function ChequesPage() {
             }
           />
         ) : (
-          <div className="overflow-x-auto">
+          <>
+          <div className="mobile-list p-3 space-y-2.5">
+            {filtered.map((c: any) => (
+              <div key={c._id} className="record-card">
+                <div className="flex items-start justify-between gap-2 mb-2">
+                  <div className="min-w-0 flex-1">
+                    <span className="font-mono text-[11px] font-bold px-2 py-0.5 rounded bg-[var(--ink-100)] text-[var(--ink-600)] inline-block mb-1">{c.chequeNumber}</span>
+                    <p className="text-[13px] font-semibold text-[var(--ink-800)]">{c.drawerName ?? c.notes ?? "—"}</p>
+                    <p className="text-[11px] text-[var(--ink-400)] mt-0.5">{c.chequeDate} · {c.bankName ?? ""}</p>
+                  </div>
+                  <div className="text-end shrink-0">
+                    <p className="text-[17px] font-bold tabular-nums text-[var(--ink-900)]">{formatCurrency(c.amount)}</p>
+                    <StatusBadge status={c.status} type="document" />
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+          <div className="desktop-table overflow-x-auto">
             <table className="data-table">
               <thead>
                 <tr>
@@ -661,7 +687,7 @@ export default function ChequesPage() {
 
                       {/* Amount */}
                       <td className="px-4 py-3 numeric text-end">
-                        {formatCurrency((c.amount ?? 0) / 100)}
+                        {formatCurrency((c.amount ?? 0))}
                       </td>
 
                       {/* Cheque Date (dueDate) */}
@@ -669,20 +695,23 @@ export default function ChequesPage() {
                         {formatDateShort(c.dueDate)}
                       </td>
 
-                      {/* Status Badge */}
+                      {/* Cheque Status */}
                       <td className="px-4 py-3">
                         <StatusBadge status={c.chequeStatus} type="cheque" />
                       </td>
 
                       {/* Actions */}
-                      <td className="px-4 py-3">
-                        <div className={`flex items-center gap-1.5 justify-end`}>
-                          {canEdit("treasury") && <StatusDropdown cheque={c} onUpdate={handleStatusUpdate} />}
+                      <td className="px-4 py-3 text-end">
+                        <div className="flex items-center justify-end gap-2">
+                          {canEdit("treasury") && (
+                            <StatusDropdown cheque={c} onUpdate={handleStatusUpdate} />
+                          )}
                           <button
-                            className="h-8 w-8 inline-flex items-center justify-center rounded-md hover:bg-[color:var(--ink-100)] text-[color:var(--ink-500)] transition-colors"
+                            onClick={() => router.push(`/treasury/cheques/${c._id}`)}
+                            className="h-7 w-7 rounded-lg bg-white border border-[color:var(--ink-200)] text-[color:var(--ink-400)] hover:text-blue-600 hover:border-blue-300 flex items-center justify-center transition-all"
                             title={t("view")}
                           >
-                            <Eye className="h-4 w-4" />
+                            <Eye className="h-3.5 w-3.5" />
                           </button>
                         </div>
                       </td>
@@ -692,6 +721,7 @@ export default function ChequesPage() {
               </tbody>
             </table>
           </div>
+          </>
         )}
       </div>
     </div>

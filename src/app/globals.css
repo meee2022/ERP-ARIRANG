@@ -336,8 +336,7 @@ html[dir="rtl"] .rtl-flip { transform: scaleX(-1); }
   .action-buttons,
   button.no-print,
   [class*="FilterPanel"], [class*="filter-panel"],
-  .surface-card > .p-4:has(input[type="text"]),
-  .print\\:hidden { display: none !important; }
+  .surface-card > .p-4:has(input[type="text"]) { display: none !important; }
 
   /* ── App shell flex layout reset ───────────────────────── */
   body > div, #__next, [data-nextjs-scroll-focus-boundary],
@@ -574,4 +573,96 @@ html[dir="rtl"] .rtl-flip { transform: scaleX(-1); }
   .print-only          { display: none !important; }
   .print-header        { display: none !important; }
   .company-print-header { display: none !important; }
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   MOBILE-FIRST RESPONSIVE IMPROVEMENTS
+   ═══════════════════════════════════════════════════════════════ */
+
+/* ── Responsive page layout ──────────────────────────────────── */
+@media (max-width: 767px) {
+  /* Main content: reduce padding on mobile */
+  main > div { padding-left: 1rem !important; padding-right: 1rem !important; }
+
+  /* KPI cards: 2-column on mobile */
+  .kpi-grid-4 { grid-template-columns: repeat(2, minmax(0, 1fr)) !important; }
+  .kpi-grid-3 { grid-template-columns: repeat(2, minmax(0, 1fr)) !important; }
+
+  /* Summary strip: horizontal scroll on mobile */
+  .summary-strip-scroll { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+  .summary-strip-scroll > * { min-width: 140px; }
+
+  /* Filter bars: wrap nicely */
+  .filter-bar { flex-wrap: wrap; gap: 0.5rem !important; }
+  .filter-bar > * { flex: 1 1 calc(50% - 0.25rem); min-width: 140px; }
+  .filter-bar .search-full { flex: 1 1 100%; }
+
+  /* Page header: stack on mobile */
+  .page-header-mobile { flex-direction: column; align-items: flex-start !important; gap: 0.75rem; }
+  .page-header-mobile .actions { width: 100%; justify-content: flex-end; }
+}
+
+/* ── Mobile card list pattern ────────────────────────────────── */
+/* Use: show .mobile-list on mobile, hide .desktop-table on mobile */
+@media (max-width: 767px) {
+  .desktop-table { display: none !important; }
+  .mobile-list   { display: block !important; }
+}
+@media (min-width: 768px) {
+  .desktop-table { display: block !important; }
+  .mobile-list   { display: none !important; }
+}
+
+/* ── Record card (mobile list item) ─────────────────────────── */
+.record-card {
+  background: white;
+  border: 1px solid var(--ink-100);
+  border-radius: 1rem;
+  padding: 1rem;
+  transition: box-shadow 0.15s ease, border-color 0.15s ease;
+}
+.record-card:active { box-shadow: 0 0 0 2px var(--brand-200); border-color: var(--brand-400); }
+
+/* ── Sticky mobile action bar (bottom of screen) ─────────────── */
+.mobile-action-bar {
+  position: fixed;
+  bottom: 0; left: 0; right: 0;
+  background: white;
+  border-top: 1px solid var(--ink-100);
+  padding: 0.75rem 1rem;
+  padding-bottom: calc(0.75rem + env(safe-area-inset-bottom));
+  z-index: 30;
+  display: flex;
+  gap: 0.75rem;
+}
+
+/* ── Touch-friendly buttons on mobile ───────────────────────── */
+@media (max-width: 767px) {
+  .touch-target { min-height: 44px; min-width: 44px; }
+  .btn-primary, .btn-ghost, .btn-gold { min-height: 42px; }
+}
+
+/* ── Form improvements on mobile ────────────────────────────── */
+@media (max-width: 767px) {
+  .form-grid-2 { grid-template-columns: 1fr !important; }
+  .form-grid-3 { grid-template-columns: 1fr !important; }
+  .form-grid-4 { grid-template-columns: repeat(2, minmax(0,1fr)) !important; }
+}
+
+/* ── Table improvements (desktop) ───────────────────────────── */
+.data-table tbody tr { cursor: pointer; }
+.data-table tbody tr:hover td { background: color-mix(in srgb, var(--brand-50) 60%, white); }
+
+/* ── Better scrollbar for mobile ────────────────────────────── */
+@media (max-width: 767px) {
+  .overflow-x-auto { -webkit-overflow-scrolling: touch; }
+}
+
+/* ── Card hover lift effect ──────────────────────────────────── */
+.card-hover {
+  transition: transform 0.15s ease, box-shadow 0.15s ease;
+}
+.card-hover:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 4px 16px rgba(0,0,0,0.08);
 }

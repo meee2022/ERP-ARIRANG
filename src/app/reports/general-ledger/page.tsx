@@ -12,8 +12,9 @@ import { EmptyState } from "@/components/ui/empty-state";
 import { CompanyPrintHeader } from "@/components/ui/company-print-header";
 import { useCompanySettings } from "@/hooks/useCompanySettings";
 import { PageHeader } from "@/components/ui/page-header";
+import { SearchableSelect } from "@/components/ui/searchable-select";
 
-function startOfYearISO() { return `${new Date().getFullYear()}-01-01`; }
+function startOfYearISO() { return new Date().getFullYear() + "-01-01"; }
 function todayISO() { return new Date().toISOString().split("T")[0]; }
 
 export default function GeneralLedgerPage() {
@@ -37,7 +38,12 @@ export default function GeneralLedgerPage() {
   );
   const loading = data === undefined && !!accountId;
   const lines = data?.lines ?? [];
-  const summary = data?.summary ?? { openingBalance: 0, totalDebit: 0, totalCredit: 0, closingBalance: 0 };
+  const summary = {
+    openingBalance: data?.openingBalance ?? 0,
+    totalDebit: data?.totalDebit ?? 0,
+    totalCredit: data?.totalCredit ?? 0,
+    closingBalance: data?.closingBalance ?? 0,
+  };
 
   return (
     <div dir={isRTL ? "rtl" : "ltr"} className="space-y-5">
@@ -45,27 +51,45 @@ export default function GeneralLedgerPage() {
         company={printCompany}
         isRTL={isRTL}
         documentTitle={t("generalLedgerTitle")}
-        periodLine={`${fromDate} — ${toDate}`}
+        periodLine={fromDate + " — " + toDate}
       />
       <div className="no-print">
         <PageHeader
           icon={BookOpen}
           title={t("generalLedgerTitle")}
-          actions={<button onClick={() => window.print()} className="btn-ghost h-9 px-4 rounded-xl inline-flex items-center gap-2 text-sm font-semibold"><Printer className="h-4 w-4" />{t("print")}</button>}
+          actions={
+            <button onClick={() => window.print()} className="btn-ghost h-9 px-4 rounded-xl inline-flex items-center gap-2 text-sm font-semibold">
+              <Printer className="h-4 w-4" />{t("print")}
+            </button>
+          }
         />
       </div>
 
       <div className="no-print">
-      <div className="surface-card p-3 flex items-center gap-3 flex-wrap">
-        <div className="flex items-center gap-1.5"><span className="text-xs text-[color:var(--ink-500)]">{t("fromDate")}:</span><input type="date" value={fromDate} onChange={e => setFromDate(e.target.value)} className="input-field h-9 w-auto" /></div>
-        <div className="flex items-center gap-1.5"><span className="text-xs text-[color:var(--ink-500)]">{t("toDate")}:</span><input type="date" value={toDate} onChange={e => setToDate(e.target.value)} className="input-field h-9 w-auto" /></div>
-        <div className="flex-1 min-w-[280px]">
-          <select value={accountId} onChange={e => setAccountId(e.target.value)} className="input-field h-9 w-full">
-            <option value="">{t("selectAccount")}</option>
-            {postableAccounts.map((a: any) => <option key={a._id} value={a._id}>{a.code} — {isRTL ? a.nameAr : (a.nameEn || a.nameAr)}</option>)}
-          </select>
+        <div className="surface-card p-3 flex items-center gap-3 flex-wrap">
+          <div className="flex items-center gap-1.5">
+            <span className="text-xs text-[color:var(--ink-500)]">{t("fromDate")}:</span>
+            <input type="date" value={fromDate} onChange={e => setFromDate(e.target.value)} className="input-field h-9 w-auto" />
+          </div>
+          <div className="flex items-center gap-1.5">
+            <span className="text-xs text-[color:var(--ink-500)]">{t("toDate")}:</span>
+            <input type="date" value={toDate} onChange={e => setToDate(e.target.value)} className="input-field h-9 w-auto" />
+          </div>
+          <div className="flex-1 min-w-[280px]">
+            <SearchableSelect
+              isRTL={isRTL}
+              value={accountId}
+              onChange={(v) => setAccountId(v)}
+              placeholder={t("selectAccount")}
+              searchPlaceholder={isRTL ? "ابحث بالاسم أو الكود..." : "Search by name or code..."}
+              emptyMessage={isRTL ? "لا توجد نتائج" : "No results"}
+              options={(postableAccounts ?? []).map((a: any) => ({
+                value: a._id,
+                label: a.code + " — " + (isRTL ? a.nameAr : (a.nameEn || a.nameAr)),
+              }))}
+            />
+          </div>
         </div>
-      </div>
       </div>
 
       {!accountId ? (
@@ -74,18 +98,32 @@ export default function GeneralLedgerPage() {
           <p className="text-sm">{t("selectAccountToView")}</p>
         </div>
       ) : (
-        <>
+        <React.Fragment>
           <div className="surface-card p-3 grid grid-cols-4 gap-4 text-center text-sm">
-            <div><p className="text-xs text-[color:var(--ink-500)] mb-1">{t("openingBalance")}</p><p className="font-bold tabular-nums">{formatCurrency(summary.openingBalance)}</p></div>
-            <div><p className="text-xs text-[color:var(--ink-500)] mb-1">{t("totalDebit")}</p><p className="font-bold tabular-nums">{formatCurrency(summary.totalDebit)}</p></div>
-            <div><p className="text-xs text-[color:var(--ink-500)] mb-1">{t("totalCredit")}</p><p className="font-bold tabular-nums">{formatCurrency(summary.totalCredit)}</p></div>
-            <div><p className="text-xs text-[color:var(--ink-500)] mb-1">{t("closingBalance")}</p><p className="font-bold tabular-nums text-[color:var(--brand-700)]">{formatCurrency(summary.closingBalance)}</p></div>
+            <div>
+              <p className="text-xs text-[color:var(--ink-500)] mb-1">{t("openingBalance")}</p>
+              <p className="font-bold tabular-nums">{formatCurrency(summary.openingBalance)}</p>
+            </div>
+            <div>
+              <p className="text-xs text-[color:var(--ink-500)] mb-1">{t("totalDebit")}</p>
+              <p className="font-bold tabular-nums">{formatCurrency(summary.totalDebit)}</p>
+            </div>
+            <div>
+              <p className="text-xs text-[color:var(--ink-500)] mb-1">{t("totalCredit")}</p>
+              <p className="font-bold tabular-nums">{formatCurrency(summary.totalCredit)}</p>
+            </div>
+            <div>
+              <p className="text-xs text-[color:var(--ink-500)] mb-1">{t("closingBalance")}</p>
+              <p className="font-bold tabular-nums text-[color:var(--brand-700)]">{formatCurrency(summary.closingBalance)}</p>
+            </div>
           </div>
 
           <div className="surface-card overflow-hidden">
-            {loading ? <LoadingState label={t("loading")} />
-            : lines.length === 0 ? <EmptyState icon={BookOpen} title={t("noResults")} />
-            : (
+            {loading ? (
+              <LoadingState label={t("loading")} />
+            ) : lines.length === 0 ? (
+              <EmptyState icon={BookOpen} title={t("noResults")} />
+            ) : (
               <div className="overflow-x-auto">
                 <table className="data-table">
                   <thead>
@@ -99,22 +137,28 @@ export default function GeneralLedgerPage() {
                     </tr>
                   </thead>
                   <tbody>
-                    {lines.map((l: any, i: number) => (
-                      <tr key={i}>
-                        <td className="muted">{formatDateShort(l.date)}</td>
-                        <td className="code">{l.entryNumber}</td>
-                        <td className="max-w-[300px] truncate">{l.description}</td>
-                        <td className="numeric text-end">{l.debit ? formatCurrency(l.debit) : ""}</td>
-                        <td className="numeric text-end">{l.credit ? formatCurrency(l.credit) : ""}</td>
-                        <td className={`numeric text-end font-medium ${l.balance < 0 ? "text-red-600" : ""}`}>{formatCurrency(Math.abs(l.balance))}{l.balance < 0 ? ` ${t("credit")}` : ` ${t("debit")}`}</td>
-                      </tr>
-                    ))}
+                    {lines.map((l: any, i: number) => {
+                      const bal = l.runningBalance ?? 0;
+                      const isNeg = bal < 0;
+                      return (
+                        <tr key={i}>
+                          <td className="muted">{formatDateShort(l.entryDate)}</td>
+                          <td className="code">{l.entryNumber}</td>
+                          <td className="max-w-[300px] truncate">{l.description}</td>
+                          <td className="numeric text-end">{l.debit ? formatCurrency(l.debit) : ""}</td>
+                          <td className="numeric text-end">{l.credit ? formatCurrency(l.credit) : ""}</td>
+                          <td className={"numeric text-end font-medium" + (isNeg ? " text-red-600" : "")}>
+                            {formatCurrency(Math.abs(bal))} {isNeg ? t("credit") : t("debit")}
+                          </td>
+                        </tr>
+                      );
+                    })}
                   </tbody>
                 </table>
               </div>
             )}
           </div>
-        </>
+        </React.Fragment>
       )}
     </div>
   );

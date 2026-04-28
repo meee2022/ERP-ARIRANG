@@ -34,12 +34,12 @@ export function useI18n() {
   );
 
   const formatNumber = useCallback(
-    (v: number | null | undefined) => fmtNum(v, language),
+    (v: number | null | undefined) => fmtNum(v ?? 0, language),
     [language]
   );
 
   const formatDate = useCallback(
-    (v: string | number | Date) => fmtDate(v, language),
+    (v: string | number | Date) => fmtDate(typeof v === "number" ? new Date(v) : v, language),
     [language]
   );
 

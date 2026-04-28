@@ -3,9 +3,10 @@
 
 import React, { useState } from "react";
 import { useI18n } from "@/hooks/useI18n";
+import { useRouter } from "next/navigation";
 import { useQuery, useMutation } from "convex/react";
 import { api } from "../../../../convex/_generated/api";
-import { formatDateShort } from "@/lib/utils";
+import { formatDateShort, friendlyError } from "@/lib/utils";
 import { StatusBadge } from "@/components/ui/status-badge";
 import { Plus, Eye, X, Check, Search, Wallet, WalletCards, CheckCircle2, Scale, Calendar, Filter, Clock } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
@@ -14,6 +15,7 @@ import { useAppStore } from "@/store/useAppStore";
 import { PageHeader } from "@/components/ui/page-header";
 import { FilterPanel, FilterField } from "@/components/ui/filter-panel";
 import { CostCenterSelect } from "@/components/ui/cost-center-select";
+import { SearchableSelect } from "@/components/ui/searchable-select";
 import { SummaryStrip, LoadingState } from "@/components/ui/data-display";
 import { EmptyState } from "@/components/ui/empty-state";
 
@@ -37,6 +39,8 @@ function NewReceiptForm({ onClose }: { onClose: () => void }) {
   const { currentUser: defaultUser } = useAuth();
   const defaultCurrency = useQuery(api.helpers.getDefaultCurrency, {});
   const createReceipt = useMutation(api.treasury.createCashReceiptVoucher);
+  const createCheque = useMutation(api.treasury.createCheque);
+  const bankAccounts = useQuery(api.treasury.listBankAccounts, company ? { companyId: company._id } : "skip");
 
   const [form, setForm] = useState({
     receivedFrom: "",
@@ -48,10 +52,20 @@ function NewReceiptForm({ onClose }: { onClose: () => void }) {
     reference: "",
     costCenterId: "",
     notes: "",
+    // cheque-specific fields
+    chequeNumber: "",
+    chequeDueDate: todayISO(),
+    drawnOnBank: "",
+    chequeBankAccountId: "",
   });
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
   const set = (k: string, v: any) => setForm((f: any) => ({ ...f, [k]: v }));
+  const selectedCustomer = (customers ?? []).find((c: any) => c._id === form.customerId);
+  const isCustomerReceipt = form.receiptType === "customer_payment";
+  const effectiveReceivedFrom = isCustomerReceipt
+    ? ((isRTL ? selectedCustomer?.nameAr : (selectedCustomer?.nameEn || selectedCustomer?.nameAr)) || "").trim()
+    : form.receivedFrom.trim();
 
   const onSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -62,28 +76,52 @@ function NewReceiptForm({ onClose }: { onClose: () => void }) {
     if (!defaultCurrency) { setError("لا توجد عملة افتراضية في النظام"); return; }
     if (!form.cashAccountId) { setError(t("errMustSelectCashAccount")); return; }
     if (!form.amount || Number(form.amount) <= 0) { setError(t("errInvalidAmount")); return; }
+    const isCheque = form.paymentMethod === "cheque";
+    if (isCheque && !form.chequeNumber.trim()) { setError(isRTL ? "رقم الشيك مطلوب" : "Cheque number is required"); return; }
+    if (isCheque && !form.chequeBankAccountId) { setError(isRTL ? "يرجى اختيار البنك" : "Please select a bank account"); return; }
     setSaving(true); setError("");
     try {
+      const parsedAmount = Math.round(Number(form.amount) * 100) / 100;
       await createReceipt({
         companyId: company._id,
         branchId: (effectiveBranchId ?? branch?._id) as any,
         voucherDate: voucherDate,
         periodId: openPeriod._id,
-        receivedFrom: form.receivedFrom,
+        receivedFrom: effectiveReceivedFrom,
         customerId: form.customerId ? (form.customerId as any) : undefined,
         receiptType: form.receiptType as any,
         cashAccountId: form.cashAccountId as any,
-        amount: Math.round(Number(form.amount) * 100),
+        amount: parsedAmount,
         currencyId: defaultCurrency._id,
         exchangeRate: 1,
         paymentMethod: form.paymentMethod as any,
-        reference: form.reference || undefined,
+        reference: form.reference || (isCheque ? form.chequeNumber : undefined),
         costCenterId: form.costCenterId ? (form.costCenterId as any) : undefined,
         notes: form.notes || undefined,
         createdBy: defaultUser._id,
       });
+      // Auto-create cheque record if payment is by cheque
+      if (isCheque && form.chequeBankAccountId) {
+        await createCheque({
+          companyId: company._id,
+          branchId: (effectiveBranchId ?? branch?._id) as any,
+          chequeNumber: form.chequeNumber.trim(),
+          chequeType: "received",
+          bankAccountId: form.chequeBankAccountId as any,
+          customerId: form.customerId ? (form.customerId as any) : undefined,
+          amount: parsedAmount,
+          currencyId: defaultCurrency._id,
+          exchangeRate: 1,
+          issueDate: voucherDate,
+          dueDate: form.chequeDueDate || voucherDate,
+          drawnOnBank: form.drawnOnBank || undefined,
+          glAccountId: form.cashAccountId as any,
+          notes: form.notes || undefined,
+          createdBy: defaultUser._id,
+        });
+      }
       onClose();
-    } catch (e: any) { setError(e.message); } finally { setSaving(false); }
+    } catch (e: any) { setError(friendlyError(e, isRTL)); } finally { setSaving(false); }
   };
 
   return (
@@ -95,15 +133,19 @@ function NewReceiptForm({ onClose }: { onClose: () => void }) {
       {error && <div className="bg-red-50 border border-red-200 text-red-700 text-sm rounded-lg p-3 mb-4">{error}</div>}
       <form onSubmit={onSubmit} className="grid grid-cols-2 md:grid-cols-3 gap-3">
         <div>
-          <label className="block text-xs font-medium text-[color:var(--ink-600)] mb-1">{t("receivedFrom")} *</label>
-          <input required value={form.receivedFrom} onChange={(e) => set("receivedFrom", e.target.value)} className="input-field h-9" />
-        </div>
-        <div>
           <label className="block text-xs font-medium text-[color:var(--ink-600)] mb-1">{t("customer")}</label>
-          <select value={form.customerId} onChange={(e) => set("customerId", e.target.value)} className="input-field h-9">
-            <option value="">{t("selectCustomer")}</option>
-            {(customers ?? []).map((c: any) => (<option key={c._id} value={c._id}>{isRTL ? c.nameAr : (c.nameEn || c.nameAr)}</option>))}
-          </select>
+          <SearchableSelect
+            isRTL={isRTL}
+            value={form.customerId}
+            onChange={(v) => set("customerId", v)}
+            placeholder={t("selectCustomer")}
+            searchPlaceholder={isRTL ? "ابحث باسم العميل..." : "Search customer..."}
+            emptyMessage={isRTL ? "لا توجد نتائج" : "No results"}
+            options={(customers ?? []).map((c: any) => ({
+              value: c._id,
+              label: isRTL ? c.nameAr : (c.nameEn || c.nameAr),
+            }))}
+          />
         </div>
         <div>
           <label className="block text-xs font-medium text-[color:var(--ink-600)] mb-1">{t("receiptType")} *</label>
@@ -111,6 +153,26 @@ function NewReceiptForm({ onClose }: { onClose: () => void }) {
             <option value="customer_payment">{t("rtCustomerPayment")}</option>
             <option value="other_receipt">{t("rtOther")}</option>
           </select>
+        </div>
+        <div>
+          <label className="block text-xs font-medium text-[color:var(--ink-600)] mb-1">
+            {isCustomerReceipt ? t("customer") : t("receivedFrom")} *
+          </label>
+          {isCustomerReceipt ? (
+            <input
+              value={effectiveReceivedFrom}
+              readOnly
+              placeholder={t("selectCustomer")}
+              className="input-field h-9 bg-[color:var(--ink-50)] text-[color:var(--ink-700)]"
+            />
+          ) : (
+            <input
+              required
+              value={form.receivedFrom}
+              onChange={(e) => set("receivedFrom", e.target.value)}
+              className="input-field h-9"
+            />
+          )}
         </div>
         <div>
           <label className="block text-xs font-medium text-[color:var(--ink-600)] mb-1">{t("amount")} (QAR) *</label>
@@ -131,17 +193,90 @@ function NewReceiptForm({ onClose }: { onClose: () => void }) {
         </div>
         <div>
           <label className="block text-xs font-medium text-[color:var(--ink-600)] mb-1">{t("cashOrBankAccount")} *</label>
-          <select required value={form.cashAccountId} onChange={(e) => set("cashAccountId", e.target.value)} className="input-field h-9">
-            <option value="">{t("selectAccount")}</option>
-            {(accounts ?? []).filter((a: any) => a.isPostable).map((a: any) => (
-              <option key={a._id} value={a._id}>{a.code} — {isRTL ? a.nameAr : (a.nameEn || a.nameAr)}</option>
-            ))}
-          </select>
+          <SearchableSelect
+            isRTL={isRTL}
+            required
+            value={form.cashAccountId}
+            onChange={(v) => set("cashAccountId", v)}
+            placeholder={t("selectAccount")}
+            searchPlaceholder={isRTL ? "ابحث باسم أو كود الحساب..." : "Search account..."}
+            emptyMessage={isRTL ? "لا توجد نتائج" : "No results"}
+            options={(accounts ?? [])
+              .filter((a: any) => {
+                if (!a.isPostable) return false;
+                // Show only liquid accounts: cash, bank, cheques (codes starting with 11)
+                const code = String(a.code ?? "");
+                return code.startsWith("11");
+              })
+              .map((a: any) => ({
+                value: a._id,
+                label: `${a.code} — ${isRTL ? a.nameAr : (a.nameEn || a.nameAr)}`,
+              }))}
+          />
         </div>
         <div>
           <label className="block text-xs font-medium text-[color:var(--ink-600)] mb-1">{t("reference")}</label>
           <input value={form.reference} onChange={(e) => set("reference", e.target.value)} className="input-field h-9" />
         </div>
+
+        {/* ── Cheque fields — shown only when payment method is cheque ── */}
+        {form.paymentMethod === "cheque" && (<>
+          <div>
+            <label className="block text-xs font-medium text-[color:var(--ink-600)] mb-1">
+              {isRTL ? "رقم الشيك *" : "Cheque No. *"}
+            </label>
+            <input
+              required
+              value={form.chequeNumber}
+              onChange={(e) => set("chequeNumber", e.target.value)}
+              placeholder="e.g. 123456"
+              className="input-field h-9 font-mono"
+            />
+          </div>
+          <div>
+            <label className="block text-xs font-medium text-[color:var(--ink-600)] mb-1">
+              {isRTL ? "تاريخ استحقاق الشيك *" : "Cheque Due Date *"}
+            </label>
+            <input
+              type="date"
+              required
+              value={form.chequeDueDate}
+              onChange={(e) => set("chequeDueDate", e.target.value)}
+              className="input-field h-9"
+            />
+          </div>
+          <div>
+            <label className="block text-xs font-medium text-[color:var(--ink-600)] mb-1">
+              {isRTL ? "البنك المسحوب عليه" : "Drawn on Bank"}
+            </label>
+            <input
+              value={form.drawnOnBank}
+              onChange={(e) => set("drawnOnBank", e.target.value)}
+              placeholder={isRTL ? "مثال: QNB، QIIB" : "e.g. QNB, QIIB"}
+              className="input-field h-9"
+            />
+          </div>
+          <div>
+            <label className="block text-xs font-medium text-[color:var(--ink-600)] mb-1">
+              {isRTL ? "حساب البنك لدينا *" : "Our Bank Account *"}
+            </label>
+            <SearchableSelect
+              isRTL={isRTL}
+              required
+              value={form.chequeBankAccountId}
+              onChange={(v) => set("chequeBankAccountId", v)}
+              placeholder={isRTL ? "اختر البنك..." : "Select bank..."}
+              searchPlaceholder={isRTL ? "ابحث..." : "Search..."}
+              emptyMessage={isRTL ? "لا توجد بنوك" : "No bank accounts"}
+              options={(bankAccounts ?? []).map((b: any) => ({
+                value: b._id,
+                label: `${b.accountName} — ${b.bankName}`,
+                sublabel: b.accountNumber,
+              }))}
+            />
+          </div>
+        </>)}
+
         <div>
           <label className="block text-xs font-medium text-[color:var(--ink-600)] mb-1">{t("costCenter")}</label>
           <CostCenterSelect companyId={company?._id} value={form.costCenterId} onChange={(v) => set("costCenterId", v)} />
@@ -181,19 +316,46 @@ function ReceiptStatCard({ title, value, icon: Icon, color }: any) {
 }
 
 function ReceiptLifecycleActions({ receipt, userId, companyId }: { receipt: any; userId: string | undefined; companyId: string | undefined }) {
-  const { t } = useI18n();
-  const [loadingAction, setLoadingAction] = useState<"delete" | "cancel" | "reverse" | null>(null);
+  const { t, isRTL } = useI18n();
+  const [loadingAction, setLoadingAction] = useState<"delete" | "cancel" | "reverse" | "post" | null>(null);
   const [err, setErr] = useState("");
   const removeDraft = useMutation(api.treasury.deleteDraftCashReceiptVoucher);
   const cancelReceipt = useMutation(api.treasury.cancelCashReceiptVoucher);
   const reverseReceipt = useMutation(api.treasury.reverseCashReceiptVoucher);
+  const postReceipt = useMutation(api.treasury.postCashReceiptVoucher);
   const today = new Date().toISOString().split("T")[0];
   const openPeriod = useQuery(
     api.helpers.getOpenPeriod,
     companyId ? { companyId: companyId as any, date: today } : "skip"
   );
+  const postingRules = useQuery(
+    api.postingRules.getPostingRules,
+    companyId ? { companyId: companyId as any } : "skip"
+  );
 
   if (!userId) return null;
+
+  const handlePost = async () => {
+    if (!postingRules?.arAccountId) {
+      setErr(isRTL
+        ? "لم يتم تحديد حساب الذمم المدينة. روح Settings → Posting Rules وحدد AR Account."
+        : "AR account not configured. Go to Settings → Posting Rules and set the AR Account.");
+      return;
+    }
+    setLoadingAction("post");
+    setErr("");
+    try {
+      await postReceipt({
+        voucherId: receipt._id,
+        userId: userId as any,
+        arAccountId: postingRules.arAccountId as any,
+      });
+    } catch (e: any) {
+      setErr(e.message ?? t("errPosting"));
+    } finally {
+      setLoadingAction(null);
+    }
+  };
 
   const handleDelete = async () => {
     if (!window.confirm("سيتم حذف مسودة سند القبض نهائيًا. هل تريد المتابعة؟")) return;
@@ -209,7 +371,7 @@ function ReceiptLifecycleActions({ receipt, userId, companyId }: { receipt: any;
   };
 
   const handleCancel = async () => {
-    if (!window.confirm("سيتم إلغاء سند القبض قبل الترحيل. هل تريد المتابعة؟")) return;
+    if (!window.confirm(isRTL ? "سيتم إلغاء سند القبض قبل الترحيل. هل تريد المتابعة؟" : "This receipt will be cancelled. Continue?")) return;
     setLoadingAction("cancel");
     setErr("");
     try {
@@ -244,6 +406,18 @@ function ReceiptLifecycleActions({ receipt, userId, companyId }: { receipt: any;
     <div className="inline-flex flex-col items-end gap-1">
       {err ? <span className="text-xs text-red-600 max-w-[220px] text-end leading-tight">{err}</span> : null}
       <div className="inline-flex items-center gap-1">
+        {/* Post button — for draft or unposted receipts */}
+        {receipt.postingStatus === "unposted" ? (
+          <button
+            onClick={handlePost}
+            disabled={loadingAction !== null}
+            className="h-7 px-3 rounded-md text-xs font-semibold inline-flex items-center gap-1 bg-green-50 text-green-700 hover:bg-green-100 border border-green-200 disabled:opacity-60"
+          >
+            {loadingAction === "post" ? t("loading") : (
+              <><Check className="h-3.5 w-3.5" /> {t("post")}</>
+            )}
+          </button>
+        ) : null}
         {receipt.documentStatus === "draft" && receipt.postingStatus === "unposted" ? (
           <button onClick={handleDelete} disabled={loadingAction !== null} className="h-7 px-3 rounded-md text-xs font-semibold inline-flex items-center gap-1 bg-red-50 text-red-700 hover:bg-red-100 border border-red-200 disabled:opacity-60">
             {loadingAction === "delete" ? t("loading") : t("delete")}
@@ -272,6 +446,7 @@ export default function ReceiptsPage() {
   const { t, isRTL, formatCurrency } = useI18n();
   const { canCreate, canPost } = usePermissions();
   const { currentUser: defaultUser } = useAuth();
+  const router = useRouter();
   const searchParams = useSearchParams();
   const [showForm, setShowForm] = useState(searchParams.get("new") === "true");
   const [fromDate, setFromDate] = useState(startOfMonthISO());
@@ -429,7 +604,31 @@ export default function ReceiptsPage() {
             ) : undefined}
           />
         ) : (
-          <div className="overflow-x-auto">
+          <>
+          {/* Mobile cards */}
+          <div className="mobile-list p-3 space-y-2.5">
+            {filtered.map((r: any) => (
+              <div key={r._id} className="record-card">
+                <div className="flex items-start justify-between gap-2 mb-2">
+                  <div className="min-w-0 flex-1">
+                    <span className="text-[11px] font-bold px-2 py-0.5 rounded bg-[var(--ink-100)] text-[var(--ink-600)] inline-block mb-1">{r.voucherNumber}</span>
+                    <p className="text-[14px] font-bold text-[var(--ink-900)]">{r.receivedFrom}</p>
+                    {r.customerName && <p className="text-[11px] text-[var(--ink-500)]">{r.customerName}</p>}
+                    <p className="text-[11px] text-[var(--ink-400)] mt-0.5">{r.voucherDate} · {PM[r.paymentMethod] ?? r.paymentMethod}</p>
+                  </div>
+                  <div className="text-end shrink-0">
+                    <p className="text-[18px] font-bold tabular-nums text-emerald-600">{formatCurrency(r.amount)}</p>
+                    <StatusBadge status={r.postingStatus} type="posting" />
+                  </div>
+                </div>
+                <div className="flex items-center gap-2 pt-2 border-t border-[var(--ink-100)]">
+                  <StatusBadge status={r.allocationStatus} type="allocation" />
+                </div>
+              </div>
+            ))}
+          </div>
+          {/* Desktop table */}
+          <div className="desktop-table overflow-x-auto">
             <table className="w-full text-sm text-left border-collapse" dir={isRTL ? "rtl" : "ltr"}>
               <thead>
                 <tr className="bg-gray-50/50 border-b border-gray-100">
@@ -463,7 +662,7 @@ export default function ReceiptsPage() {
                     <td className="px-6 py-4 text-end">
                       <div className="flex items-center justify-end gap-1 opacity-0 group-hover:opacity-100 transition-opacity duration-200">
                         <ReceiptLifecycleActions receipt={r} userId={defaultUser?._id} companyId={company?._id} />
-                        <button className="h-8 w-8 rounded-lg bg-white border border-gray-200 text-gray-400 hover:text-blue-600 hover:border-blue-200 hover:shadow-sm flex items-center justify-center transition-all" title={t("view")}>
+                        <button onClick={() => router.push(`/treasury/receipts/${r._id}`)} className="h-8 w-8 rounded-lg bg-white border border-gray-200 text-gray-400 hover:text-blue-600 hover:border-blue-200 hover:shadow-sm flex items-center justify-center transition-all" title={t("view")}>
                           <Eye className="h-4 w-4" />
                         </button>
                       </div>
@@ -473,6 +672,7 @@ export default function ReceiptsPage() {
               </tbody>
             </table>
           </div>
+          </>
         )}
       </div>
     </div>

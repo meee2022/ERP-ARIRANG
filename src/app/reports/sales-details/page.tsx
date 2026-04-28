@@ -74,9 +74,9 @@ export default function SalesDetailsPage() {
       totals
         ? [
             { label: t("invoiceCount"), value: String(totals.invoiceCount), borderColor: "var(--brand-600)", accent: "var(--ink-900)" },
-            { label: t("subtotal"), value: formatCurrency(totals.subtotal / 100), borderColor: "#0ea5e9", accent: "#0f172a" },
-            { label: t("discount"), value: formatCurrency(totals.discountAmount / 100), borderColor: "#f59e0b", accent: "#b45309" },
-            { label: t("net"), value: formatCurrency(totals.totalAmount / 100), borderColor: "#16a34a", accent: "#166534" },
+            { label: t("subtotal"), value: formatCurrency(totals.subtotal), borderColor: "#0ea5e9", accent: "#0f172a" },
+            { label: t("discount"), value: formatCurrency(totals.discountAmount), borderColor: "#f59e0b", accent: "#b45309" },
+            { label: t("net"), value: formatCurrency(totals.totalAmount), borderColor: "#16a34a", accent: "#166534" },
           ]
         : [],
     [totals, t, formatCurrency]
@@ -185,9 +185,9 @@ export default function SalesDetailsPage() {
                     <td>{isRTL ? (row.salesRepNameAr || "—") : (row.salesRepNameEn || row.salesRepNameAr || "—")}</td>
                     <td>{row.vehicleCode || "—"}</td>
                     <td>{paymentMethodLabel(row.paymentMethod, t)}</td>
-                    <td className="numeric text-end">{formatCurrency(row.subtotal / 100)}</td>
-                    <td className="numeric text-end">{formatCurrency(row.discountAmount / 100)}</td>
-                    <td className="numeric text-end font-semibold">{formatCurrency(row.totalAmount / 100)}</td>
+                    <td className="numeric text-end">{formatCurrency(row.subtotal)}</td>
+                    <td className="numeric text-end">{formatCurrency(row.discountAmount)}</td>
+                    <td className="numeric text-end font-semibold">{formatCurrency(row.totalAmount)}</td>
                     <td>{row.reviewStatus}</td>
                     <td>{row.postingStatus}</td>
                   </tr>

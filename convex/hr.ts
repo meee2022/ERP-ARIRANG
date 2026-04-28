@@ -259,6 +259,9 @@ export const createEmployee = mutation({
     nationalId: v.optional(v.string()),
     nationality: v.optional(v.string()),
     passportNumber: v.optional(v.string()),
+    passportExpiryDate: v.optional(v.string()),
+    qidExpiryDate: v.optional(v.string()),
+    sponsorshipStatus: v.optional(v.string()),
     dateOfBirth: v.optional(v.string()),
     gender: v.optional(v.union(v.literal("male"), v.literal("female"))),
     email: v.optional(v.string()),
@@ -330,6 +333,9 @@ export const updateEmployee = mutation({
     nationalId: v.optional(v.string()),
     nationality: v.optional(v.string()),
     passportNumber: v.optional(v.string()),
+    passportExpiryDate: v.optional(v.string()),
+    qidExpiryDate: v.optional(v.string()),
+    sponsorshipStatus: v.optional(v.string()),
     dateOfBirth: v.optional(v.string()),
     gender: v.optional(v.union(v.literal("male"), v.literal("female"))),
     email: v.optional(v.string()),
@@ -1208,5 +1214,73 @@ export const getPayrollReport = query({
     if (args.periodMonth) runs = runs.filter((r: any) => r.periodMonth === args.periodMonth);
 
     return runs;
+  },
+});
+
+// ═════════════════════════════════════════════════════════════════════════════
+// QID / IQAMA EXPIRY ALERTS
+// ═════════════════════════════════════════════════════════════════════════════
+
+export const getQidExpiryAlerts = query({
+  args: {
+    companyId: v.optional(v.id("companies")),
+    daysAhead: v.optional(v.number()), // default: 60 days
+  },
+  handler: async (ctx, args) => {
+    const cid = args.companyId ?? (await ctx.db.query("companies").first())?._id;
+    if (!cid) return { expired: [], expiringSoon: [], nearExpiry: [] };
+
+    const employees = await ctx.db.query("hrEmployees")
+      .withIndex("by_company", (q) => q.eq("companyId", cid))
+      .collect();
+
+    const today = new Date();
+    const todayStr = today.toISOString().split("T")[0];
+    const ahead = args.daysAhead ?? 60;
+    const thresholdDate = new Date(today);
+    thresholdDate.setDate(thresholdDate.getDate() + ahead);
+    const thresholdStr = thresholdDate.toISOString().split("T")[0];
+
+    const nearExpiry30 = new Date(today);
+    nearExpiry30.setDate(nearExpiry30.getDate() + 30);
+    const nearStr = nearExpiry30.toISOString().split("T")[0];
+
+    const expired: any[] = [];
+    const expiringSoon: any[] = []; // 31-60 days
+    const nearExpiry: any[] = [];   // 0-30 days
+
+    for (const emp of employees) {
+      if (!emp.qidExpiryDate) continue;
+      const expiry = emp.qidExpiryDate;
+      const daysLeft = Math.ceil((new Date(expiry).getTime() - today.getTime()) / 86400000);
+
+      const info = {
+        _id: emp._id,
+        employeeCode: emp.employeeCode,
+        nameEn: emp.nameEn || emp.nameAr,
+        nameAr: emp.nameAr,
+        nationality: emp.nationality,
+        qidExpiryDate: expiry,
+        sponsorshipStatus: (emp as any).sponsorshipStatus,
+        daysLeft,
+        status: emp.status,
+      };
+
+      if (expiry < todayStr) {
+        expired.push(info);
+      } else if (expiry <= nearStr) {
+        nearExpiry.push(info);
+      } else if (expiry <= thresholdStr) {
+        expiringSoon.push(info);
+      }
+    }
+
+    // Sort by expiry date ascending
+    const byExpiry = (a: any, b: any) => a.qidExpiryDate.localeCompare(b.qidExpiryDate);
+    expired.sort(byExpiry);
+    nearExpiry.sort(byExpiry);
+    expiringSoon.sort(byExpiry);
+
+    return { expired, nearExpiry, expiringSoon };
   },
 });
