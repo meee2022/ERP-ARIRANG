@@ -1147,7 +1147,4 @@ export default function SalesInvoicesPage() {
             )}
           </>
         )}
-      </div>
-    </div>
-  );
-}
+ 

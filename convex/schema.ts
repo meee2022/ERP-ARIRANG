@@ -950,5 +950,3 @@ export default defineSchema({
     balanceValue: v.optional(v.number()),
     sourceFile: v.optional(v.string()),
     updatedAt: v.optional(v.number()),
-  }).index("by_item", ["itemCode"]),
-});
