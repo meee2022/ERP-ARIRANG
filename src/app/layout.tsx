@@ -7,8 +7,16 @@ import { AppShellGuard } from "@/components/auth/AppShellGuard";
 import { ErrorBoundary } from "@/components/error-boundary";
 
 export const metadata: Metadata = {
-  title: "PrimeBalance ERP",
-  description: "Accounting & Distribution ERP",
+  title: "ERP ARIRANG",
+  description: "Arirang Bakery — Accounting & Distribution ERP",
+  icons: { icon: "/logo.png", apple: "/logo.png" },
+  openGraph: {
+    title: "ERP ARIRANG",
+    description: "Arirang Bakery — Accounting & Distribution ERP",
+    siteName: "ERP ARIRANG",
+    type: "website",
+    images: [{ url: "/logo.png", width: 800, height: 800, alt: "Arrirang Bakery" }],
+  },
 };
 
 export default function RootLayout({
@@ -26,16 +34,4 @@ export default function RootLayout({
           rel="stylesheet"
         />
       </head>
-      <body className="antialiased surface-base" suppressHydrationWarning>
-        <ErrorBoundary>
-          <ConvexClientProvider>
-            <AuthProvider>
-              <LanguageSync />
-              <AppShellGuard>{children}</AppShellGuard>
-            </AuthProvider>
-          </ConvexClientProvider>
-        </ErrorBoundary>
-      </body>
-    </html>
-  );
-}
+      <body className="antialiased surface-base" suppre
