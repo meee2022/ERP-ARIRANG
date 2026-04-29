@@ -842,4 +842,68 @@ function ItemDetailDrawer({ item, onClose, formatCurrency }: { item: any; onClos
                 <InfoRow label="Category"             value={item.purchaseCategory ? catLabel(item.purchaseCategory) : "—"} />
                 <InfoRow label="Cost Price"           value={item.standardCost != null && item.standardCost > 0 ? formatCurrency(item.standardCost) : "—"} />
                 <InfoRow label="Selling Price"        value={item.sellingPrice != null && item.sellingPrice > 0 ? formatCurrency(item.sellingPrice) : "—"} />
-            
+                <InfoRow label="Ref. Price"           value={item.refPrice != null ? formatCurrency(item.refPrice) : "—"} />
+                <InfoRow label="Reorder Point"        value={String(item.reorderPoint ?? 0)} />
+              </dl>
+            </>
+          )}
+
+          {tab === "suppliers" && (
+            supplierRows.length === 0 ? (
+              <div className="text-sm text-[color:var(--ink-400)] py-8 text-center">No supplier catalog entries for this item</div>
+            ) : (
+              <div className="space-y-3">
+                {supplierRows.map((row: any) => (
+                  <div key={row._id} className="rounded-xl border border-[color:var(--ink-100)] p-4">
+                    <div className="font-semibold text-[color:var(--ink-900)] text-sm">{row.supplier?.nameAr || row.supplier?.nameEn || "—"}</div>
+                    {row.supplierItemName && <div className="text-xs text-[color:var(--ink-500)] mt-0.5">{row.supplierItemName}</div>}
+                    <div className="grid grid-cols-3 gap-2 mt-3">
+                      <div className="text-center">
+                        <div className="text-xs text-[color:var(--ink-500)]">Ref. Price</div>
+                        <div className="text-sm font-bold text-[color:var(--brand-700)]">{row.lastPrice != null ? formatCurrency(row.lastPrice) : "—"}</div>
+                      </div>
+                      <div className="text-center">
+                        <div className="text-xs text-[color:var(--ink-500)]">UOM</div>
+                        <div className="text-sm font-bold text-[color:var(--ink-700)]">{row.purchaseUom ?? "—"}</div>
+                      </div>
+                      <div className="text-center">
+                        <div className="text-xs text-[color:var(--ink-500)]">Purchases</div>
+                        <div className="text-sm font-bold text-[color:var(--ink-400)]">—</div>
+                      </div>
+                    </div>
+                    <div className="flex gap-2 mt-2 text-[10px] text-[color:var(--ink-500)]">
+                      {row.purchaseUom && <span>UOM: {row.purchaseUom}</span>}
+                      <span className="text-[color:var(--ink-300)]">· purchase history from real transactions</span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ─── Helpers ───────────────────────────────────────────────────────────────────
+
+function Field({ label, required, children }: { label: string; required?: boolean; children: React.ReactNode }) {
+  return (
+    <label className="block">
+      <div className="text-xs font-semibold text-[color:var(--ink-700)] mb-1.5">
+        {label} {required && <span className="text-[color:var(--brand-600)]">*</span>}
+      </div>
+      {children}
+    </label>
+  );
+}
+
+function InfoRow({ label, value }: { label: string; value: string }) {
+  return (
+    <>
+      <dt className="text-xs text-[color:var(--ink-500)]">{label}</dt>
+      <dd className="text-sm font-medium text-[color:var(--ink-900)] text-end">{value}</dd>
+    </>
+  );
+}
