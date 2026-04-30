@@ -174,6 +174,21 @@ export default function SalesInvoiceDetailPage() {
           documentTitle={t("salesInvoiceTitle")}
           periodLine={inv.invoiceDate}
         />
+
+        {/* Invoice number — visible in print only */}
+        <div className="hidden print:flex items-center justify-between mb-4 border-b-2 border-[color:var(--ink-800)] pb-3">
+          <div>
+            <p className="text-xs uppercase tracking-wider text-[color:var(--ink-500)] font-semibold">{t("salesInvoiceTitle")}</p>
+            <p className="text-2xl font-extrabold text-[color:var(--ink-900)] mt-0.5"># {inv.invoiceNumber}</p>
+            {inv.externalInvoiceNumber && (
+              <p className="text-sm text-[color:var(--ink-600)] mt-0.5">Ref: {inv.externalInvoiceNumber}</p>
+            )}
+          </div>
+          <div className="text-end">
+            <p className="text-sm text-[color:var(--ink-600)]">{inv.invoiceDate}</p>
+          </div>
+        </div>
+
         <div className="flex items-start justify-between mb-6 border-b-2 border-[color:var(--ink-800)] pb-4 print:hidden">
           <div>
             <h2 className="text-xl font-extrabold text-[color:var(--ink-900)]">{companyName}</h2>
