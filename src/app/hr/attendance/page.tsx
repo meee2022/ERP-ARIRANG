@@ -216,6 +216,7 @@ function DailyView({ isRTL }: { isRTL: boolean }) {
 
   const [savingId, setSavingId] = useState<string | null>(null);
   const upsert = useMutation(api.hr.upsertAttendance);
+  const resetAttendance = useMutation(api.hr.resetAttendanceByDate);
 
   // Merge: every active employee gets a row; attach existing attendance record if present
   const merged = useMemo(() => {
@@ -313,6 +314,31 @@ function DailyView({ isRTL }: { isRTL: boolean }) {
     return `${Math.floor(mins / 60)}h ${mins % 60}m`;
   }
 
+  async function handleReset() {
+    const scope = selectedEmployees.size > 0
+      ? (isRTL ? `${selectedEmployees.size} موظف محدد` : `${selectedEmployees.size} selected employee(s)`)
+      : (isRTL ? "جميع الموظفين" : "all employees");
+    const confirmed = window.confirm(
+      isRTL
+        ? `هل تريد مسح سجلات الحضور لـ ${scope} في ${selectedDate}؟ ستعود لـ "غير مسجّل".`
+        : `Reset attendance for ${scope} on ${selectedDate}? They will return to "Not Recorded".`
+    );
+    if (!confirmed) return;
+    setSavingId('reset');
+    try {
+      const employeeIds = selectedEmployees.size > 0
+        ? (Array.from(selectedEmployees) as any[])
+        : undefined;
+      const res = await resetAttendance({ attendanceDate: selectedDate, employeeIds });
+      setSelectedEmployees(new Set());
+      alert(isRTL ? `تم مسح ${res.deleted} سجل` : `Reset ${res.deleted} record(s)`);
+    } catch (e: any) {
+      alert(String(e.message || e));
+    } finally {
+      setSavingId(null);
+    }
+  }
+
   async function handleQuickMark(employeeId: string, status: 'present' | 'absent' | 'late') {
     setSavingId(employeeId);
     try {
@@ -358,6 +384,13 @@ function DailyView({ isRTL }: { isRTL: boolean }) {
           </select>
         </div>
         <div className={`flex items-center gap-2 ${isRTL ? "mr-auto" : "ml-auto"}`}>
+          <button
+            onClick={handleReset}
+            disabled={savingId === 'reset'}
+            className="h-9 px-3 rounded-lg border border-red-200 bg-red-50 text-red-600 text-xs font-semibold hover:bg-red-100 disabled:opacity-60 inline-flex items-center gap-1"
+          >
+            {savingId === 'reset' ? '...' : (isRTL ? '↩ مسح الكل' : '↩ Reset All')}
+          </button>
           {selectedEmployees.size > 0 && (
             <>
               <span className="text-xs text-gray-500">
@@ -389,6 +422,13 @@ function DailyView({ isRTL }: { isRTL: boolean }) {
                 className="h-9 px-3 rounded-lg border border-gray-200 text-gray-600 text-xs font-semibold hover:bg-gray-50"
               >
                 {isRTL ? 'إلغاء' : 'Clear'}
+              </button>
+              <button
+                onClick={handleReset}
+                disabled={savingId === 'reset'}
+                className="h-9 px-3 rounded-lg border border-red-200 bg-red-50 text-red-600 text-xs font-semibold hover:bg-red-100 disabled:opacity-60"
+              >
+                {savingId === 'reset' ? '...' : (isRTL ? '↩ تراجع' : '↩ Undo')}
               </button>
             </>
           )}
@@ -534,10 +574,16 @@ function MonthlyView({ isRTL }: { isRTL: boolean }) {
   const [selectedEmployeeId, setSelectedEmployeeId] = useState("");
 
   const employees = useQuery(api.hr.listEmployees, { status: "active" }) ?? [];
-  const summaries = useQuery(
-    api.hr.getAttendanceSummary,
-    { year, month, employeeId: selectedEmployeeId || undefined }
+  const companies = useQuery(api.seed.getCompanies, {});
+  const company = companies?.[0];
+  const allSummaries = useQuery(
+    api.hr.getMonthlyAttendanceSummaries,
+    company ? { companyId: company._id, year, month } : "skip"
   ) ?? [];
+  // Filter by selected employee if one is chosen
+  const summaries = selectedEmployeeId
+    ? allSummaries.filter((s: any) => s.employeeId === selectedEmployeeId)
+    : allSummaries;
 
   const daysInMonth = new Date(year, month, 0).getDate();
   const MONTH_NAMES = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];

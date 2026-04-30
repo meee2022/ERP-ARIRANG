@@ -1366,6 +1366,7 @@ export const translations = {
   markAsPaid:               { ar: "تحديد كمدفوع",       en: "Mark as Paid" },
   payrollStatus:            { ar: "حالة المسيرة",        en: "Payroll Status" },
   hrSetup:                  { ar: "إعدادات الموارد البشرية", en: "HR Setup" },
+  salarySheet:              { ar: "كشف الرواتب",            en: "Salary Sheet" },
   employeeDirectoryReport:  { ar: "دليل الموظفين",      en: "Employee Directory" },
   attendanceReport:         { ar: "تقرير الحضور",       en: "Attendance Report" },
   leaveReport:              { ar: "تقرير الإجازات",     en: "Leave Report" },

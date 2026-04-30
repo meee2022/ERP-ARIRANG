@@ -136,4 +136,8 @@ export declare const api: FilterApi<
  * ```
  */
 export declare const internal: FilterApi<
-  typeof fullA
+  typeof fullApi,
+  FunctionReference<any, "internal">
+>;
+
+export declare const components: {};

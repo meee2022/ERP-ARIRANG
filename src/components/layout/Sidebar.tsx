@@ -111,8 +111,9 @@ const SECTIONS: NavSection[] = [
       { href: "/hr/employees",  icon: Users,             key: "employeeRegister" },
       { href: "/hr/attendance", icon: CalendarDays,      key: "attendance"       },
       { href: "/hr/leave",      icon: FileCheck,         key: "leaveManagement"  },
-      { href: "/hr/payroll",    icon: CreditCard,        key: "payroll"          },
-      { href: "/hr/setup",      icon: SlidersHorizontal, key: "hrSetup"          },
+      { href: "/hr/payroll",       icon: CreditCard,        key: "payroll"          },
+      { href: "/hr/salary-sheet", icon: FileText,          key: "salarySheet"      },
+      { href: "/hr/setup",        icon: SlidersHorizontal, key: "hrSetup"          },
     ],
   },
   {

@@ -472,6 +472,59 @@ export const getAttendanceSummary = query({
   },
 });
 
+// Returns one row per active employee with their daily status map for the given month
+export const getMonthlyAttendanceSummaries = query({
+  args: {
+    companyId: v.optional(v.id("companies")),
+    year: v.number(),
+    month: v.number(),
+  },
+  handler: async (ctx, args) => {
+    const cid = args.companyId ?? (await ctx.db.query("companies").first())?._id;
+    if (!cid) return [];
+
+    const fromDate = `${args.year}-${String(args.month).padStart(2, "0")}-01`;
+    const lastDay = new Date(args.year, args.month, 0).getDate();
+    const toDate = `${args.year}-${String(args.month).padStart(2, "0")}-${String(lastDay).padStart(2, "0")}`;
+
+    const employees = await ctx.db.query("hrEmployees")
+      .withIndex("by_company_status", (q) => q.eq("companyId", cid).eq("status", "active"))
+      .collect();
+
+    const results = [];
+    for (const emp of employees) {
+      const rows = await ctx.db.query("hrAttendance")
+        .withIndex("by_employee", (q) => q.eq("employeeId", emp._id))
+        .collect();
+      const period = rows.filter((r: any) => r.attendanceDate >= fromDate && r.attendanceDate <= toDate);
+
+      const days: Record<string, string> = {};
+      let presentDays = 0, absentDays = 0, leaveDays = 0, overtimeHours = 0;
+      for (const r of period) {
+        days[r.attendanceDate] = r.status;
+        if (r.status === "present" || r.status === "late") presentDays++;
+        if (r.status === "half_day") presentDays += 0.5;
+        if (r.status === "absent") absentDays++;
+        if (r.status === "on_leave") leaveDays++;
+        overtimeHours += r.overtimeHours ?? 0;
+      }
+
+      results.push({
+        employeeId: emp._id,
+        nameAr: emp.nameAr,
+        nameEn: emp.nameEn,
+        employeeCode: emp.employeeCode,
+        days,
+        presentDays,
+        absentDays,
+        leaveDays,
+        overtimeHours: Math.round(overtimeHours * 100) / 100,
+      });
+    }
+    return results;
+  },
+});
+
 export const upsertAttendance = mutation({
   args: {
     companyId: v.optional(v.id("companies")),
@@ -548,6 +601,29 @@ export const bulkMarkAttendance = mutation({
       }
     }
     return true;
+  },
+});
+
+export const resetAttendanceByDate = mutation({
+  args: {
+    companyId: v.optional(v.id("companies")),
+    attendanceDate: v.string(),
+    employeeIds: v.optional(v.array(v.id("hrEmployees"))),
+  },
+  handler: async (ctx, args) => {
+    const cid = await getCompanyId(ctx, args.companyId);
+    const records = await ctx.db.query("hrAttendance")
+      .withIndex("by_company_date", (q) => q.eq("companyId", cid).eq("attendanceDate", args.attendanceDate))
+      .collect();
+
+    const toDelete = args.employeeIds
+      ? records.filter((r: any) => args.employeeIds!.includes(r.employeeId))
+      : records;
+
+    for (const r of toDelete) {
+      await ctx.db.delete(r._id);
+    }
+    return { deleted: toDelete.length };
   },
 });
 
@@ -821,6 +897,13 @@ export const previewPayrollRun = query({
     const lastDay = new Date(args.periodYear, args.periodMonth, 0).getDate();
     const toDate = `${args.periodYear}-${String(args.periodMonth).padStart(2, "0")}-${String(lastDay).padStart(2, "0")}`;
 
+    // Count Fridays only (Friday = day 5 in JS) — Friday is the only weekend day
+    let fridays = 0;
+    for (let d = 1; d <= lastDay; d++) {
+      if (new Date(args.periodYear, args.periodMonth - 1, d).getDay() === 5) fridays++;
+    }
+    const workingDaysInMonth = lastDay - fridays;
+
     const results = [];
     for (const emp of employees) {
       // Attendance for period
@@ -851,7 +934,6 @@ export const previewPayrollRun = query({
         if (lt && !lt.isPaid) leaveDeductionDays += req.totalDays;
       }
 
-      const workingDaysInMonth = lastDay - 8; // approximate (subtract weekends)
       const dailySalary = emp.salaryBasis === "monthly" ? emp.basicSalary / workingDaysInMonth : emp.basicSalary;
 
       const housing = emp.housingAllowance ?? 0;
@@ -873,9 +955,18 @@ export const previewPayrollRun = query({
       const totalDeductions = unpaidLeaveDeduction + halfDayDeduction;
       const netSalary = Math.max(0, grossSalary - totalDeductions);
 
+      // Enrich with designation and department names
+      const designation = emp.designationId ? await ctx.db.get(emp.designationId) : null;
+      const department = emp.departmentId ? await ctx.db.get(emp.departmentId) : null;
+
       results.push({
         employeeId: emp._id,
         employee: emp,
+        designationNameEn: designation?.nameEn || designation?.nameAr || null,
+        designationNameAr: designation?.nameAr || null,
+        departmentNameEn: department?.nameEn || department?.nameAr || null,
+        departmentNameAr: department?.nameAr || null,
+        sponsorshipStatus: emp.sponsorshipStatus ?? null,
         basicSalary: emp.basicSalary,
         housingAllowance: housing,
         transportAllowance: transport,
@@ -924,7 +1015,12 @@ export const createPayrollRun = mutation({
     const fromDate = `${args.periodYear}-${String(args.periodMonth).padStart(2, "0")}-01`;
     const lastDay = new Date(args.periodYear, args.periodMonth, 0).getDate();
     const toDate = `${args.periodYear}-${String(args.periodMonth).padStart(2, "0")}-${String(lastDay).padStart(2, "0")}`;
-    const workingDaysInMonth = lastDay - 8;
+    // Count Fridays only — Friday is the only weekend day
+    let fridays = 0;
+    for (let d = 1; d <= lastDay; d++) {
+      if (new Date(args.periodYear, args.periodMonth - 1, d).getDay() === 5) fridays++;
+    }
+    const workingDaysInMonth = lastDay - fridays;
 
     let totalBasic = 0, totalAllowances = 0, totalDeductions = 0, totalOvertimePay = 0, totalNet = 0;
 

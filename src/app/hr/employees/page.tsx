@@ -6,12 +6,16 @@ import { useQuery, useMutation } from "convex/react";
 import { api } from "../../../../convex/_generated/api";
 import {
   Users, Search, Plus, Edit2, Eye, ChevronDown, UserCheck,
-  Briefcase, DollarSign, Filter, Trash2, AlertTriangle, RefreshCw, ShieldAlert,
+  Briefcase, DollarSign, Filter, Trash2, AlertTriangle, RefreshCw, ShieldAlert, Printer, FileSpreadsheet,
 } from "lucide-react";
+import { CompanyPrintHeader } from "@/components/ui/company-print-header";
+import { useCompanySettings } from "@/hooks/useCompanySettings";
 import { useI18n } from "@/hooks/useI18n";
 import { PageHeader } from "@/components/ui/page-header";
 import { EmptyState } from "@/components/ui/empty-state";
 import Link from "next/link";
+import { PdfDownloadButton } from "@/components/ui/PdfDownloadButton";
+import { EmployeeListPdf } from "@/lib/pdf/EmployeeListPdf";
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -34,6 +38,10 @@ function SectionTitle({ children }: { children: React.ReactNode }) {
       </div>
     </div>
   );
+}
+
+function empTotal(emp: any) {
+  return (emp.basicSalary ?? 0) + (emp.housingAllowance ?? 0) + (emp.transportAllowance ?? 0) + (emp.otherAllowance ?? 0);
 }
 
 const STATUS_COLORS: Record<string, string> = {
@@ -522,6 +530,7 @@ function DeleteEmployeeButton({ employeeId }: { employeeId: any }) {
 
 export default function EmployeesPage() {
   const { t, isRTL, formatCurrency } = useI18n();
+  const { company: printCompany } = useCompanySettings();
 
   // Filters
   const [search, setSearch] = useState("");
@@ -580,6 +589,72 @@ export default function EmployeesPage() {
     setShowModal(true);
   }
 
+  async function exportToExcel() {
+    const XLSX = await import("xlsx");
+    const rows = filtered.map((emp: any, idx: number) => ({
+      "#": idx + 1,
+      [isRTL ? "الكود" : "Code"]: emp.employeeCode,
+      [isRTL ? "الاسم" : "Name"]: isRTL ? emp.nameAr : (emp.nameEn || emp.nameAr),
+      [isRTL ? "القسم" : "Department"]: emp.department ? (isRTL ? emp.department.nameAr : (emp.department.nameEn || emp.department.nameAr)) : "",
+      [isRTL ? "المسمى" : "Designation"]: emp.designation ? (isRTL ? emp.designation.nameAr : (emp.designation.nameEn || emp.designation.nameAr)) : "",
+      [isRTL ? "تاريخ التعيين" : "Hire Date"]: emp.hireDate ?? "",
+      [isRTL ? "النوع" : "Type"]: emp.employmentType?.replace("_", " ") ?? "",
+      [isRTL ? "الحالة" : "Status"]: emp.status ?? "",
+      [isRTL ? "إجمالي الراتب" : "Total Salary"]: empTotal(emp),
+      [isRTL ? "الأساسي" : "Basic"]: emp.basicSalary ?? 0,
+      [isRTL ? "سكن" : "Housing"]: emp.housingAllowance ?? 0,
+      [isRTL ? "نقل" : "Transport"]: emp.transportAllowance ?? 0,
+      [isRTL ? "أخرى" : "Other"]: emp.otherAllowance ?? 0,
+    }));
+    const ws = XLSX.utils.json_to_sheet(rows);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, isRTL ? "الموظفون" : "Employees");
+    XLSX.writeFile(wb, `employees-${new Date().toISOString().split("T")[0]}.xlsx`);
+  }
+
+  const totalSalary = useMemo(
+    () => filtered.reduce((s: number, e: any) => s + empTotal(e), 0),
+    [filtered]
+  );
+
+  const pdfData = useMemo(() => ({
+    companyName: printCompany?.nameAr ?? printCompany?.nameEn ?? "",
+    companyNameEn: printCompany?.nameEn ?? undefined,
+    companyAddress: printCompany?.address ?? undefined,
+    companyPhone: printCompany?.phone ?? undefined,
+    companyVatNumber: printCompany?.vatNumber ?? undefined,
+    logoUrl: printCompany?.logoUrl ?? undefined,
+    generatedDate: new Date().toLocaleDateString(isRTL ? "ar-QA" : "en-GB", { year: "numeric", month: "long", day: "numeric" }),
+    isRTL,
+    employees: filtered.map((emp: any, i: number) => ({
+      idx: i + 1,
+      code: emp.employeeCode ?? "",
+      name: isRTL ? emp.nameAr : (emp.nameEn || emp.nameAr),
+      department: emp.department ? (isRTL ? emp.department.nameAr : (emp.department.nameEn || emp.department.nameAr)) : "—",
+      designation: emp.designation ? (isRTL ? emp.designation.nameAr : (emp.designation.nameEn || emp.designation.nameAr)) : "—",
+      hireDate: emp.hireDate ?? "—",
+      type: emp.employmentType?.replace("_", " ") ?? "—",
+      status: emp.status ?? "—",
+      basicSalary: empTotal(emp),
+    })),
+    totalSalary,
+    formatCurrency,
+    labels: {
+      title: isRTL ? "سجل الموظفين" : "Employee Register",
+      no: "#",
+      code: isRTL ? "الكود" : "Code",
+      name: isRTL ? "الاسم" : "Name",
+      department: isRTL ? "القسم" : "Department",
+      designation: isRTL ? "المسمى" : "Designation",
+      hireDate: isRTL ? "تاريخ التعيين" : "Hire Date",
+      type: isRTL ? "النوع" : "Type",
+      status: isRTL ? "الحالة" : "Status",
+      salary: isRTL ? "إجمالي الراتب" : "Total Salary",
+      total: isRTL ? "الإجمالي" : "Total",
+      printedBy: isRTL ? `طُبع بتاريخ: ${new Date().toLocaleString("ar-QA")}` : `Printed: ${new Date().toLocaleString("en-GB")}`,
+    },
+  }), [filtered, printCompany, isRTL, formatCurrency, totalSalary]);
+
   return (
     <div dir={isRTL ? "rtl" : "ltr"} className="space-y-5">
       {/* Page Header */}
@@ -592,18 +667,37 @@ export default function EmployeesPage() {
           </span>
         }
         actions={
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 print:hidden">
+            <button
+              onClick={() => window.print()}
+              className="h-10 px-3 rounded-lg inline-flex items-center gap-2 text-sm font-semibold border border-gray-200 bg-white text-gray-600 hover:bg-gray-50"
+            >
+              <Printer className="h-4 w-4" />
+              {isRTL ? "طباعة" : "Print"}
+            </button>
+            <PdfDownloadButton
+              document={<EmployeeListPdf data={pdfData} />}
+              fileName={`employees-${new Date().toISOString().split("T")[0]}.pdf`}
+              label={isRTL ? "PDF تنزيل" : "Download PDF"}
+            />
+            <button
+              onClick={exportToExcel}
+              className="h-10 px-3 rounded-lg inline-flex items-center gap-2 text-sm font-semibold border border-green-300 bg-green-50 text-green-700 hover:bg-green-100"
+            >
+              <FileSpreadsheet className="h-4 w-4" />
+              {isRTL ? "Excel تنزيل" : "Download Excel"}
+            </button>
             <button
               onClick={handleSeedStaff}
               disabled={seeding}
-              className="h-10 px-3 rounded-lg inline-flex items-center gap-2 text-sm font-semibold border border-orange-300 bg-orange-50 text-orange-700 hover:bg-orange-100 disabled:opacity-50"
+              className="h-10 px-3 rounded-lg inline-flex items-center gap-2 text-sm font-semibold border border-orange-300 bg-orange-50 text-orange-700 hover:bg-orange-100 disabled:opacity-50 print:hidden"
             >
               <RefreshCw className={`h-4 w-4 ${seeding ? "animate-spin" : ""}`} />
               {seeding ? (isRTL ? "جاري الاستيراد..." : "Importing...") : (isRTL ? "استيراد موظفين Excel" : "Import from Excel")}
             </button>
             <button
               onClick={openAdd}
-              className="btn-primary h-10 px-4 rounded-lg inline-flex items-center gap-2 text-sm font-semibold"
+              className="btn-primary h-10 px-4 rounded-lg inline-flex items-center gap-2 text-sm font-semibold print:hidden"
             >
               <Plus className="h-4 w-4" />
               {t("addEmployee") || "إضافة موظف"}
@@ -800,7 +894,7 @@ export default function EmployeesPage() {
                     <p className="text-[11.5px] text-[var(--ink-500)] mt-0.5">{emp.jobTitle ?? "—"} {emp.departmentName ? `· ${emp.departmentName}` : ""}</p>
                   </div>
                   <div className="text-end shrink-0">
-                    <p className="text-[14px] font-bold tabular-nums text-[var(--ink-900)]">{formatCurrency(emp.basicSalary ?? 0)}</p>
+                    <p className="text-[14px] font-bold tabular-nums text-[var(--ink-900)]">{formatCurrency(empTotal(emp))}</p>
                     <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full border ${emp.isActive !== false ? "bg-green-50 text-green-700 border-green-200" : "bg-gray-50 text-gray-400 border-gray-200"}`}>
                       {emp.isActive !== false ? t("active") : t("inactive")}
                     </span>
@@ -821,7 +915,7 @@ export default function EmployeesPage() {
                     t("hireDate") || "تاريخ التعيين",
                     t("employmentType") || "نوع التوظيف",
                     t("status") || "الحالة",
-                    t("basicSalary") || "الراتب الأساسي",
+                    t("totalSalary") || "إجمالي الراتب",
                     t("actions") || "الإجراءات",
                   ].map((h) => (
                     <th
@@ -886,8 +980,13 @@ export default function EmployeesPage() {
                     <td className="px-5 py-3.5 text-sm font-semibold text-[color:var(--ink-800)] tabular-nums whitespace-nowrap">
                       <span className="flex items-center gap-1">
                         <DollarSign className="h-3.5 w-3.5 text-gray-400" />
-                        {formatCurrency(emp.basicSalary ?? 0)}
+                        {formatCurrency(empTotal(emp))}
                       </span>
+                      {empTotal(emp) !== (emp.basicSalary ?? 0) && (
+                        <div className="text-[10px] text-gray-400 mt-0.5">
+                          {isRTL ? `أساسي: ${formatCurrency(emp.basicSalary ?? 0)}` : `Basic: ${formatCurrency(emp.basicSalary ?? 0)}`}
+                        </div>
+                      )}
                     </td>
 
                     {/* Actions */}
@@ -917,6 +1016,94 @@ export default function EmployeesPage() {
           </div>
           </>
         )}
+      </div>
+
+      {/* ── Print-only view ─────────────────────────────────────────────── */}
+      <div className="hidden print:block" dir={isRTL ? "rtl" : "ltr"}>
+        <CompanyPrintHeader
+          company={printCompany}
+          isRTL={isRTL}
+          documentTitle={isRTL ? "سجل الموظفين" : "Employee Register"}
+          periodLine={new Date().toLocaleDateString(isRTL ? "ar-QA" : "en-GB", { year: "numeric", month: "long", day: "numeric" })}
+          alwaysVisible
+        />
+
+        <div style={{ marginTop: 12, fontSize: 10, color: "#6b7280", marginBottom: 8, display: "flex", justifyContent: "space-between" }}>
+          <span>{isRTL ? `إجمالي الموظفين: ${filtered.length}` : `Total employees: ${filtered.length}`}</span>
+          <span>{isRTL ? `نشط: ${employees.filter((e: any) => e.status === "active").length}` : `Active: ${employees.filter((e: any) => e.status === "active").length}`}</span>
+        </div>
+
+        <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 10 }}>
+          <thead>
+            <tr style={{ background: "#6b1523", color: "#fff" }}>
+              {[
+                "#",
+                isRTL ? "الكود" : "Code",
+                isRTL ? "الاسم" : "Name",
+                isRTL ? "القسم" : "Department",
+                isRTL ? "المسمى" : "Designation",
+                isRTL ? "تاريخ التعيين" : "Hire Date",
+                isRTL ? "النوع" : "Type",
+                isRTL ? "الحالة" : "Status",
+                isRTL ? "إجمالي الراتب" : "Total Salary",
+              ].map((h, i) => (
+                <th key={i} style={{ padding: "6px 8px", textAlign: i >= 7 ? "right" : "left", fontWeight: 700, whiteSpace: "nowrap" }}>
+                  {h}
+                </th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {filtered.map((emp: any, idx: number) => (
+              <tr key={emp._id} style={{ background: idx % 2 === 0 ? "#fff" : "#f9fafb", borderBottom: "1px solid #e5e7eb" }}>
+                <td style={{ padding: "5px 8px", color: "#9ca3af" }}>{idx + 1}</td>
+                <td style={{ padding: "5px 8px", fontFamily: "monospace", fontWeight: 700, color: "#374151" }}>{emp.employeeCode}</td>
+                <td style={{ padding: "5px 8px", fontWeight: 600, color: "#111827" }}>
+                  {isRTL ? emp.nameAr : (emp.nameEn || emp.nameAr)}
+                  {emp.nameEn && isRTL && <div style={{ fontSize: 9, color: "#9ca3af" }}>{emp.nameEn}</div>}
+                </td>
+                <td style={{ padding: "5px 8px", color: "#6b7280" }}>
+                  {emp.department ? (isRTL ? emp.department.nameAr : (emp.department.nameEn || emp.department.nameAr)) : "—"}
+                </td>
+                <td style={{ padding: "5px 8px", color: "#6b7280" }}>
+                  {emp.designation ? (isRTL ? emp.designation.nameAr : (emp.designation.nameEn || emp.designation.nameAr)) : "—"}
+                </td>
+                <td style={{ padding: "5px 8px", color: "#6b7280", whiteSpace: "nowrap" }}>{emp.hireDate ?? "—"}</td>
+                <td style={{ padding: "5px 8px", color: "#6b7280" }}>{emp.employmentType?.replace("_", " ") ?? "—"}</td>
+                <td style={{ padding: "5px 8px" }}>
+                  <span style={{
+                    padding: "2px 7px", borderRadius: 999, fontSize: 9, fontWeight: 700,
+                    background: emp.status === "active" ? "#dcfce7" : emp.status === "terminated" ? "#fee2e2" : "#f3f4f6",
+                    color: emp.status === "active" ? "#15803d" : emp.status === "terminated" ? "#b91c1c" : "#6b7280",
+                  }}>
+                    {emp.status?.replace("_", " ").toUpperCase()}
+                  </span>
+                </td>
+                <td style={{ padding: "5px 8px", textAlign: "right", fontWeight: 600, color: "#111827", whiteSpace: "nowrap" }}>
+                  {formatCurrency(empTotal(emp))}
+                  {empTotal(emp) !== (emp.basicSalary ?? 0) && (
+                    <div style={{ fontSize: 8, color: "#9ca3af" }}>{isRTL ? `أساسي: ${formatCurrency(emp.basicSalary ?? 0)}` : `Basic: ${formatCurrency(emp.basicSalary ?? 0)}`}</div>
+                  )}
+                </td>
+              </tr>
+            ))}
+          </tbody>
+          <tfoot>
+            <tr style={{ background: "#f1f5f9", borderTop: "2px solid #6b1523" }}>
+              <td colSpan={8} style={{ padding: "6px 8px", fontWeight: 700, fontSize: 10, color: "#374151" }}>
+                {isRTL ? "الإجمالي" : "Total"}
+              </td>
+              <td style={{ padding: "6px 8px", textAlign: "right", fontWeight: 700, color: "#6b1523", whiteSpace: "nowrap" }}>
+                {formatCurrency(filtered.reduce((s: number, e: any) => s + empTotal(e), 0))}
+              </td>
+            </tr>
+          </tfoot>
+        </table>
+
+        <div style={{ marginTop: 24, borderTop: "1px solid #e5e7eb", paddingTop: 8, display: "flex", justifyContent: "space-between", fontSize: 9, color: "#9ca3af" }}>
+          <span>{isRTL ? `طُبع بتاريخ: ${new Date().toLocaleString("ar-QA")}` : `Printed: ${new Date().toLocaleString("en-GB")}`}</span>
+          <span>{printCompany?.nameEn ?? printCompany?.nameAr ?? ""}</span>
+        </div>
       </div>
 
       {/* Modal */}
