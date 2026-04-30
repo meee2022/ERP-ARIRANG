@@ -5,11 +5,12 @@ import { useRouter } from "next/navigation";
 import { useAuth } from "@/hooks/useAuth";
 import { useAppStore } from "@/store/useAppStore";
 import { AlertCircle, Mail, Lock, Loader2 } from "lucide-react";
+import Image from "next/image";
 
 const translations = {
   ar: {
-    title: "PrimeBalance ERP",
-    subtitle: "نظام محاسبي وتوزيع",
+    title: "Arirang Bakery",
+    subtitle: "نظام محاسبة وتوزيع",
     email: "البريد الإلكتروني",
     password: "كلمة المرور",
     submit: "دخول",
@@ -23,7 +24,7 @@ const translations = {
     switchLang: "English",
   },
   en: {
-    title: "PrimeBalance ERP",
+    title: "Arirang Bakery",
     subtitle: "Accounting & Distribution ERP",
     email: "Email Address",
     password: "Password",
@@ -53,8 +54,8 @@ export default function LoginPage() {
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
+  const [logoError, setLogoError] = useState(false);
 
-  // Already authenticated → redirect
   React.useEffect(() => {
     if (isAuthenticated) {
       router.replace("/");
@@ -86,6 +87,8 @@ export default function LoginPage() {
     }
   };
 
+  const inputBase = "w-full h-11 rounded-xl border border-[color:var(--ink-200)] bg-white text-sm text-[color:var(--ink-900)] transition-all focus:outline-none focus:border-[color:var(--brand-500)] focus:ring-2 focus:ring-[color:var(--brand-500)]/20";
+
   return (
     <div
       className="min-h-screen flex items-center justify-center"
@@ -101,25 +104,37 @@ export default function LoginPage() {
       </button>
 
       <div className="w-full max-w-sm mx-4">
-        {/* Card */}
         <div className="surface-card rounded-2xl shadow-lg p-8 space-y-6">
+
           {/* Logo / Brand */}
-          <div className="text-center space-y-2">
-            <div
-              className="h-14 w-14 rounded-2xl flex items-center justify-center mx-auto shadow-md"
-              style={{ background: "linear-gradient(135deg, var(--brand-700), var(--brand-500))" }}
-            >
-              <span className="text-white text-2xl font-bold">P</span>
-            </div>
+          <div className="text-center space-y-3">
+            {!logoError ? (
+              <div className="flex justify-center">
+                <Image
+                  src="/logo.png"
+                  alt="Arirang Bakery"
+                  width={80}
+                  height={80}
+                  className="rounded-2xl object-contain shadow-md"
+                  onError={() => setLogoError(true)}
+                />
+              </div>
+            ) : (
+              <div
+                className="h-16 w-16 rounded-2xl flex items-center justify-center mx-auto shadow-md"
+                style={{ background: "linear-gradient(135deg, var(--brand-700), var(--brand-500))" }}
+              >
+                <span className="text-white text-2xl font-bold">A</span>
+              </div>
+            )}
             <h1 className="text-2xl font-bold text-[color:var(--ink-900)] tracking-tight">{t.title}</h1>
             <p className="text-sm font-medium text-[color:var(--ink-500)]">{t.subtitle}</p>
           </div>
 
           {/* Form */}
           <form onSubmit={handleSubmit} className="space-y-4" noValidate>
-            {/* Error Message - Enhanced */}
             {error && (
-              <div className="bg-red-50 border border-red-200 rounded-xl p-4 flex items-start gap-3 animate-in fade-in slide-in-from-top-2 duration-200">
+              <div className="bg-red-50 border border-red-200 rounded-xl p-4 flex items-start gap-3">
                 <div className="w-8 h-8 rounded-full bg-red-100 flex items-center justify-center shrink-0">
                   <AlertCircle className="h-4 w-4 text-red-600" />
                 </div>
@@ -138,14 +153,14 @@ export default function LoginPage() {
                 {t.email}
               </label>
               <div className="relative">
-                <Mail className={`absolute top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400 ${isRTL ? "right-3" : "left-3"}`} />
+                <Mail className={`absolute top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400 pointer-events-none z-10 ${isRTL ? "right-3" : "left-3"}`} />
                 <input
                   type="email"
                   autoComplete="email"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
-                  className={`input-field h-11 w-full text-sm ${isRTL ? "pr-10 pl-3" : "pl-10 pr-3"}`}
-                  placeholder={lang === "ar" ? "admin@demo.local" : "admin@demo.local"}
+                  className={`${inputBase} ${isRTL ? "pr-10 pl-4" : "pl-10 pr-4"}`}
+                  placeholder="admin@demo.local"
                   disabled={loading}
                 />
               </div>
@@ -157,13 +172,13 @@ export default function LoginPage() {
                 {t.password}
               </label>
               <div className="relative">
-                <Lock className={`absolute top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400 ${isRTL ? "right-3" : "left-3"}`} />
+                <Lock className={`absolute top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400 pointer-events-none z-10 ${isRTL ? "right-3" : "left-3"}`} />
                 <input
                   type="password"
                   autoComplete="current-password"
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
-                  className={`input-field h-11 w-full text-sm ${isRTL ? "pr-10 pl-3" : "pl-10 pr-3"}`}
+                  className={`${inputBase} ${isRTL ? "pr-10 pl-4" : "pl-10 pr-4"}`}
                   placeholder="••••••••"
                   disabled={loading}
                 />
@@ -187,7 +202,6 @@ export default function LoginPage() {
             </button>
           </form>
 
-          {/* Dev hint */}
           <p className="text-center text-xs text-[color:var(--ink-400)]">
             {lang === "ar" ? "للاختبار: admin@demo.local / admin123" : "Test: admin@demo.local / admin123"}
           </p>
