@@ -13,7 +13,7 @@ import { LoadingState } from "@/components/ui/data-display";
 import { EmptyState } from "@/components/ui/empty-state";
 import { SearchableSelect } from "@/components/ui/searchable-select";
 import { friendlyError } from "@/lib/utils";
-import { Landmark, Plus, X, Check, Pencil, PowerOff } from "lucide-react";
+import { Landmark, Plus, X, Check, Pencil, PowerOff, Trash2 } from "lucide-react";
 
 // ─── Form ─────────────────────────────────────────────────────────────────────
 
@@ -60,7 +60,7 @@ function BankAccountForm({ onClose, existing }: { onClose: () => void; existing?
           bankName: form.bankName,
           accountNumber: form.accountNumber,
           iban: form.iban || undefined,
-          userId: currentUser._id,
+          updatedBy: currentUser._id,
         });
       } else {
         await createBankAccount({
@@ -182,18 +182,35 @@ export default function BankAccountsPage() {
   const { currentUser } = useAuth();
   const [showForm, setShowForm] = useState(false);
   const [editing, setEditing] = useState<any>(null);
+  const [showInactive, setShowInactive] = useState(false);
 
   const companies = useQuery(api.seed.getCompanies, {});
   const company = companies?.[0];
-  const bankAccounts = useQuery(api.treasury.listBankAccounts, company ? { companyId: company._id } : "skip");
+  const bankAccounts = useQuery(api.treasury.listBankAccounts, company ? { companyId: company._id, includeInactive: showInactive } : "skip");
   const updateBankAccount = useMutation(api.treasury.updateBankAccount);
+  const deleteBankAccount = useMutation(api.treasury.deleteBankAccount);
 
   const loading = bankAccounts === undefined;
 
   const handleDeactivate = async (acc: any) => {
     if (!currentUser) return;
     if (!window.confirm(isRTL ? "هل تريد تعطيل هذا الحساب؟" : "Deactivate this account?")) return;
-    await updateBankAccount({ bankAccountId: acc._id, isActive: false, userId: currentUser._id });
+    await updateBankAccount({ bankAccountId: acc._id, isActive: false, updatedBy: currentUser._id });
+  };
+
+  const handleReactivate = async (acc: any) => {
+    if (!currentUser) return;
+    await updateBankAccount({ bankAccountId: acc._id, isActive: true, updatedBy: currentUser._id });
+  };
+
+  const handleDelete = async (acc: any) => {
+    if (!currentUser) return;
+    if (!window.confirm(isRTL ? `هل تريد حذف حساب "${acc.accountName}" نهائياً؟` : `Delete "${acc.accountName}" permanently?`)) return;
+    try {
+      await deleteBankAccount({ bankAccountId: acc._id, userId: currentUser._id });
+    } catch (e: any) {
+      alert(e.message);
+    }
   };
 
   return (
@@ -203,12 +220,27 @@ export default function BankAccountsPage() {
           icon={Landmark}
           title={isRTL ? "الحسابات البنكية" : "Bank Accounts"}
           subtitle={String(bankAccounts?.length ?? 0)}
-          actions={canCreate("treasury") ? (
-            <button onClick={() => { setEditing(null); setShowForm((v) => !v); }}
-              className="btn-primary h-10 px-4 rounded-lg inline-flex items-center gap-2 text-sm font-semibold">
-              <Plus className="h-4 w-4" /> {isRTL ? "حساب جديد" : "New Account"}
-            </button>
-          ) : undefined}
+          actions={
+            <div className="flex items-center gap-2">
+              <button
+                onClick={() => setShowInactive((v) => !v)}
+                className={`h-10 px-3 rounded-lg inline-flex items-center gap-2 text-sm font-medium border transition-colors ${
+                  showInactive
+                    ? "bg-amber-50 border-amber-300 text-amber-700"
+                    : "bg-white border-gray-200 text-gray-600 hover:bg-gray-50"
+                }`}
+              >
+                <PowerOff className="h-4 w-4" />
+                {showInactive ? (isRTL ? "إخفاء المعطلة" : "Hide Inactive") : (isRTL ? "عرض المعطلة" : "Show Inactive")}
+              </button>
+              {canCreate("treasury") && (
+                <button onClick={() => { setEditing(null); setShowForm((v) => !v); }}
+                  className="btn-primary h-10 px-4 rounded-lg inline-flex items-center gap-2 text-sm font-semibold">
+                  <Plus className="h-4 w-4" /> {isRTL ? "حساب جديد" : "New Account"}
+                </button>
+              )}
+            </div>
+          }
         />
       </div>
 
@@ -262,12 +294,21 @@ export default function BankAccountsPage() {
                           className="h-7 px-3 rounded-md text-xs font-medium inline-flex items-center gap-1 bg-[color:var(--ink-50)] text-[color:var(--ink-700)] hover:bg-[color:var(--ink-100)] border border-[color:var(--ink-200)]">
                           <Pencil className="h-3 w-3" /> {isRTL ? "تعديل" : "Edit"}
                         </button>
-                        {acc.isActive && (
+                        {acc.isActive ? (
                           <button onClick={() => handleDeactivate(acc)}
-                            className="h-7 px-3 rounded-md text-xs font-medium inline-flex items-center gap-1 bg-red-50 text-red-700 hover:bg-red-100 border border-red-200">
+                            className="h-7 px-3 rounded-md text-xs font-medium inline-flex items-center gap-1 bg-amber-50 text-amber-700 hover:bg-amber-100 border border-amber-200">
                             <PowerOff className="h-3 w-3" /> {isRTL ? "تعطيل" : "Deactivate"}
                           </button>
+                        ) : (
+                          <button onClick={() => handleReactivate(acc)}
+                            className="h-7 px-3 rounded-md text-xs font-medium inline-flex items-center gap-1 bg-green-50 text-green-700 hover:bg-green-100 border border-green-200">
+                            <Check className="h-3 w-3" /> {isRTL ? "تفعيل" : "Activate"}
+                          </button>
                         )}
+                        <button onClick={() => handleDelete(acc)}
+                          className="h-7 px-3 rounded-md text-xs font-medium inline-flex items-center gap-1 bg-red-50 text-red-700 hover:bg-red-100 border border-red-200">
+                          <Trash2 className="h-3 w-3" /> {isRTL ? "حذف" : "Delete"}
+                        </button>
                       </div>
                     </td>
                   </tr>

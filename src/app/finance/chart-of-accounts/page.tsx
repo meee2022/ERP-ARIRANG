@@ -578,9 +578,9 @@ function AccountDetail({
           { label: t("balance"),        value: account.normalBalance === "debit" ? t("debit") : t("credit") },
           { label: t("isPostable"),     value: account.isPostable ? (isRTL ? "نعم" : "Yes") : (isRTL ? "لا" : "No") },
           { label: isRTL ? "الحسابات الفرعية" : "Sub-accounts", value: String(children.length) },
-          { label: isRTL ? "إجمالي المدين" : "Total Debit", value: details ? formatCurrency(details.totalDebit / 100) : "—" },
-          { label: isRTL ? "إجمالي الدائن" : "Total Credit", value: details ? formatCurrency(details.totalCredit / 100) : "—" },
-          { label: isRTL ? "الرصيد الحالي" : "Current Balance", value: details ? formatCurrency(details.balance / 100) : "—" },
+          { label: isRTL ? "إجمالي المدين" : "Total Debit", value: details ? formatCurrency(details.totalDebit) : "—" },
+          { label: isRTL ? "إجمالي الدائن" : "Total Credit", value: details ? formatCurrency(details.totalCredit) : "—" },
+          { label: isRTL ? "الرصيد الحالي" : "Current Balance", value: details ? formatCurrency(details.balance) : "—" },
           { label: isRTL ? "عدد القيود" : "Entries", value: details ? String(details.transactionCount) : "0" },
         ].map(({ label, value }) => (
           <div key={label} className="bg-[color:var(--ink-50)] rounded-xl p-3 border border-[color:var(--ink-100)]">
@@ -664,8 +664,8 @@ function AccountDetail({
                         <div className="font-medium text-[color:var(--ink-800)]">{entry.description}</div>
                         {entry.sourceType ? <div className="text-[11px] text-[color:var(--ink-400)]">{entry.sourceType}</div> : null}
                       </td>
-                      <td className="px-3 py-2 text-end">{formatCurrency((entry.debit ?? 0) / 100)}</td>
-                      <td className="px-3 py-2 text-end">{formatCurrency((entry.credit ?? 0) / 100)}</td>
+                      <td className="px-3 py-2 text-end">{formatCurrency(entry.debit ?? 0)}</td>
+                      <td className="px-3 py-2 text-end">{formatCurrency(entry.credit ?? 0)}</td>
                     </tr>
                   ))}
                 </tbody>
@@ -737,12 +737,12 @@ export default function ChartOfAccountsPage() {
     if (!confirmed) return;
     setCleaningUp(true);
     try {
-      const res = await cleanupOldAccounts({ companyId: company._id, userId: currentUser._id as Id<"users"> });
-      const { deleted, skipped } = res as { deleted: number; skipped: number };
+      const res = await cleanupOldAccounts({ companyId: company._id, userId: currentUser._id as Id<"users">, force: true });
+      const { deleted, skipped, linesDeleted } = res as { deleted: number; skipped: number; linesDeleted: number };
       alert(
         isRTL
-          ? `تم الحذف: ${deleted} حساب${skipped > 0 ? `\nتعذّر حذف: ${skipped} حساب (مرتبط بقيود أو لديه حسابات فرعية)` : ""}`
-          : `Deleted: ${deleted} account(s)${skipped > 0 ? `\nSkipped: ${skipped} (has transactions or sub-accounts)` : ""}`
+          ? `تم الحذف: ${deleted} حساب${linesDeleted > 0 ? `\nقيود محذوفة: ${linesDeleted}` : ""}${skipped > 0 ? `\nتعذّر حذف: ${skipped}` : ""}`
+          : `Deleted: ${deleted} account(s)${linesDeleted > 0 ? `\nJournal lines deleted: ${linesDeleted}` : ""}${skipped > 0 ? `\nSkipped: ${skipped}` : ""}`
       );
       setSelectedAccount(null);
     } catch (error: unknown) {

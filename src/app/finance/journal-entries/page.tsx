@@ -7,7 +7,8 @@ import { useQuery, useMutation } from "convex/react";
 import { api } from "../../../../convex/_generated/api";
 import { formatDateShort } from "@/lib/utils";
 import { StatusBadge } from "@/components/ui/status-badge";
-import { Plus, Trash2, RotateCcw, Check, X, Search, FileText, WalletCards, ArrowUpRight, ArrowDownRight, Calendar, Filter, ChevronDown, ChevronUp } from "lucide-react";
+import { Plus, Trash2, RotateCcw, Check, X, Search, FileText, WalletCards, ArrowUpRight, ArrowDownRight, Calendar, Filter, ChevronDown, ChevronUp, Pencil } from "lucide-react";
+import { SearchableSelect } from "@/components/ui/searchable-select";
 import { useAuth } from "@/hooks/useAuth";
 import { usePermissions } from "@/hooks/usePermissions";
 import { useAppStore } from "@/store/useAppStore";
@@ -26,12 +27,14 @@ function startOfMonthISO() {
 interface JLine { id: number; accountId: string; description: string; debit: string; credit: string }
 
 // ─── Inline New-Journal Form ──────────────────────────────────────────────────
-function NewJournalForm({ accounts, company, onClose }: any) {
+function NewJournalForm({ accounts, company, onClose, editEntry }: any) {
   const { t, isRTL, formatCurrency } = useI18n();
   const createManual = useMutation(api.journalEntries.createManual);
+  const updateDraft = useMutation(api.journalEntries.updateDraftJournalEntry);
+  const isEdit = !!editEntry;
   const postable = accounts.filter((a: any) => a.isPostable && a.isActive);
 
-  const [entryDate, setEntryDate] = React.useState(todayISO());
+  const [entryDate, setEntryDate] = React.useState(editEntry?.entryDate ?? todayISO());
   const branch = useQuery(api.branches.getDefaultBranch, company ? { companyId: company._id } : "skip");
   const selectedBranchStore = useAppStore((s) => s.selectedBranch);
   const effectiveBranchId = selectedBranchStore !== "all" ? selectedBranchStore : branch?._id;
@@ -40,18 +43,33 @@ function NewJournalForm({ accounts, company, onClose }: any) {
   const defaultCurrency = useQuery(api.helpers.getDefaultCurrency, {});
 
   const [form, setForm] = useState({
-    journalType: "general",
-    description: "",
-    costCenterId: "",
-    notes: "",
+    journalType: editEntry?.journalType ?? "general",
+    description: editEntry?.description ?? "",
+    costCenterId: editEntry?.costCenterId ?? "",
+    notes: editEntry?.notes ?? "",
     postImmediately: false,
   });
-  const [lines, setLines] = useState<JLine[]>([
-    { id: 1, accountId: "", description: "", debit: "", credit: "" },
-    { id: 2, accountId: "", description: "", debit: "", credit: "" },
-  ]);
+  const [lines, setLines] = useState<JLine[]>(
+    editEntry?.lines?.length
+      ? editEntry.lines.map((l: any, i: number) => ({
+          id: i + 1,
+          accountId: l.accountId,
+          description: l.description ?? "",
+          debit: l.debit > 0 ? String(l.debit) : "",
+          credit: l.credit > 0 ? String(l.credit) : "",
+        }))
+      : [
+          { id: 1, accountId: "", description: "", debit: "", credit: "" },
+          { id: 2, accountId: "", description: "", debit: "", credit: "" },
+        ]
+  );
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
+
+  const accountOptions = postable.map((a: any) => ({
+    value: a._id,
+    label: `${a.code} — ${isRTL ? a.nameAr : (a.nameEn || a.nameAr)}`,
+  }));
 
   const setF = (k: string, v: any) => setForm((f) => ({ ...f, [k]: v }));
   const addLine = () => setLines((ls) => [...ls, { id: Date.now(), accountId: "", description: "", debit: "", credit: "" }]);
@@ -64,38 +82,60 @@ function NewJournalForm({ accounts, company, onClose }: any) {
   const diff = Math.abs(totalDebit - totalCredit);
   const balanced = diff < 0.01;
 
+  const validLines = lines.filter((l) => l.accountId && (Number(l.debit) > 0 || Number(l.credit) > 0));
+
   const onSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!company) return;
-    if (!effectiveBranchId && !branch) { setError("لا يوجد فرع افتراضي للشركة"); return; }
     if (!openPeriod) { setError("لا توجد فترة محاسبية مفتوحة للتاريخ المحدد"); return; }
-    if (!defaultUser) { setError("لا يوجد مستخدم في النظام"); return; }
-    if (!defaultCurrency) { setError("لا توجد عملة افتراضية في النظام"); return; }
     if (!form.description.trim()) { setError(t("errNeedDescription")); return; }
-    if (form.postImmediately && !balanced) { setError(`${t("entryUnbalanced")} (${t("difference")}: ${formatCurrency(diff)})`); return; }
+    if ((!isEdit && form.postImmediately || isEdit) && !balanced && validLines.length > 0) {
+      setError(`${t("entryUnbalanced")} (${t("difference")}: ${formatCurrency(diff)})`); return;
+    }
     setSaving(true); setError("");
     try {
-      await createManual({
-        companyId: company._id,
-        branchId: (effectiveBranchId ?? branch?._id) as any,
-        journalType: form.journalType,
-        entryDate: entryDate,
-        periodId: openPeriod._id,
-        currencyId: defaultCurrency._id,
-        description: form.description,
-        costCenterId: form.costCenterId ? (form.costCenterId as any) : undefined,
-        notes: form.notes || undefined,
-        createdBy: defaultUser._id,
-        postImmediately: form.postImmediately,
-        lines: lines
-          .filter((l) => l.accountId && (Number(l.debit) > 0 || Number(l.credit) > 0))
-          .map((l) => ({
+      if (isEdit) {
+        if (!defaultUser) { setError("لا يوجد مستخدم في النظام"); return; }
+        await updateDraft({
+          entryId: editEntry._id,
+          userId: defaultUser._id,
+          journalType: form.journalType,
+          entryDate,
+          periodId: openPeriod._id,
+          description: form.description,
+          costCenterId: form.costCenterId ? (form.costCenterId as any) : undefined,
+          notes: form.notes || undefined,
+          lines: validLines.map((l) => ({
             accountId: l.accountId as any,
             description: l.description || undefined,
             debit: Math.round(Number(l.debit) * 100) / 100,
             credit: Math.round(Number(l.credit) * 100) / 100,
           })),
-      });
+        });
+      } else {
+        if (!effectiveBranchId && !branch) { setError("لا يوجد فرع افتراضي للشركة"); return; }
+        if (!defaultUser) { setError("لا يوجد مستخدم في النظام"); return; }
+        if (!defaultCurrency) { setError("لا توجد عملة افتراضية في النظام"); return; }
+        await createManual({
+          companyId: company._id,
+          branchId: (effectiveBranchId ?? branch?._id) as any,
+          journalType: form.journalType,
+          entryDate: entryDate,
+          periodId: openPeriod._id,
+          currencyId: defaultCurrency._id,
+          description: form.description,
+          costCenterId: form.costCenterId ? (form.costCenterId as any) : undefined,
+          notes: form.notes || undefined,
+          createdBy: defaultUser._id,
+          postImmediately: form.postImmediately,
+          lines: validLines.map((l) => ({
+            accountId: l.accountId as any,
+            description: l.description || undefined,
+            debit: Math.round(Number(l.debit) * 100) / 100,
+            credit: Math.round(Number(l.credit) * 100) / 100,
+          })),
+        });
+      }
       onClose();
     } catch (e: any) { setError(e.message); } finally { setSaving(false); }
   };
@@ -103,7 +143,7 @@ function NewJournalForm({ accounts, company, onClose }: any) {
   return (
     <div className="surface-card p-5">
       <div className="flex items-center justify-between mb-4">
-        <h3 className="text-base font-semibold text-[color:var(--ink-900)]">{t("newJournalEntry")}</h3>
+        <h3 className="text-base font-semibold text-[color:var(--ink-900)]">{isEdit ? (isRTL ? "تعديل القيد" : "Edit Journal Entry") : t("newJournalEntry")}</h3>
         <button onClick={onClose} className="p-1.5 rounded-lg hover:bg-[color:var(--ink-50)] text-[color:var(--ink-400)]"><X className="h-4 w-4" /></button>
       </div>
       {error && <div className="bg-red-50 border border-red-200 text-red-700 text-sm rounded-lg p-3 mb-4">{error}</div>}
@@ -145,34 +185,49 @@ function NewJournalForm({ accounts, company, onClose }: any) {
               </tr>
             </thead>
             <tbody className="divide-y divide-[color:var(--ink-100)]">
-              {lines.map((line) => (
-                <tr key={line.id}>
-                  <td className="px-2 py-1.5">
-                    <select value={line.accountId} onChange={(e) => updateLine(line.id, "accountId", e.target.value)} className="input-field h-8 text-xs">
-                      <option value="">{t("selectAccount")}</option>
-                      {postable.map((a: any) => (<option key={a._id} value={a._id}>{a.code} — {isRTL ? a.nameAr : (a.nameEn || a.nameAr)}</option>))}
-                    </select>
-                  </td>
-                  <td className="px-2 py-1.5">
-                    <input value={line.description} onChange={(e) => updateLine(line.id, "description", e.target.value)} className="input-field h-8 text-xs" />
-                  </td>
-                  <td className="px-2 py-1.5">
-                    <input type="number" min="0" step="0.01" value={line.debit}
-                      onChange={(e) => { updateLine(line.id, "debit", e.target.value); if (e.target.value) updateLine(line.id, "credit", ""); }}
-                      className="input-field h-8 text-xs text-end tabular-nums" />
-                  </td>
-                  <td className="px-2 py-1.5">
-                    <input type="number" min="0" step="0.01" value={line.credit}
-                      onChange={(e) => { updateLine(line.id, "credit", e.target.value); if (e.target.value) updateLine(line.id, "debit", ""); }}
-                      className="input-field h-8 text-xs text-end tabular-nums" />
-                  </td>
-                  <td className="px-2 py-1.5">
-                    {lines.length > 2 && (
-                      <button type="button" onClick={() => removeLine(line.id)} className="p-1 rounded text-red-400 hover:bg-red-50"><Trash2 className="h-3.5 w-3.5" /></button>
-                    )}
-                  </td>
-                </tr>
-              ))}
+              {lines.map((line, idx) => {
+                const isLast = idx === lines.length - 1;
+                return (
+                  <tr key={line.id}>
+                    <td className="px-2 py-1.5 min-w-[220px]">
+                      <SearchableSelect
+                        isRTL={isRTL}
+                        value={line.accountId}
+                        onChange={(v) => updateLine(line.id, "accountId", v)}
+                        options={accountOptions}
+                        placeholder={t("selectAccount")}
+                        searchPlaceholder={isRTL ? "ابحث عن حساب..." : "Search account..."}
+                        emptyMessage={isRTL ? "لا توجد نتائج" : "No results"}
+                        className="w-full"
+                      />
+                    </td>
+                    <td className="px-2 py-1.5">
+                      <input value={line.description} onChange={(e) => updateLine(line.id, "description", e.target.value)} className="input-field h-8 text-xs" />
+                    </td>
+                    <td className="px-2 py-1.5">
+                      <input type="number" min="0" step="0.01" value={line.debit}
+                        onChange={(e) => { updateLine(line.id, "debit", e.target.value); if (e.target.value) updateLine(line.id, "credit", ""); }}
+                        className="input-field h-8 text-xs text-end tabular-nums" />
+                    </td>
+                    <td className="px-2 py-1.5">
+                      <input type="number" min="0" step="0.01" value={line.credit}
+                        onChange={(e) => { updateLine(line.id, "credit", e.target.value); if (e.target.value) updateLine(line.id, "debit", ""); }}
+                        onKeyDown={(e) => {
+                          if (e.key === "Tab" && !e.shiftKey && isLast) {
+                            e.preventDefault();
+                            addLine();
+                          }
+                        }}
+                        className="input-field h-8 text-xs text-end tabular-nums" />
+                    </td>
+                    <td className="px-2 py-1.5">
+                      {lines.length > 2 && (
+                        <button type="button" onClick={() => removeLine(line.id)} className="p-1 rounded text-red-400 hover:bg-red-50"><Trash2 className="h-3.5 w-3.5" /></button>
+                      )}
+                    </td>
+                  </tr>
+                );
+              })}
             </tbody>
           </table>
         </div>
@@ -189,12 +244,14 @@ function NewJournalForm({ accounts, company, onClose }: any) {
         </div>
 
         <div className="flex items-center gap-3 flex-wrap">
-          <label className="inline-flex items-center gap-2 text-sm text-[color:var(--ink-700)]">
-            <input type="checkbox" checked={form.postImmediately} onChange={(e) => setF("postImmediately", e.target.checked)} />
-            {t("postImmediately")}
-          </label>
-          <button type="submit" disabled={saving || (form.postImmediately && !balanced)} className="btn-primary h-10 px-5 rounded-lg inline-flex items-center gap-2 text-sm font-semibold disabled:opacity-60">
-            {saving ? t("saving") : <><Check className="h-4 w-4" />{t("saveDraft")}</>}
+          {!isEdit && (
+            <label className="inline-flex items-center gap-2 text-sm text-[color:var(--ink-700)]">
+              <input type="checkbox" checked={form.postImmediately} onChange={(e) => setF("postImmediately", e.target.checked)} />
+              {t("postImmediately")}
+            </label>
+          )}
+          <button type="submit" disabled={saving || (!isEdit && form.postImmediately && !balanced)} className="btn-primary h-10 px-5 rounded-lg inline-flex items-center gap-2 text-sm font-semibold disabled:opacity-60">
+            {saving ? t("saving") : <><Check className="h-4 w-4" />{isEdit ? (isRTL ? "حفظ التعديلات" : "Save Changes") : t("saveDraft")}</>}
           </button>
           <button type="button" onClick={onClose} className="h-10 px-5 rounded-lg border border-[color:var(--ink-200)] text-[color:var(--ink-700)] text-sm hover:bg-[color:var(--ink-50)]">{t("cancel")}</button>
         </div>
@@ -214,12 +271,13 @@ function JournalStatCard({ title, value }: any) {
   );
 }
 
-function JournalLifecycleActions({ entry, userId, companyId }: { entry: any; userId: string | undefined; companyId: string | undefined }) {
+function JournalLifecycleActions({ entry, userId, companyId, isRTL, onEdit }: { entry: any; userId: string | undefined; companyId: string | undefined; isRTL?: boolean; onEdit?: () => void }) {
   const { t } = useI18n();
-  const [loadingAction, setLoadingAction] = useState<"delete" | "reverse" | null>(null);
+  const [loadingAction, setLoadingAction] = useState<"delete" | "reverse" | "post" | null>(null);
   const [err, setErr] = useState("");
   const removeDraft = useMutation(api.journalEntries.deleteDraftJournalEntry);
   const reverseEntry = useMutation(api.journalEntries.reverseJournalEntryMutation);
+  const postEntry = useMutation(api.journalEntries.postManualJournalEntry);
   const today = new Date().toISOString().split("T")[0];
   const openPeriod = useQuery(
     api.helpers.getOpenPeriod,
@@ -227,6 +285,20 @@ function JournalLifecycleActions({ entry, userId, companyId }: { entry: any; use
   );
 
   if (!userId) return null;
+
+  const handlePost = async () => {
+    if (!userId) return;
+    if (!window.confirm(isRTL ? "سيتم ترحيل هذا القيد. هل تريد المتابعة؟" : "This entry will be posted. Continue?")) return;
+    setLoadingAction("post");
+    setErr("");
+    try {
+      await postEntry({ entryId: entry._id, userId: userId as any });
+    } catch (e: any) {
+      setErr(e.message ?? "Error posting entry");
+    } finally {
+      setLoadingAction(null);
+    }
+  };
 
   const handleDelete = async () => {
     if (!window.confirm("سيتم حذف القيد المسودّة نهائيًا. هل تريد المتابعة؟")) return;
@@ -265,9 +337,19 @@ function JournalLifecycleActions({ entry, userId, companyId }: { entry: any; use
       {err ? <span className="text-xs text-red-600 max-w-[220px] text-end leading-tight">{err}</span> : null}
       <div className="inline-flex items-center gap-1">
         {entry.postingStatus === "draft" && !entry.isAutoGenerated ? (
-          <button onClick={handleDelete} disabled={loadingAction !== null} className="h-7 px-3 rounded-md text-xs font-semibold inline-flex items-center gap-1 bg-red-50 text-red-700 hover:bg-red-100 border border-red-200 disabled:opacity-60">
-            {loadingAction === "delete" ? t("loading") : t("delete")}
-          </button>
+          <>
+            <button onClick={onEdit} disabled={loadingAction !== null} className="h-7 px-3 rounded-md text-xs font-semibold inline-flex items-center gap-1 bg-blue-50 text-blue-700 hover:bg-blue-100 border border-blue-200 disabled:opacity-60">
+              <Pencil className="h-3 w-3" />
+              {isRTL ? "تعديل" : "Edit"}
+            </button>
+            <button onClick={handlePost} disabled={loadingAction !== null} className="h-7 px-3 rounded-md text-xs font-semibold inline-flex items-center gap-1 bg-emerald-50 text-emerald-700 hover:bg-emerald-100 border border-emerald-200 disabled:opacity-60">
+              <Check className="h-3 w-3" />
+              {loadingAction === "post" ? t("loading") : (isRTL ? "ترحيل" : "Post")}
+            </button>
+            <button onClick={handleDelete} disabled={loadingAction !== null} className="h-7 px-3 rounded-md text-xs font-semibold inline-flex items-center gap-1 bg-red-50 text-red-700 hover:bg-red-100 border border-red-200 disabled:opacity-60">
+              {loadingAction === "delete" ? t("loading") : t("delete")}
+            </button>
+          </>
         ) : null}
         {entry.postingStatus === "posted" && !entry.isAutoGenerated ? (
           <button onClick={handleReverse} disabled={loadingAction !== null || !openPeriod} className="h-7 px-3 rounded-md text-xs font-semibold inline-flex items-center gap-1 bg-slate-100 text-slate-700 hover:bg-slate-200 border border-slate-200 disabled:opacity-60">
@@ -369,6 +451,13 @@ function JournalLinesPanel({ entryId, isRTL, formatCurrency }: {
   );
 }
 
+// ─── Edit Entry Loader (fetches full entry with lines then shows form) ─────────
+function EditEntryLoader({ entryId, accounts, company, onClose }: any) {
+  const entry = useQuery(api.journalEntries.getJournalEntry, { entryId });
+  if (!entry) return <div className="surface-card p-5 text-sm text-center animate-pulse">جارٍ التحميل...</div>;
+  return <NewJournalForm accounts={accounts} company={company} onClose={onClose} editEntry={entry} />;
+}
+
 // ─── Journal Entries Page ─────────────────────────────────────────────────────
 import { useSearchParams } from "next/navigation";
 
@@ -384,6 +473,7 @@ export default function JournalEntriesPage() {
   const [postingStatus, setPostingStatus] = useState("");
   const [search, setSearch] = useState("");
   const [expandedEntryId, setExpandedEntryId] = useState<string | null>(null);
+  const [editingEntry, setEditingEntry] = useState<any>(null);
 
   const selectedBranch = useAppStore((s) => s.selectedBranch);
   const branchArg = selectedBranch !== "all" ? selectedBranch : undefined;
@@ -429,7 +519,8 @@ export default function JournalEntriesPage() {
       />
       </div>
 
-      {showForm && <NewJournalForm accounts={accounts ?? []} company={company} onClose={() => setShowForm(false)} />}
+      {showForm && !editingEntry && <NewJournalForm accounts={accounts ?? []} company={company} onClose={() => setShowForm(false)} />}
+      {editingEntry && <EditEntryLoader entryId={editingEntry} accounts={accounts ?? []} company={company} onClose={() => setEditingEntry(null)} />}
 
       {/* Modern Filter Strip - Box Design */}
       <div className="bg-white rounded-lg border border-gray-200 p-3 flex flex-wrap items-end gap-3 w-full">
@@ -594,7 +685,7 @@ export default function JournalEntriesPage() {
                         <td className="px-6 py-4"><StatusBadge status={jv.postingStatus} type="posting" /></td>
                         <td className="px-6 py-4 text-end" onClick={(e) => e.stopPropagation()}>
                           <div className="flex items-center justify-end gap-1 opacity-0 group-hover:opacity-100 transition-opacity duration-200">
-                            <JournalLifecycleActions entry={jv} userId={currentUser?._id} companyId={company?._id} />
+                            <JournalLifecycleActions entry={jv} userId={currentUser?._id} companyId={company?._id} isRTL={isRTL} onEdit={() => { setEditingEntry(jv._id); setShowForm(false); }} />
                           </div>
                         </td>
                       </tr>

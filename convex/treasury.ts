@@ -38,6 +38,7 @@ export const createCashReceiptVoucher = mutation({
     ),
     reference: v.optional(v.string()),
     costCenterId: v.optional(v.id("costCenters")),
+    forMonth: v.optional(v.string()),
     notes: v.optional(v.string()),
     createdBy: v.id("users"),
   },
@@ -76,6 +77,7 @@ export const createCashReceiptVoucher = mutation({
       paymentMethod: args.paymentMethod,
       reference: args.reference,
       costCenterId: args.costCenterId,
+      forMonth: args.forMonth,
       documentStatus: "draft" as const,
       postingStatus: "unposted" as const,
       allocationStatus: "unallocated" as const,
@@ -1089,13 +1091,14 @@ export const getChequeById = query({
 export const listBankAccounts = query({
   args: {
     companyId: v.id('companies'),
+    includeInactive: v.optional(v.boolean()),
   },
-  handler: async (ctx, { companyId }) => {
-    return await ctx.db
+  handler: async (ctx, { companyId, includeInactive }) => {
+    const all = await ctx.db
       .query('bankAccounts')
       .withIndex('by_company', (q) => q.eq('companyId', companyId))
-      .filter((q) => q.eq(q.field('isActive'), true))
-      .take(100);
+      .take(200);
+    return includeInactive ? all : all.filter((a) => a.isActive !== false);
   },
 });
 
@@ -1135,16 +1138,35 @@ export const createBankAccount = mutation({
     await assertUserPermission(ctx, args.createdBy, 'treasury', 'create');
     return await ctx.db.insert('bankAccounts', {
       companyId: args.companyId,
+      branchId: args.branchId!,
       accountName: args.accountName,
       bankName: args.bankName,
-      accountNumber: args.accountNumber,
-      iban: args.iban,
-      currencyId: args.currencyId,
-      glAccountId: args.glAccountId,
+      accountNumber: args.accountNumber ?? '',
+      iban: args.iban ?? '',
+      currencyId: args.currencyId!,
+      glAccountId: args.glAccountId!,
       isActive: true,
-      createdBy: args.createdBy,
-      createdAt: Date.now(),
     });
+  },
+});
+
+export const deleteBankAccount = mutation({
+  args: {
+    bankAccountId: v.id('bankAccounts'),
+    userId: v.id('users'),
+  },
+  handler: async (ctx, args) => {
+    await assertUserPermission(ctx, args.userId, 'treasury', 'edit');
+    const account = await ctx.db.get(args.bankAccountId);
+    if (!account) throw new Error('الحساب البنكي غير موجود');
+    // Check if used in any payment vouchers
+    const linked = await ctx.db
+      .query('paymentVouchers')
+      .filter((q) => q.eq(q.field('bankAccountId'), args.bankAccountId))
+      .first();
+    if (linked) throw new Error('لا يمكن حذف الحساب لأنه مرتبط بسندات صرف');
+    await ctx.db.delete(args.bankAccountId);
+    return { success: true };
   },
 });
 
