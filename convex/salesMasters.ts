@@ -166,10 +166,6 @@ export const deleteVehicle = mutation({
     if (args.userId) {
       await assertUserPermission(ctx, args.userId, "sales", "edit");
     }
-    const linked = await ctx.db.query("salesInvoices")
-      .filter((q: any) => q.eq(q.field("vehicleId"), args.id))
-      .first();
-    if (linked) throw new Error("VEHICLE_IN_USE");
     await ctx.db.delete(args.id);
   },
 });

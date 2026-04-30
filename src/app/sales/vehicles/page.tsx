@@ -133,10 +133,7 @@ export default function VehiclesPage() {
     try {
       await deleteVehicle({ id: vehicle._id, userId: currentUser?._id });
     } catch (e: any) {
-      const msg = String(e.message || e);
-      alert(msg.includes("VEHICLE_IN_USE")
-        ? (isRTL ? "لا يمكن الحذف — السيارة مرتبطة بفواتير مبيعات" : "Cannot delete — vehicle is linked to sales invoices")
-        : msg);
+      alert(String((e as any).message || e));
     }
   }
 
