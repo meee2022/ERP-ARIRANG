@@ -385,3 +385,22 @@ export const getItemByBarcode = query({
     return byCode ?? null;
   },
 });
+
+// ── Enable negative stock for all items (dev/setup helper) ──────────────────
+export const enableNegativeStockForAll = mutation({
+  args: { companyId: v.id("companies") },
+  handler: async (ctx, args) => {
+    const items = await ctx.db
+      .query("items")
+      .withIndex("by_company", (q) => q.eq("companyId", args.companyId))
+      .collect();
+    let updated = 0;
+    for (const item of items) {
+      if (!item.allowNegativeStock) {
+        await ctx.db.patch(item._id, { allowNegativeStock: true });
+        updated++;
+      }
+    }
+    return { updated };
+  },
+});

@@ -42,6 +42,9 @@ export const resetTransactionalData = mutation({
   args: { confirm: v.literal("RESET") },
   handler: async (ctx) => {
     const transactionalTables = [
+      // Fiscal years & periods
+      "accountingPeriods",
+      "fiscalYears",
       // Journal / GL
       "journalLines",
       "journalEntries",
