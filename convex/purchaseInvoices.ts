@@ -748,19 +748,18 @@ export const createPurchaseInvoice = mutation({
 
 
 
+    // VAT disabled — always zero
     let subtotal = 0;
-
-    let vatAmount = 0;
 
     for (const line of args.lines) {
 
-      subtotal += line.lineTotal - line.vatAmount;
-
-      vatAmount += line.vatAmount;
+      subtotal += line.lineTotal;
 
     }
 
-    const totalAmount = subtotal + vatAmount;
+    const vatAmount = 0;
+
+    const totalAmount = subtotal;
 
 
 
@@ -834,9 +833,9 @@ export const createPurchaseInvoice = mutation({
 
         unitPrice: line.unitPrice,
 
-        vatRate: line.vatRate,
+        vatRate: 0,
 
-        vatAmount: line.vatAmount,
+        vatAmount: 0,
 
         lineTotal: line.lineTotal,
 
@@ -962,15 +961,15 @@ export const postPurchaseInvoice = mutation({
     await assertPeriodOpen(ctx, invoice.invoiceDate, invoice.companyId);
 
     // ── Auto-load posting rules if args missing ──
-    const rules = (!args.apAccountId || !args.vatReceivableAccountId)
+    const rules = !args.apAccountId
       ? await requirePostingRules(ctx, invoice.companyId)
       : null;
 
-    const apAccountId            = args.apAccountId            ?? rules?.apAccountId;
+    const apAccountId            = args.apAccountId ?? rules?.apAccountId;
     const vatReceivableAccountId = args.vatReceivableAccountId ?? rules?.vatReceivableAccountId;
 
-    if (!apAccountId)            throw new Error("حساب الذمم الدائنة غير محدد — يرجى ضبط قواعد الترحيل");
-    if (!vatReceivableAccountId) throw new Error("حساب ضريبة المدخلات غير محدد — يرجى ضبط قواعد الترحيل");
+    if (!apAccountId) throw new Error("حساب الذمم الدائنة غير محدد — يرجى ضبط قواعد الترحيل");
+    // vatReceivableAccountId not required — VAT is disabled
 
     const lines = await ctx.db
 
@@ -1585,11 +1584,10 @@ export const updateDraftPurchaseInvoice = mutation({
     const user = await assertUserPermission(ctx, args.userId, "purchases", "edit");
     assertUserBranch(user, invoice.branchId);
 
-    // Recalculate totals
+    // Recalculate totals (VAT disabled — always zero)
     const subtotal = args.lines.reduce((s, l) => s + l.quantity * l.unitPrice, 0);
-    const vatRate = 0.05;
-    const vatAmount = Math.round(subtotal * vatRate * 100) / 100;
-    const totalAmount = Math.round((subtotal + vatAmount) * 100) / 100;
+    const vatAmount = 0;
+    const totalAmount = Math.round(subtotal * 100) / 100;
 
     // Get default inventory account for lines
     const rules = await ctx.db

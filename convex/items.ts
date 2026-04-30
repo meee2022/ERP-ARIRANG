@@ -404,3 +404,88 @@ export const enableNegativeStockForAll = mutation({
     return { updated };
   },
 });
+
+// ─── DUPLICATE ITEMS TOOLS ───────────────────────────────────────────────────
+
+export const previewDuplicateItems = query({
+  args: { companyId: v.id("companies") },
+  handler: async (ctx, args) => {
+    const items = await ctx.db
+      .query("items")
+      .withIndex("by_company", (q) => q.eq("companyId", args.companyId))
+      .collect();
+
+    // Group by nameAr only — FG beats raw_material with same name
+    const groups = new Map<string, typeof items>();
+    for (const item of items) {
+      const key = item.nameAr.trim().toLowerCase();
+      if (!groups.has(key)) groups.set(key, []);
+      groups.get(key)!.push(item);
+    }
+
+    const duplicates: Array<{ nameAr: string; items: Array<{ _id: string; code: string; nameAr: string; itemType: string; isActive: boolean; willDelete: boolean }> }> = [];
+    for (const [, group] of groups) {
+      if (group.length <= 1) continue;
+      const hasFG = group.some((i) => i.itemType === "finished_good");
+      // Mark items to delete: raw_material if FG exists, otherwise all but oldest
+      const toDelete = group.filter((i) =>
+        hasFG ? i.itemType === "raw_material" : false
+      );
+      // If no FG, fall back to keeping oldest of each type-group
+      const toKeep = group.filter((i) => !toDelete.includes(i));
+      if (toDelete.length === 0) continue;
+      duplicates.push({
+        nameAr: group[0].nameAr,
+        items: [
+          ...toKeep.map((i) => ({ _id: i._id, code: i.code, nameAr: i.nameAr, itemType: i.itemType, isActive: i.isActive ?? true, willDelete: false })),
+          ...toDelete.map((i) => ({ _id: i._id, code: i.code, nameAr: i.nameAr, itemType: i.itemType, isActive: i.isActive ?? true, willDelete: true })),
+        ],
+      });
+    }
+    return duplicates;
+  },
+});
+
+export const deduplicateItems = mutation({
+  args: {
+    companyId: v.id("companies"),
+    userId: v.id("users"),
+  },
+  handler: async (ctx, args) => {
+    await assertUserPermission(ctx, args.userId, "inventory", "delete");
+
+    const items = await ctx.db
+      .query("items")
+      .withIndex("by_company", (q) => q.eq("companyId", args.companyId))
+      .collect();
+
+    // Group by nameAr — FG beats raw_material with same name
+    const groups = new Map<string, typeof items>();
+    for (const item of items) {
+      const key = item.nameAr.trim().toLowerCase();
+      if (!groups.has(key)) groups.set(key, []);
+      groups.get(key)!.push(item);
+    }
+
+    let deleted = 0;
+    const deletedCodes: string[] = [];
+
+    for (const [, group] of groups) {
+      if (group.length <= 1) continue;
+      const hasFG = group.some((i) => i.itemType === "finished_good");
+      // If FG exists, delete all raw_materials with same name
+      const toDelete = hasFG
+        ? group.filter((i) => i.itemType === "raw_material")
+        : [];
+      if (toDelete.length === 0) continue;
+
+      for (const item of toDelete) {
+        deletedCodes.push(item.code);
+        await ctx.db.delete(item._id);
+        deleted++;
+      }
+    }
+
+    return { deleted, deletedCodes };
+  },
+});

@@ -694,15 +694,15 @@ export default function CustomersPage() {
           <div className="desktop-table overflow-x-auto">
             <table className="w-full text-sm text-left border-collapse" dir={isRTL ? "rtl" : "ltr"}>
               <thead>
-                <tr className="bg-gray-50/50 border-b border-gray-100">
-                  <th className="px-6 py-4 text-[10px] font-bold text-gray-400 uppercase tracking-widest">{t("code")}</th>
-                  <th className="px-6 py-4 text-[10px] font-bold text-gray-400 uppercase tracking-widest">{t("name")}</th>
-                  <th className="px-6 py-4 text-[10px] font-bold text-gray-400 uppercase tracking-widest">{t("contact")}</th>
-                  <th className="px-6 py-4 text-[10px] font-bold text-gray-400 uppercase tracking-widest text-end">{t("creditLimit")}</th>
-                  <th className="px-6 py-4 text-[10px] font-bold text-gray-400 uppercase tracking-widest text-center">{t("creditDays")}</th>
-                  <th className="px-6 py-4 text-[10px] font-bold text-gray-400 uppercase tracking-widest text-center">{t("outlets")}</th>
-                  <th className="px-6 py-4 text-[10px] font-bold text-gray-400 uppercase tracking-widest text-center">{t("status")}</th>
-                  <th className="px-6 py-4 text-[10px] font-bold text-gray-400 uppercase tracking-widest text-end">{t("actions")}</th>
+                <tr style={{ background: "var(--brand-700)" }}>
+                  <th className="px-6 py-3.5 text-[10px] font-bold text-white/80 uppercase tracking-widest whitespace-nowrap">{t("code")}</th>
+                  <th className="px-6 py-3.5 text-[10px] font-bold text-white/80 uppercase tracking-widest whitespace-nowrap">{t("name")}</th>
+                  <th className="px-6 py-3.5 text-[10px] font-bold text-white/80 uppercase tracking-widest whitespace-nowrap">{t("contact")}</th>
+                  <th className="px-6 py-3.5 text-[10px] font-bold text-white/80 uppercase tracking-widest text-end whitespace-nowrap">{t("creditLimit")}</th>
+                  <th className="px-6 py-3.5 text-[10px] font-bold text-white/80 uppercase tracking-widest text-center whitespace-nowrap">{t("creditDays")}</th>
+                  <th className="px-6 py-3.5 text-[10px] font-bold text-white/80 uppercase tracking-widest text-center whitespace-nowrap">{t("outlets")}</th>
+                  <th className="px-6 py-3.5 text-[10px] font-bold text-white/80 uppercase tracking-widest text-center whitespace-nowrap">{t("status")}</th>
+                  <th className="px-6 py-3.5 text-[10px] font-bold text-white/80 uppercase tracking-widest text-end whitespace-nowrap">{t("actions")}</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-50">

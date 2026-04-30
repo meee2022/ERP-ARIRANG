@@ -205,6 +205,7 @@ export const translations = {
   balance:        { ar: "الرصيد",         en: "Balance" },
 
   reference:      { ar: "المرجع",         en: "Reference" },
+  forMonth:       { ar: "عن شهر",         en: "For Month" },
 
   actions:        { ar: "إجراءات",        en: "Actions" },
 

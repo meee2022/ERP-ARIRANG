@@ -98,21 +98,23 @@ export default function SalesReviewPage() {
           <div className="overflow-x-auto">
             <table className="data-table">
               <thead>
-                <tr>
-                  <th>{t("invoiceNo")}</th>
-                  <th>{t("customer")}</th>
-                  <th>{t("branch")}</th>
-                  <th>{t("createdBy")}</th>
-                  <th className="text-end">{t("amount")}</th>
-                  <th>{t("reviewStatus")}</th>
-                  <th>{t("rejectionReason")}</th>
-                  <th className="text-end">{t("actions")}</th>
+                <tr style={{ background: "var(--brand-700)" }}>
+                  <th className="text-white/80 whitespace-nowrap">{t("invoiceNo")}</th>
+                  <th className="text-white/80 whitespace-nowrap">{t("date")}</th>
+                  <th className="text-white/80 whitespace-nowrap">{t("customer")}</th>
+                  <th className="text-white/80 whitespace-nowrap">{t("branch")}</th>
+                  <th className="text-white/80 whitespace-nowrap">{t("createdBy")}</th>
+                  <th className="text-white/80 text-end whitespace-nowrap">{t("amount")}</th>
+                  <th className="text-white/80 whitespace-nowrap">{t("reviewStatus")}</th>
+                  <th className="text-white/80 whitespace-nowrap">{t("rejectionReason")}</th>
+                  <th className="text-white/80 text-end whitespace-nowrap">{t("actions")}</th>
                 </tr>
               </thead>
               <tbody>
                 {queue.map((invoice: any) => (
                   <tr key={invoice._id}>
                     <td className="code">{invoice.invoiceNumber}</td>
+                    <td className="muted whitespace-nowrap">{invoice.invoiceDate ?? "—"}</td>
                     <td>{isRTL ? invoice.customerName : (invoice.customerNameEn || invoice.customerName)}</td>
                     <td>{isRTL ? invoice.branchName : (invoice.branchNameEn || invoice.branchName)}</td>
                     <td>{invoice.createdByName}</td>

@@ -863,14 +863,14 @@ export default function PurchaseInvoicesPage() {
             <div className="overflow-x-auto">
               <table className="w-full text-sm text-left border-collapse" dir={isRTL ? "rtl" : "ltr"}>
                 <thead>
-                  <tr className="bg-gray-50/50 border-b border-gray-100">
-                    <th className="px-6 py-4 text-[10px] font-bold text-gray-400 uppercase tracking-widest">{t("invoiceNo")}</th>
-                    <th className="px-6 py-4 text-[10px] font-bold text-gray-400 uppercase tracking-widest">{t("date")}</th>
-                    <th className="px-6 py-4 text-[10px] font-bold text-gray-400 uppercase tracking-widest">{t("supplier")}</th>
-                    <th className="px-6 py-4 text-[10px] font-bold text-gray-400 uppercase tracking-widest text-end">{t("amount")}</th>
-                    <th className="px-6 py-4 text-[10px] font-bold text-gray-400 uppercase tracking-widest text-center">{isRTL ? "المستند" : "Doc"}</th>
-                    <th className="px-6 py-4 text-[10px] font-bold text-gray-400 uppercase tracking-widest text-center">{t("postingStatus")}</th>
-                    <th className="px-6 py-4 text-[10px] font-bold text-gray-400 uppercase tracking-widest text-end">{t("actions")}</th>
+                  <tr style={{ background: "var(--brand-700)" }}>
+                    <th className="px-6 py-3.5 text-[10px] font-bold text-white/80 uppercase tracking-widest whitespace-nowrap">{t("invoiceNo")}</th>
+                    <th className="px-6 py-3.5 text-[10px] font-bold text-white/80 uppercase tracking-widest whitespace-nowrap">{t("date")}</th>
+                    <th className="px-6 py-3.5 text-[10px] font-bold text-white/80 uppercase tracking-widest whitespace-nowrap">{t("supplier")}</th>
+                    <th className="px-6 py-3.5 text-[10px] font-bold text-white/80 uppercase tracking-widest text-end whitespace-nowrap">{t("amount")}</th>
+                    <th className="px-6 py-3.5 text-[10px] font-bold text-white/80 uppercase tracking-widest text-center whitespace-nowrap">{isRTL ? "المستند" : "Doc"}</th>
+                    <th className="px-6 py-3.5 text-[10px] font-bold text-white/80 uppercase tracking-widest text-center whitespace-nowrap">{t("postingStatus")}</th>
+                    <th className="px-6 py-3.5 text-[10px] font-bold text-white/80 uppercase tracking-widest text-end whitespace-nowrap">{t("actions")}</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-50">

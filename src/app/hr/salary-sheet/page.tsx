@@ -96,14 +96,16 @@ function SimpleSheetView({ rows, groupBy, isRTL, monthLabel, sheetTitle }: any) 
         {/* Grand total */}
         <div className="mt-2 flex justify-end">
           <table className="text-sm border-collapse">
-            <tr>
-              <td className="border border-gray-400 px-4 py-2 font-bold bg-gray-100">
-                {isRTL ? "الإجمالي الكلي" : "GRAND TOTAL"}
-              </td>
-              <td className="border border-gray-400 px-4 py-2 font-bold tabular-nums text-center">
-                {rows.reduce((s: number, r: any) => s + r.totalSalary, 0).toLocaleString()}
-              </td>
-            </tr>
+            <tbody>
+              <tr>
+                <td className="border border-gray-400 px-4 py-2 font-bold bg-gray-100">
+                  {isRTL ? "الإجمالي الكلي" : "GRAND TOTAL"}
+                </td>
+                <td className="border border-gray-400 px-4 py-2 font-bold tabular-nums text-center">
+                  {rows.reduce((s: number, r: any) => s + r.totalSalary, 0).toLocaleString()}
+                </td>
+              </tr>
+            </tbody>
           </table>
         </div>
       </div>
@@ -410,7 +412,7 @@ export default function SalarySheetPage() {
                 <tr className="bg-gray-100 border-b border-gray-300">
                   <th className="border border-gray-300 px-1 py-2 text-center font-bold w-8">{isRTL ? "م" : "SN"}</th>
                   <th className="border border-gray-300 px-1 py-2 text-center font-bold w-14">{isRTL ? "الكود" : "CODE"}</th>
-                  <th className="border border-gray-300 px-2 py-2 text-center font-bold" style={{minWidth:"140px"}}>{isRTL ? "اسم الموظف" : "Employee Name"}</th>
+                  <th className="border border-gray-300 px-2 py-2 text-center font-bold" style={{minWidth:"140px", maxWidth:"180px", width:"180px"}}>{isRTL ? "اسم الموظف" : "Employee Name"}</th>
                   <th className="border border-gray-300 px-1 py-2 text-center font-bold w-14">{isRTL ? "أيام" : "Days"}</th>
                   <th className="border border-gray-300 px-1 py-2 text-center font-bold bg-gray-50 w-20">
                     {isRTL ? "الأساسي" : "Basic"} <span className="text-red-600">QR</span>
@@ -455,7 +457,7 @@ export default function SalarySheetPage() {
                   <tr key={r.sn} className="hover:bg-gray-50 border-b border-gray-200">
                     <td className="border border-gray-200 px-1 py-1.5 text-center">{r.sn}</td>
                     <td className="border border-gray-200 px-1 py-1.5 text-center font-bold">{r.erpCode}</td>
-                    <td className="border border-gray-200 px-2 py-1.5 font-medium">{r.name}</td>
+                    <td className="border border-gray-200 px-2 py-1.5 font-medium" style={{maxWidth:"180px", overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap"}} title={r.name}>{r.name}</td>
                     <td className="border border-gray-200 px-1 py-1.5 text-center tabular-nums">{r.workingDays}</td>
                     <td className="border border-gray-200 px-1 py-1.5 text-center tabular-nums">{r.basic.toLocaleString()}</td>
                     <td className="border border-gray-200 px-1 py-1.5 text-center tabular-nums">{r.othersAllowance.toLocaleString()}</td>

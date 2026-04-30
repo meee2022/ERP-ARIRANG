@@ -202,9 +202,6 @@ export default function LoginPage() {
             </button>
           </form>
 
-          <p className="text-center text-xs text-[color:var(--ink-400)]">
-            {lang === "ar" ? "للاختبار: admin@demo.local / admin123" : "Test: admin@demo.local / admin123"}
-          </p>
         </div>
       </div>
     </div>

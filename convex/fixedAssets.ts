@@ -1,6 +1,7 @@
 import { query, mutation } from "./_generated/server";
 import { v } from "convex/values";
 import { Id } from "./_generated/dataModel";
+import { assertUserPermission } from "./lib/permissions";
 import {
   postJournalEntry,
   JournalLineInput,
@@ -119,8 +120,10 @@ export const createFixedAsset = mutation({
     assetAccountId: v.optional(v.id("accounts")),
     depreciationExpenseAccountId: v.optional(v.id("accounts")),
     accumulatedDepreciationAccountId: v.optional(v.id("accounts")),
+    userId: v.optional(v.id("users")),
   },
   handler: async (ctx, args) => {
+    if (args.userId) await assertUserPermission(ctx, args.userId, "finance", "create");
     // Check unique code
     const existing = await ctx.db
       .query("fixedAssets")
@@ -175,8 +178,10 @@ export const updateFixedAsset = mutation({
     assetAccountId: v.optional(v.id("accounts")),
     depreciationExpenseAccountId: v.optional(v.id("accounts")),
     accumulatedDepreciationAccountId: v.optional(v.id("accounts")),
+    userId: v.optional(v.id("users")),
   },
-  handler: async (ctx, { id, ...updates }) => {
+  handler: async (ctx, { id, userId, ...updates }) => {
+    if (userId) await assertUserPermission(ctx, userId, "finance", "edit");
     const existing = await ctx.db.get(id);
     if (!existing) throw new Error("NOT_FOUND");
 
@@ -200,8 +205,9 @@ export const updateFixedAsset = mutation({
 });
 
 export const archiveFixedAsset = mutation({
-  args: { id: v.id("fixedAssets") },
-  handler: async (ctx, { id }) => {
+  args: { id: v.id("fixedAssets"), userId: v.optional(v.id("users")) },
+  handler: async (ctx, { id, userId }) => {
+    if (userId) await assertUserPermission(ctx, userId, "finance", "edit");
     const existing = await ctx.db.get(id);
     if (!existing) throw new Error("NOT_FOUND");
     await ctx.db.patch(id, { status: "inactive", updatedAt: Date.now() });
@@ -345,6 +351,7 @@ export const postDepreciationRun = mutation({
     currencyId: v.id("currencies"),
   },
   handler: async (ctx, args) => {
+    await assertUserPermission(ctx, args.userId, "finance", "post");
     const run = await ctx.db.get(args.runId);
     if (!run) throw new Error("RUN_NOT_FOUND");
     if (run.status === "posted") throw new Error("RUN_ALREADY_POSTED");

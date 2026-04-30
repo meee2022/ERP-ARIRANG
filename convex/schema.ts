@@ -467,7 +467,7 @@ export default defineSchema({
     postingStatus: v.union(v.literal("unposted"), v.literal("posted"), v.literal("reversed")),
     allocationStatus: v.union(v.literal("unallocated"), v.literal("partial"), v.literal("fully_allocated")),
     journalEntryId: v.optional(v.id("journalEntries")),
-    notes: v.optional(v.string()), createdBy: v.id("users"), createdAt: v.number(),
+    notes: v.optional(v.string()), forMonth: v.optional(v.string()), createdBy: v.id("users"), createdAt: v.number(),
   }).index("by_branch", ["branchId"])
     .index("by_customer", ["customerId"])
     .index("by_period", ["periodId"])
@@ -486,7 +486,7 @@ export default defineSchema({
     postingStatus: v.union(v.literal("unposted"), v.literal("posted"), v.literal("reversed")),
     allocationStatus: v.union(v.literal("unallocated"), v.literal("partial"), v.literal("fully_allocated")),
     journalEntryId: v.optional(v.id("journalEntries")),
-    notes: v.optional(v.string()), createdBy: v.id("users"), createdAt: v.number(),
+    notes: v.optional(v.string()), forMonth: v.optional(v.string()), createdBy: v.id("users"), createdAt: v.number(),
   }).index("by_branch", ["branchId"])
     .index("by_supplier", ["supplierId"])
     .index("by_period", ["periodId"]),
@@ -624,6 +624,23 @@ export default defineSchema({
     uomId: v.id("unitOfMeasure"), unitCost: v.number(), totalVarianceValue: v.number(),
     accountId: v.id("accounts"),
   }).index("by_adjustment", ["adjustmentId"]),
+
+  wastageEntries: defineTable({
+    companyId: v.id("companies"), branchId: v.id("branches"), warehouseId: v.id("warehouses"),
+    entryNumber: v.string(), entryDate: v.string(), periodId: v.id("accountingPeriods"),
+    reason: v.string(), notes: v.optional(v.string()), totalCost: v.number(),
+    postingStatus: v.union(v.literal("unposted"), v.literal("posted")),
+    journalEntryId: v.optional(v.id("journalEntries")),
+    createdBy: v.id("users"), createdAt: v.number(),
+  }).index("by_company", ["companyId"])
+    .index("by_branch", ["branchId"]),
+
+  wastageLines: defineTable({
+    wastageEntryId: v.id("wastageEntries"), itemId: v.id("items"),
+    warehouseId: v.id("warehouses"), quantity: v.number(),
+    uomId: v.id("unitOfMeasure"), unitCost: v.number(), totalCost: v.number(),
+    notes: v.optional(v.string()),
+  }).index("by_entry", ["wastageEntryId"]),
 
   auditLogs: defineTable({
     companyId: v.id("companies"), userId: v.id("users"), action: v.string(),

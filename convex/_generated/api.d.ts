@@ -48,6 +48,7 @@ import type * as reports from "../reports.js";
 import type * as salesInvoices from "../salesInvoices.js";
 import type * as salesMasters from "../salesMasters.js";
 import type * as salesReturns from "../salesReturns.js";
+import type * as search from "../search.js";
 import type * as seed from "../seed.js";
 import type * as seedDemoItems from "../seedDemoItems.js";
 import type * as seedStaff from "../seedStaff.js";
@@ -104,6 +105,7 @@ declare const fullApi: ApiFromModules<{
   salesInvoices: typeof salesInvoices;
   salesMasters: typeof salesMasters;
   salesReturns: typeof salesReturns;
+  search: typeof search;
   seed: typeof seed;
   seedDemoItems: typeof seedDemoItems;
   seedStaff: typeof seedStaff;

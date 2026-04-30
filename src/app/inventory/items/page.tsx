@@ -11,6 +11,7 @@ import {
 } from "lucide-react";
 import { useI18n } from "@/hooks/useI18n";
 import { usePermissions } from "@/hooks/usePermissions";
+import { useAuth } from "@/hooks/useAuth";
 import { PageHeader } from "@/components/ui/page-header";
 import { FilterPanel, FilterField } from "@/components/ui/filter-panel";
 import { LoadingState } from "@/components/ui/data-display";
@@ -87,6 +88,7 @@ const ITEM_TYPE_CONFIG: Record<string, { label: string; color: string; dot: stri
 export default function ItemsPage() {
   const { t, isRTL, formatCurrency } = useI18n();
   const { canCreate, canEdit } = usePermissions();
+  const { currentUser } = useAuth();
   const companies = useQuery(api.seed.getCompanies, {}) ?? [];
   const companyId = companies[0]?._id;
 
@@ -101,6 +103,10 @@ export default function ItemsPage() {
   const deleteItem   = useMutation(api.items.deleteItem);
   const enableNegStock = useMutation(api.items.enableNegativeStockForAll);
   const [enablingNeg, setEnablingNeg] = useState(false);
+  const duplicates = useQuery(api.items.previewDuplicateItems, companyId ? { companyId } : "skip") ?? [];
+  const deduplicateItems = useMutation(api.items.deduplicateItems);
+  const [showDuplicates, setShowDuplicates] = useState(false);
+  const [deduping, setDeduping] = useState(false);
   const createLink   = useMutation(api.supplierItems.createLink);
   const seedFGItems  = useMutation(api.seedStaff.seedFGItems);
   const seedWHItems         = useMutation(api.seedStaff.seedWHItems);
@@ -324,6 +330,15 @@ export default function ItemsPage() {
                   <RefreshCw className={`h-4 w-4 ${seedingFG ? "animate-spin" : ""}`} />
                   {seedingFG ? "Importing..." : "Replace FG Items"}
                 </button>
+                {duplicates.length > 0 && (
+                  <button
+                    onClick={() => setShowDuplicates(true)}
+                    className="h-10 px-4 rounded-lg inline-flex items-center gap-2 text-sm font-semibold bg-red-600 hover:bg-red-700 text-white"
+                  >
+                    <Trash2 className="h-4 w-4" />
+                    {isRTL ? `حذف مكررات (${duplicates.length})` : `Duplicates (${duplicates.length})`}
+                  </button>
+                )}
                 <button onClick={openNew} className="btn-primary h-10 px-4 rounded-lg inline-flex items-center gap-2 text-sm font-semibold" disabled={units.length === 0}>
                   <Plus className="h-4 w-4" /> {t("newItem")}
                 </button>
@@ -492,17 +507,17 @@ export default function ItemsPage() {
           <div className="desktop-table overflow-x-auto">
             <table className="data-table">
               <thead>
-                <tr className="bg-gray-50/50 border-b border-gray-100">
-                  <th className="px-4 py-4 text-[10px] font-bold text-gray-400 uppercase tracking-widest w-24">{t("code")}</th>
-                  <th className="px-4 py-4 text-[10px] font-bold text-gray-400 uppercase tracking-widest">{t("name")}</th>
-                  {purchaseTypeTab === "all" && <th className="px-4 py-4 text-[10px] font-bold text-gray-400 uppercase tracking-widest w-20">Type</th>}
-                  <th className="px-4 py-4 text-[10px] font-bold text-gray-400 uppercase tracking-widest w-36">Category</th>
-                  <th className="px-4 py-4 text-[10px] font-bold text-gray-400 uppercase tracking-widest text-end w-28">Cost Price</th>
-                  <th className="px-4 py-4 text-[10px] font-bold text-gray-400 uppercase tracking-widest text-end w-28">Sell Price</th>
-                  {isFGTab && <th className="px-4 py-4 text-[10px] font-bold text-gray-400 uppercase tracking-widest text-center w-20">GP%</th>}
-                  {!isFGTab && <th className="px-4 py-4 text-[10px] font-bold text-gray-400 uppercase tracking-widest text-center w-20">Suppliers</th>}
-                  <th className="px-4 py-4 text-[10px] font-bold text-gray-400 uppercase tracking-widest text-center w-20">{t("status")}</th>
-                  <th className="px-4 py-4 text-[10px] font-bold text-gray-400 uppercase tracking-widest text-end w-28">{t("actions")}</th>
+                <tr style={{ background: "var(--brand-700)" }}>
+                  <th className="px-4 py-3.5 text-[10px] font-bold text-white/80 uppercase tracking-widest whitespace-nowrap w-24">{t("code")}</th>
+                  <th className="px-4 py-3.5 text-[10px] font-bold text-white/80 uppercase tracking-widest whitespace-nowrap">{t("name")}</th>
+                  {purchaseTypeTab === "all" && <th className="px-4 py-3.5 text-[10px] font-bold text-white/80 uppercase tracking-widest whitespace-nowrap w-20">Type</th>}
+                  <th className="px-4 py-3.5 text-[10px] font-bold text-white/80 uppercase tracking-widest whitespace-nowrap w-36">Category</th>
+                  <th className="px-4 py-3.5 text-[10px] font-bold text-white/80 uppercase tracking-widest text-end whitespace-nowrap w-28">Cost Price</th>
+                  <th className="px-4 py-3.5 text-[10px] font-bold text-white/80 uppercase tracking-widest text-end whitespace-nowrap w-28">Sell Price</th>
+                  {isFGTab && <th className="px-4 py-3.5 text-[10px] font-bold text-white/80 uppercase tracking-widest text-center whitespace-nowrap w-20">GP%</th>}
+                  {!isFGTab && <th className="px-4 py-3.5 text-[10px] font-bold text-white/80 uppercase tracking-widest text-center whitespace-nowrap w-20">Suppliers</th>}
+                  <th className="px-4 py-3.5 text-[10px] font-bold text-white/80 uppercase tracking-widest text-center whitespace-nowrap w-20">{t("status")}</th>
+                  <th className="px-4 py-3.5 text-[10px] font-bold text-white/80 uppercase tracking-widest text-end whitespace-nowrap w-28">{t("actions")}</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-100">
@@ -634,6 +649,55 @@ export default function ItemsPage() {
       )}
 
       {/* ── Create / Edit Modal ──────────────────────────────────────────────── */}
+      {showDuplicates && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-[rgba(26,19,22,0.55)] p-4" onClick={() => setShowDuplicates(false)}>
+          <div className="bg-white max-w-2xl w-full p-6 max-h-[80vh] overflow-y-auto rounded-xl shadow-xl" onClick={(e) => e.stopPropagation()}>
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-lg font-bold text-red-700">{isRTL ? `أصناف مكررة (${duplicates.length} مجموعة)` : `Duplicate Items (${duplicates.length} groups)`}</h2>
+              <button onClick={() => setShowDuplicates(false)}><X className="h-5 w-5" /></button>
+            </div>
+            <p className="text-sm text-[color:var(--ink-600)] mb-4">
+              {isRTL ? "سيتم الاحتفاظ بالصنف الأول (finished_good له الأولوية) وحذف الباقي." : "The first item will be kept (finished_good takes priority) and duplicates will be deleted."}
+            </p>
+            <div className="space-y-3 mb-6">
+              {duplicates.map((group: any) => (
+                <div key={`${group.itemType}-${group.nameAr}`} className="border border-red-200 rounded-lg p-3 bg-red-50">
+                  <div className="flex items-center gap-2 mb-2">
+                    <p className="font-semibold text-[color:var(--ink-900)]">{group.nameAr}</p>
+                    <span className="text-xs px-2 py-0.5 rounded-full bg-white border border-red-300 text-red-700 font-mono">{group.itemType}</span>
+                  </div>
+                  <div className="space-y-1">
+                    {group.items.map((item: any) => (
+                      <div key={item._id} className={`flex items-center gap-3 text-sm px-2 py-1 rounded ${!item.willDelete ? "bg-green-100 text-green-800" : "bg-red-100 text-red-700"}`}>
+                        <span className="font-mono w-24">{item.code}</span>
+                        <span className="text-xs px-1.5 py-0.5 rounded bg-white/50">{item.itemType}</span>
+                        <span className="ms-auto text-xs font-medium">{!item.willDelete ? (isRTL ? "✓ يُحتفظ" : "✓ keep") : (isRTL ? "✗ يُحذف" : "✗ delete")}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              ))}
+            </div>
+            <button
+              disabled={deduping}
+              onClick={async () => {
+                if (!companyId || !currentUser?._id) return;
+                setDeduping(true);
+                try {
+                  const res = await deduplicateItems({ companyId, userId: currentUser._id as any });
+                  setShowDuplicates(false);
+                  alert(isRTL ? `تم حذف ${res.deleted} صنف مكرر` : `Deleted ${res.deleted} duplicate items`);
+                } finally { setDeduping(false); }
+              }}
+              className="w-full h-10 rounded-lg bg-red-600 hover:bg-red-700 text-white text-sm font-semibold disabled:opacity-60 inline-flex items-center justify-center gap-2"
+            >
+              <Trash2 className="h-4 w-4" />
+              {deduping ? (isRTL ? "جارٍ الحذف..." : "Deleting...") : (isRTL ? "حذف المكررات" : "Delete Duplicates")}
+            </button>
+          </div>
+        </div>
+      )}
+
       {showModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-[rgba(26,19,22,0.55)] p-4" onClick={() => !saving && setShowModal(false)}>
           <div className="bg-white max-w-2xl w-full p-6 max-h-[90vh] overflow-y-auto custom-scrollbar rounded-xl shadow-xl" onClick={(e) => e.stopPropagation()}>

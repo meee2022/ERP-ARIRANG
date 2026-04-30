@@ -31,6 +31,8 @@ export function AppShellGuard({ children }: { children: React.ReactNode }) {
     if (path.startsWith("/settings/users")) return "users";
     if (path.startsWith("/settings")) return "settings";
     if (path.startsWith("/hr")) return "hr";
+    if (path.startsWith("/production")) return "production";
+    if (path.startsWith("/fixed-assets")) return "finance";
     return null;
   }, []);
 

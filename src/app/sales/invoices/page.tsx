@@ -431,7 +431,16 @@ function NewInvoiceForm({ onClose, editInvoice, editLines }: { onClose: () => vo
 
           <div>
             <label className="block text-xs font-medium text-[color:var(--ink-600)] mb-1">{t("salesRep")}</label>
-            <select value={salesRepId} onChange={(e) => setSalesRepId(e.target.value)} className="input-field h-9">
+            <select
+              value={salesRepId}
+              onChange={(e) => {
+                const repId = e.target.value;
+                setSalesRepId(repId);
+                const linked = vehicles.find((v: any) => v.assignedSalesRepId === repId);
+                if (linked) setVehicleId(linked._id);
+              }}
+              className="input-field h-9"
+            >
               <option value="">{t("selectSalesRep")}</option>
               {salesReps.filter((rep: any) => rep.isActive).map((rep: any) => (
                 <option key={rep._id} value={rep._id}>{isRTL ? rep.nameAr : (rep.nameEn || rep.nameAr)}</option>
@@ -444,9 +453,7 @@ function NewInvoiceForm({ onClose, editInvoice, editLines }: { onClose: () => vo
             <select value={vehicleId} onChange={(e) => setVehicleId(e.target.value)} className="input-field h-9">
               <option value="">{t("enterVehicleCode")}</option>
               {vehicles.filter((vehicle: any) => vehicle.isActive).map((vehicle: any) => (
-                <option key={vehicle._id} value={vehicle._id}>
-                  {vehicle.code} — {isRTL ? vehicle.descriptionAr : (vehicle.descriptionEn || vehicle.descriptionAr)}
-                </option>
+                <option key={vehicle._id} value={vehicle._id}>{vehicle.code}</option>
               ))}
             </select>
           </div>
@@ -716,21 +723,13 @@ function InvoiceLifecycleActions({ invoice, userId, onEdit }: { invoice: any; us
   );
 }
 
-// ─── Premium Invoice Stats Component ──────────────────────────────────────────
+// ─── Stat Card ────────────────────────────────────────────────────────────────
 
-function InvoiceStatCard({ title, value, icon: Icon, color }: any) {
+function InvoiceStatCard({ title, value, borderColor }: { title: string; value: string; borderColor: string }) {
   return (
-    <div className={`relative overflow-hidden rounded-xl bg-white shadow-sm border p-4 hover:shadow-md transition-all duration-300 group flex-1`}>
-      <div className={`absolute inset-0 bg-gradient-to-br ${color} opacity-0 group-hover:opacity-5 transition-opacity duration-300`} />
-      <div className="relative flex items-center gap-3">
-        <div className={`w-11 h-11 rounded-xl flex items-center justify-center shadow-sm bg-gradient-to-br ${color} text-white`}>
-          <Icon className="h-5 w-5" />
-        </div>
-        <div>
-          <div className="text-xs text-gray-500 font-medium uppercase tracking-wide">{title}</div>
-          <div className="text-xl font-bold text-gray-900 tabular-nums">{value}</div>
-        </div>
-      </div>
+    <div className="bg-white rounded-xl border border-[color:var(--ink-100)] px-4 py-3 flex flex-col gap-1 shadow-sm hover:shadow-md transition-shadow" style={{ borderInlineStartWidth: "3px", borderInlineStartColor: borderColor }}>
+      <span className="text-[10px] font-bold uppercase tracking-widest text-[color:var(--ink-400)]">{title}</span>
+      <span className="text-lg font-extrabold text-[color:var(--ink-900)] tabular-nums leading-tight">{value}</span>
     </div>
   );
 }
@@ -783,12 +782,23 @@ export default function SalesInvoicesPage() {
   const loading = invoices === undefined;
 
   const filtered = (invoices ?? []).filter((inv: any) => {
-    if (reviewStatus && (inv.reviewStatus ?? "draft") !== reviewStatus) return false;
+    if (reviewStatus) {
+      // Align filter with badge: submitted→"approved", rejected→"rejected", else use documentStatus
+      const badgeStatus = inv.reviewStatus === "rejected" ? "rejected"
+        : inv.reviewStatus === "submitted" ? "approved"
+        : (inv.documentStatus ?? "draft");
+      if (badgeStatus !== reviewStatus) return false;
+    }
     if (role === "sales" && String(inv.createdBy) !== String(defaultUser?._id)) return false;
     if (!searchText) return true;
     const s = searchText.toLowerCase();
+    const typeLabel = INVOICE_TYPE_LABELS[inv.invoiceType as keyof typeof INVOICE_TYPE_LABELS];
     return inv.invoiceNumber.toLowerCase().includes(s) ||
-      (inv as any).customerName?.toLowerCase().includes(s);
+      (inv as any).customerName?.toLowerCase().includes(s) ||
+      (inv.externalInvoiceNumber ?? "").toLowerCase().includes(s) ||
+      (inv.salesRepName ?? "").toLowerCase().includes(s) ||
+      (typeLabel?.ar ?? "").includes(s) ||
+      (typeLabel?.en ?? "").toLowerCase().includes(s);
   });
 
   const totalPages = Math.ceil(filtered.length / PAGE_SIZE);
@@ -890,108 +900,113 @@ export default function SalesInvoicesPage() {
         </div>
       )}
 
-      {/* Modern Filter Strip - Box Design */}
-      <div className="bg-white rounded-lg border border-gray-200 p-3 flex flex-wrap items-end gap-3 w-full">
-        <button className="h-10 px-3 border border-gray-200 rounded-md flex items-center gap-2 text-sm font-medium text-gray-700 hover:bg-gray-50 transition-colors">
-          <Filter className="h-4 w-4" /> {t("filters")}
-        </button>
-
-        <div className="flex flex-col gap-1">
-          <label className="text-[10px] font-bold text-gray-500 uppercase">{t("fromDate")}</label>
+      {/* Filter Bar */}
+      <div className="bg-white rounded-xl border border-[color:var(--ink-100)] shadow-sm overflow-hidden">
+        {/* Search row */}
+        <div className="px-4 py-3 border-b border-[color:var(--ink-100)]">
           <div className="relative">
-            <Calendar className={`absolute top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400 ${isRTL ? "right-3" : "left-3"}`} />
-            <input type="date" value={fromDate} onChange={(e: any) => { setFromDate(e.target.value); setPage(0); }}
-              className={`h-10 ${isRTL ? "pr-9 pl-3" : "pl-9 pr-3"} border border-gray-200 rounded-md text-sm text-gray-700 focus:outline-none focus:border-gray-400 w-[160px]`} />
-          </div>
-        </div>
-        
-        <div className="flex flex-col gap-1">
-          <label className="text-[10px] font-bold text-gray-500 uppercase">{t("toDate")}</label>
-          <div className="relative">
-            <Calendar className={`absolute top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400 ${isRTL ? "right-3" : "left-3"}`} />
-            <input type="date" value={toDate} onChange={(e: any) => { setToDate(e.target.value); setPage(0); }}
-              className={`h-10 ${isRTL ? "pr-9 pl-3" : "pl-9 pr-3"} border border-gray-200 rounded-md text-sm text-gray-700 focus:outline-none focus:border-gray-400 w-[160px]`} />
-          </div>
-        </div>
-
-        <div className="flex flex-col gap-1">
-          <label className="text-[10px] font-bold text-gray-500 uppercase">{t("type")}</label>
-          <select value={invoiceType} onChange={(e: any) => { setInvoiceType(e.target.value); setPage(0); }}
-            className="h-10 px-3 border border-gray-200 rounded-md text-sm text-gray-700 focus:outline-none focus:border-gray-400 min-w-[120px] bg-white cursor-pointer appearance-none">
-            <option value="">{t("all")}</option>
-            <option value="cash_sale">{t("cash")}</option>
-            <option value="credit_sale">{t("creditSale")}</option>
-          </select>
-        </div>
-        
-        <div className="flex flex-col gap-1">
-          <label className="text-[10px] font-bold text-gray-500 uppercase">{t("postingStatus")}</label>
-          <select value={postingStatus} onChange={(e: any) => { setPostingStatus(e.target.value); setPage(0); }}
-            className="h-10 px-3 border border-gray-200 rounded-md text-sm text-gray-700 focus:outline-none focus:border-gray-400 min-w-[140px] bg-white cursor-pointer appearance-none">
-            <option value="">{t("all")}</option>
-            <option value="unposted">{t("statusUnposted")}</option>
-            <option value="posted">{t("statusPosted")}</option>
-            <option value="reversed">{t("statusReversed")}</option>
-          </select>
-        </div>
-
-        <div className="flex flex-col gap-1">
-          <label className="text-[10px] font-bold text-gray-500 uppercase">{t("reviewStatus")}</label>
-          <select value={reviewStatus} onChange={(e: any) => { setReviewStatus(e.target.value); setPage(0); }}
-            className="h-10 px-3 border border-gray-200 rounded-md text-sm text-gray-700 focus:outline-none focus:border-gray-400 min-w-[150px] bg-white cursor-pointer appearance-none">
-            <option value="">{t("all")}</option>
-            <option value="draft">{t("draft")}</option>
-            <option value="submitted">{t("submitted")}</option>
-            <option value="rejected">{t("statusRejected")}</option>
-            <option value="approved">{t("statusApproved")}</option>
-          </select>
-        </div>
-
-        <div className={`flex-1 min-w-[200px] ${isRTL ? "mr-auto" : "ml-auto"}`}>
-          <div className="relative">
-            <Search className={`absolute top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400 ${isRTL ? "right-3" : "left-3"}`} />
-            <input 
-              type="text" 
-              value={searchText} 
+            <Search className={`absolute top-1/2 -translate-y-1/2 h-4 w-4 text-[color:var(--ink-400)] ${isRTL ? "right-3" : "left-3"}`} />
+            <input
+              type="text"
+              value={searchText}
               onChange={(e: any) => { setSearchText(e.target.value); setPage(0); }}
-              placeholder={t("searchPlaceholder")}
-              className={`w-full h-10 ${isRTL ? "pr-9 pl-3" : "pl-9 pr-3"} border border-gray-200 rounded-md text-sm text-gray-700 focus:outline-none focus:border-gray-400`} 
+              placeholder={isRTL ? "ابحث برقم الفاتورة، اسم العميل، المندوب، النوع..." : "Search by invoice no, customer, rep, type..."}
+              className={`w-full h-10 ${isRTL ? "pr-10 pl-4" : "pl-10 pr-4"} bg-[color:var(--ink-50)] rounded-lg text-sm text-[color:var(--ink-700)] placeholder:text-[color:var(--ink-400)] border border-transparent focus:outline-none focus:border-[color:var(--brand-400)] focus:bg-white transition-colors`}
             />
           </div>
+        </div>
+        {/* Filters row */}
+        <div className="px-4 py-2.5 flex flex-wrap items-center gap-3">
+          <span className="inline-flex items-center gap-1.5 text-[11px] font-bold text-[color:var(--ink-400)] uppercase tracking-wider shrink-0">
+            <Filter className="h-3.5 w-3.5" />{t("filters")}
+          </span>
+          <div className="w-px h-5 bg-[color:var(--ink-200)] shrink-0" />
+
+          {/* Date range */}
+          <div className="flex items-center gap-1.5">
+            <span className="text-[11px] font-semibold text-[color:var(--ink-500)]">{t("fromDate")}</span>
+            <input type="date" value={fromDate} onChange={(e: any) => { setFromDate(e.target.value); setPage(0); }}
+              className="h-8 px-2 text-xs border border-[color:var(--ink-200)] rounded-lg text-[color:var(--ink-700)] focus:outline-none focus:border-[color:var(--brand-400)] bg-white" />
+            <span className="text-[11px] font-semibold text-[color:var(--ink-400)]">→</span>
+            <input type="date" value={toDate} onChange={(e: any) => { setToDate(e.target.value); setPage(0); }}
+              className="h-8 px-2 text-xs border border-[color:var(--ink-200)] rounded-lg text-[color:var(--ink-700)] focus:outline-none focus:border-[color:var(--brand-400)] bg-white" />
+          </div>
+
+          <div className="w-px h-5 bg-[color:var(--ink-200)] shrink-0" />
+
+          {/* Type */}
+          <div className="flex items-center gap-1.5">
+            <span className="text-[11px] font-semibold text-[color:var(--ink-500)] shrink-0">{t("type")}</span>
+            <select value={invoiceType} onChange={(e: any) => { setInvoiceType(e.target.value); setPage(0); }}
+              className="h-8 px-2 text-xs border border-[color:var(--ink-200)] rounded-lg text-[color:var(--ink-700)] focus:outline-none focus:border-[color:var(--brand-400)] bg-white cursor-pointer">
+              <option value="">{t("all")}</option>
+              <option value="cash_sale">{t("cash")}</option>
+              <option value="credit_sale">{t("creditSale")}</option>
+            </select>
+          </div>
+
+          {/* Posting status */}
+          <div className="flex items-center gap-1.5">
+            <span className="text-[11px] font-semibold text-[color:var(--ink-500)] shrink-0">{t("postingStatus")}</span>
+            <select value={postingStatus} onChange={(e: any) => { setPostingStatus(e.target.value); setPage(0); }}
+              className="h-8 px-2 text-xs border border-[color:var(--ink-200)] rounded-lg text-[color:var(--ink-700)] focus:outline-none focus:border-[color:var(--brand-400)] bg-white cursor-pointer">
+              <option value="">{t("all")}</option>
+              <option value="unposted">{t("statusUnposted")}</option>
+              <option value="posted">{t("statusPosted")}</option>
+              <option value="reversed">{t("statusReversed")}</option>
+            </select>
+          </div>
+
+          {/* Review status */}
+          <div className="flex items-center gap-1.5">
+            <span className="text-[11px] font-semibold text-[color:var(--ink-500)] shrink-0">{t("reviewStatus")}</span>
+            <select value={reviewStatus} onChange={(e: any) => { setReviewStatus(e.target.value); setPage(0); }}
+              className="h-8 px-2 text-xs border border-[color:var(--ink-200)] rounded-lg text-[color:var(--ink-700)] focus:outline-none focus:border-[color:var(--brand-400)] bg-white cursor-pointer">
+              <option value="">{t("all")}</option>
+              <option value="draft">{t("draft")}</option>
+              <option value="approved">{t("statusApproved")}</option>
+              <option value="rejected">{t("statusRejected")}</option>
+            </select>
+          </div>
+
+          {/* Clear filters */}
+          {(fromDate || toDate || invoiceType || postingStatus || reviewStatus || searchText) && (
+            <button
+              onClick={() => { setFromDate(""); setToDate(""); setInvoiceType(""); setPostingStatus(""); setReviewStatus(""); setSearchText(""); setPage(0); }}
+              className="h-8 px-3 text-xs font-semibold rounded-lg border border-[color:var(--ink-200)] text-[color:var(--ink-500)] hover:bg-[color:var(--ink-50)] transition-colors"
+            >
+              {isRTL ? "مسح الفلاتر" : "Clear"}
+            </button>
+          )}
         </div>
       </div>
 
       {/* Premium KPI Cards - Modern Design */}
       <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
-        <InvoiceStatCard 
-          title={isRTL ? "إجمالي المبيعات" : "Total Sales"} 
-          value={formatCurrency(totalSales)} 
-          icon={Landmark}
-          color="from-blue-500 to-blue-600"
+        <InvoiceStatCard
+          title={isRTL ? "إجمالي المبيعات" : "Total Sales"}
+          value={formatCurrency(totalSales)}
+          borderColor="#3b82f6"
         />
-        <InvoiceStatCard 
-          title={isRTL ? "المدفوع" : "Paid"} 
-          value={formatCurrency(totalPaid)} 
-          icon={CheckCircle2}
-          color="from-green-500 to-green-600"
+        <InvoiceStatCard
+          title={isRTL ? "المدفوع" : "Paid"}
+          value={formatCurrency(totalPaid)}
+          borderColor="#22c55e"
         />
-        <InvoiceStatCard 
-          title={isRTL ? "الآجل" : "Credit"} 
-          value={formatCurrency(totalCredit)} 
-          icon={WalletCards}
-          color="from-amber-500 to-amber-600"
+        <InvoiceStatCard
+          title={isRTL ? "الآجل" : "Credit"}
+          value={formatCurrency(totalCredit)}
+          borderColor="#f59e0b"
         />
-        <InvoiceStatCard 
-          title={isRTL ? "عدد الفواتير" : "Invoices"} 
-          value={filtered.length.toString()} 
-          icon={FileText}
-          color="from-purple-500 to-purple-600"
+        <InvoiceStatCard
+          title={isRTL ? "عدد الفواتير" : "Invoices"}
+          value={filtered.length.toString()}
+          borderColor="#a855f7"
         />
-        <InvoiceStatCard 
-          title={isRTL ? "المرحلة" : "Posted"} 
-          value={posted.length.toString()} 
-          icon={Check}
-          color="from-emerald-500 to-emerald-600"
+        <InvoiceStatCard
+          title={isRTL ? "المرحّل" : "Posted"}
+          value={posted.length.toString()}
+          borderColor="#10b981"
         />
       </div>
 
@@ -1062,54 +1077,55 @@ export default function SalesInvoicesPage() {
             <div className="desktop-table overflow-x-auto">
               <table className="w-full text-sm text-left border-collapse" dir={isRTL ? "rtl" : "ltr"}>
                 <thead>
-                  <tr className="bg-gray-50/80 border-b border-gray-100">
-                    <th className="px-6 py-4 text-[10px] font-bold text-gray-400 uppercase tracking-widest">{t("invoiceNo")}</th>
-                    <th className="px-6 py-4 text-[10px] font-bold text-gray-400 uppercase tracking-widest">{t("customerInvoiceNo")}</th>
-                    <th className="px-6 py-4 text-[10px] font-bold text-gray-400 uppercase tracking-widest">{t("date")}</th>
-                    <th className="px-6 py-4 text-[10px] font-bold text-gray-400 uppercase tracking-widest">{t("type")}</th>
-                    <th className="px-6 py-4 text-[10px] font-bold text-gray-400 uppercase tracking-widest">{t("customer")}</th>
-                    <th className="px-6 py-4 text-[10px] font-bold text-gray-400 uppercase tracking-widest">{t("branch")}</th>
-                    <th className="px-6 py-4 text-[10px] font-bold text-gray-400 uppercase tracking-widest">{t("salesRep")}</th>
-                    <th className="px-6 py-4 text-[10px] font-bold text-gray-400 uppercase tracking-widest">{t("vehicleCode")}</th>
-                    <th className="px-6 py-4 text-[10px] font-bold text-gray-400 uppercase tracking-widest text-center">{t("reviewStatus")}</th>
-                    <th className="px-6 py-4 text-[10px] font-bold text-gray-400 uppercase tracking-widest text-end">{t("amount")}</th>
-                    <th className="px-6 py-4 text-[10px] font-bold text-gray-400 uppercase tracking-widest text-center">{t("postingStatus")}</th>
-                    <th className="px-6 py-4 text-[10px] font-bold text-gray-400 uppercase tracking-widest text-end">{t("actions")}</th>
+                  <tr style={{ background: "var(--brand-700)" }}>
+                    <th className="px-4 py-3 text-[10px] font-bold text-white/80 uppercase tracking-widest whitespace-nowrap">{t("invoiceNo")}</th>
+                    <th className="px-4 py-3 text-[10px] font-bold text-white/80 uppercase tracking-widest whitespace-nowrap">{t("customerInvoiceNo")}</th>
+                    <th className="px-4 py-3 text-[10px] font-bold text-white/80 uppercase tracking-widest whitespace-nowrap">{t("date")}</th>
+                    <th className="px-4 py-3 text-[10px] font-bold text-white/80 uppercase tracking-widest whitespace-nowrap">{t("type")}</th>
+                    <th className="px-4 py-3 text-[10px] font-bold text-white/80 uppercase tracking-widest">{t("customer")}</th>
+                    <th className="px-4 py-3 text-[10px] font-bold text-white/80 uppercase tracking-widest whitespace-nowrap">{t("salesRep")}</th>
+                    <th className="px-4 py-3 text-[10px] font-bold text-white/80 uppercase tracking-widest text-center whitespace-nowrap">{t("reviewStatus")}</th>
+                    <th className="px-4 py-3 text-[10px] font-bold text-white/80 uppercase tracking-widest text-end whitespace-nowrap">{t("amount")}</th>
+                    <th className="px-4 py-3 text-[10px] font-bold text-white/80 uppercase tracking-widest text-center whitespace-nowrap">{t("postingStatus")}</th>
+                    <th className="px-4 py-3 text-[10px] font-bold text-white/80 uppercase tracking-widest text-end whitespace-nowrap">{t("actions")}</th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-gray-100">
+                <tbody className="divide-y divide-[color:var(--ink-100)]">
                   {paginated.map((inv: any, idx: number) => (
-                    <tr key={inv._id} className={`group transition-all duration-200 hover:bg-gradient-to-r hover:from-gray-50 hover:to-white ${idx % 2 === 0 ? 'bg-white' : 'bg-gray-50/30'}`}>
-                      <td className="px-6 py-4">
-                        <span className="inline-flex items-center px-2 py-0.5 rounded text-[11px] font-bold bg-gray-100 text-gray-600 border border-gray-200">
+                    <tr key={inv._id} className={`group transition-colors duration-150 hover:bg-[color:var(--brand-50)] ${idx % 2 === 0 ? "bg-white" : "bg-[color:var(--ink-50)]/40"}`}>
+                      <td className="px-4 py-3 whitespace-nowrap">
+                        <span
+                          className="inline-block font-mono text-[11px] font-extrabold text-[color:var(--brand-700)] cursor-pointer hover:underline"
+                          onClick={() => router.push(`/sales/invoices/${inv._id}`)}
+                        >
                           {inv.invoiceNumber}
                         </span>
                       </td>
-                      <td className="px-6 py-4 text-sm text-gray-700">{inv.externalInvoiceNumber || "—"}</td>
-                      <td className="px-6 py-4 text-xs text-gray-500 font-medium">{formatDateShort(inv.invoiceDate)}</td>
-                      <td className="px-6 py-4">
-                        <span className="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-tight bg-gray-100 text-gray-600 border border-gray-200">
-                          {INVOICE_TYPE_LABELS[inv.invoiceType as keyof typeof INVOICE_TYPE_LABELS]?.[lang]}
+                      <td className="px-4 py-3 text-xs text-[color:var(--ink-500)] whitespace-nowrap">{inv.externalInvoiceNumber || "—"}</td>
+                      <td className="px-4 py-3 text-xs text-[color:var(--ink-500)] font-medium whitespace-nowrap">{formatDateShort(inv.invoiceDate)}</td>
+                      <td className="px-4 py-3 text-xs text-[color:var(--ink-600)] font-medium whitespace-nowrap">
+                        {INVOICE_TYPE_LABELS[inv.invoiceType as keyof typeof INVOICE_TYPE_LABELS]?.[lang]}
+                      </td>
+                      <td className="px-4 py-3 max-w-[200px]">
+                        <span className="block text-sm font-semibold text-[color:var(--ink-900)] truncate" title={(inv as any).customerName}>
+                          {(inv as any).customerName || "—"}
                         </span>
                       </td>
-                      <td className="px-6 py-4 font-bold text-gray-900 text-sm">{(inv as any).customerName}</td>
-                      <td className="px-6 py-4 text-sm text-gray-700">{isRTL ? ((inv as any).branchName || "—") : (((inv as any).branchNameEn || (inv as any).branchName) || "—")}</td>
-                      <td className="px-6 py-4 text-sm text-gray-700">{inv.salesRepName || "—"}</td>
-                      <td className="px-6 py-4 text-sm text-gray-700">{inv.vehicleCode || "—"}</td>
-                      <td className="px-6 py-4 text-center">
+                      <td className="px-4 py-3 text-xs text-[color:var(--ink-600)] font-medium whitespace-nowrap">{inv.salesRepName || "—"}</td>
+                      <td className="px-4 py-3 text-center">
                         <StatusBadge status={inv.reviewStatus === "rejected" ? "rejected" : (inv.reviewStatus === "submitted" ? "approved" : inv.documentStatus)} type="document" />
                       </td>
-                      <td className="px-6 py-4 text-end tabular-nums font-bold text-gray-900 text-sm">{formatCurrency(inv.totalAmount)}</td>
-                      <td className="px-6 py-4 text-center">
+                      <td className="px-4 py-3 text-end tabular-nums font-bold text-[color:var(--ink-900)] text-sm whitespace-nowrap">{formatCurrency(inv.totalAmount)}</td>
+                      <td className="px-4 py-3 text-center">
                         <StatusBadge status={inv.postingStatus} type="posting" />
                       </td>
-                      <td className="px-6 py-4 text-end">
+                      <td className="px-4 py-3 text-end">
                         <div className="flex items-center gap-1 justify-end opacity-0 group-hover:opacity-100 transition-opacity duration-200">
                           {canPost("sales") && <PostButton invoice={inv} userId={defaultUser?._id} />}
                           <InvoiceLifecycleActions invoice={inv} userId={defaultUser?._id} onEdit={() => { setEditInvoiceId(inv._id); setShowForm(false); }} />
                           <button
                             onClick={() => router.push(`/sales/invoices/${inv._id}`)}
-                            className="h-8 w-8 rounded-lg bg-white border border-gray-200 text-gray-400 hover:text-blue-600 hover:border-blue-200 hover:shadow-sm flex items-center justify-center transition-all"
+                            className="h-8 w-8 rounded-lg bg-white border border-[color:var(--ink-200)] text-[color:var(--ink-400)] hover:text-[color:var(--brand-600)] hover:border-[color:var(--brand-200)] hover:shadow-sm flex items-center justify-center transition-all"
                             title={t("view")}>
                             <Eye className="h-4 w-4" />
                           </button>

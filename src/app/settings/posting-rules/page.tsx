@@ -215,12 +215,6 @@ export default function PostingRulesPage() {
           desc: isRTL ? "يُقيَّد بالدائن عند استهلاك المخزون في البيع أو الإنتاج" : "Credited when stock is consumed in sales / production",
           color: "#fbbf24",
         },
-        {
-          fieldKey: "vatPayableAccountId",
-          label: isRTL ? "حساب ضريبة القيمة المضافة (مستحقة)" : "VAT Payable Account",
-          desc: isRTL ? "يُقيَّد بالدائن بمقدار الـ 5% عند البيع" : "Credited with 5% VAT on each sale",
-          color: "#fb923c",
-        },
       ],
     },
     {
@@ -231,12 +225,6 @@ export default function PostingRulesPage() {
           label: isRTL ? "حساب الذمم الدائنة (ع. موردين)" : "Accounts Payable",
           desc: isRTL ? "يُقيَّد بالدائن عند فاتورة الشراء الآجل" : "Credited on credit purchase invoices",
           color: "#60a5fa",
-        },
-        {
-          fieldKey: "vatReceivableAccountId",
-          label: isRTL ? "حساب ضريبة المدخلات (قابلة للاسترداد)" : "Input VAT / VAT Receivable",
-          desc: isRTL ? "يُقيَّد بالدين بمقدار الـ 5% عند الشراء" : "Debited with 5% VAT on purchases",
-          color: "#fb923c",
         },
         {
           fieldKey: "purchaseAccountId",
@@ -317,7 +305,7 @@ export default function PostingRulesPage() {
   ];
 
   const filledCount = Object.values(draft).filter(Boolean).length;
-  const totalFields = 18;
+  const totalFields = 16;
   const pct = Math.round((filledCount / totalFields) * 100);
 
   return (

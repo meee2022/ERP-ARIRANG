@@ -1,6 +1,7 @@
 // @ts-nocheck
 import { query, mutation } from "./_generated/server";
 import { v } from "convex/values";
+import { assertUserPermission } from "./lib/permissions";
 import { PRODUCTION_ITEMS_SEED } from "./productionItemsSeed";
 
 // ═══════════════════════════════════════════════════════════════════
@@ -109,8 +110,10 @@ export const createRecipe = mutation({
     yieldQuantity: v.number(),
     yieldUomId:    v.id("unitOfMeasure"),
     notes:         v.optional(v.string()),
+    userId:        v.optional(v.id("users")),
   },
   handler: async (ctx, args) => {
+    if (args.userId) await assertUserPermission(ctx, args.userId, "production", "create");
     const existing = await ctx.db
       .query("recipes")
       .withIndex("by_company", (q) => q.eq("companyId", args.companyId))
@@ -136,9 +139,11 @@ export const updateRecipe = mutation({
     yieldUomId:    v.optional(v.id("unitOfMeasure")),
     notes:         v.optional(v.string()),
     isActive:      v.optional(v.boolean()),
+    userId:        v.optional(v.id("users")),
   },
   handler: async (ctx, args) => {
-    const { id, ...updates } = args;
+    if (args.userId) await assertUserPermission(ctx, args.userId, "production", "edit");
+    const { id, userId: _uid, ...updates } = args;
     const patch: Record<string, unknown> = {};
     Object.entries(updates).forEach(([k, v]) => {
       if (v !== undefined) patch[k] = v;
@@ -158,9 +163,11 @@ export const upsertRecipeLine = mutation({
     grossQuantity: v.number(),
     unitCost:      v.optional(v.number()),
     sortOrder:     v.optional(v.number()),
+    userId:        v.optional(v.id("users")),
   },
   handler: async (ctx, args) => {
-    const { lineId, ...data } = args;
+    if (args.userId) await assertUserPermission(ctx, args.userId, "production", "edit");
+    const { lineId, userId: _uid, ...data } = args;
     if (lineId) {
       await ctx.db.patch(lineId, data);
       return lineId;
@@ -170,8 +177,9 @@ export const upsertRecipeLine = mutation({
 });
 
 export const deleteRecipeLine = mutation({
-  args: { id: v.id("recipeLines") },
+  args: { id: v.id("recipeLines"), userId: v.optional(v.id("users")) },
   handler: async (ctx, args) => {
+    if (args.userId) await assertUserPermission(ctx, args.userId, "production", "delete");
     await ctx.db.delete(args.id);
   },
 });
@@ -243,6 +251,7 @@ export const createProductionOrder = mutation({
     createdBy:   v.id("users"),
   },
   handler: async (ctx, args) => {
+    await assertUserPermission(ctx, args.createdBy, "production", "create");
     const now = Date.now();
     const { createdBy, ...rest } = args;
 
@@ -304,9 +313,11 @@ export const updateOrderStatus = mutation({
     ),
     actualQty:     v.optional(v.number()),
     completedDate: v.optional(v.string()),
+    userId:        v.optional(v.id("users")),
   },
   handler: async (ctx, args) => {
-    const { id, ...updates } = args;
+    if (args.userId) await assertUserPermission(ctx, args.userId, "production", "edit");
+    const { id, userId: _uid, ...updates } = args;
     await ctx.db.patch(id, { ...updates, updatedAt: Date.now() });
   },
 });

@@ -237,13 +237,13 @@ export default function SuppliersPage() {
           <div className="desktop-table overflow-x-auto">
             <table className="data-table">
               <thead>
-                <tr>
-                  <th>{t("code")}</th>
-                  <th>{lbl("اسم المورد","Supplier")}</th>
-                  <th>{lbl("الأصناف","Items")}</th>
-                  <th>{lbl("التواصل","Contact")}</th>
-                  <th>{t("status")}</th>
-                  <th className="text-end">{t("actions")}</th>
+                <tr style={{ background: "var(--brand-700)" }}>
+                  <th className="text-white/80 whitespace-nowrap">{t("code")}</th>
+                  <th className="text-white/80 whitespace-nowrap">{lbl("اسم المورد","Supplier")}</th>
+                  <th className="text-white/80 whitespace-nowrap">{lbl("الأصناف","Items")}</th>
+                  <th className="text-white/80 whitespace-nowrap">{lbl("التواصل","Contact")}</th>
+                  <th className="text-white/80 whitespace-nowrap">{t("status")}</th>
+                  <th className="text-white/80 text-end whitespace-nowrap">{t("actions")}</th>
                 </tr>
               </thead>
               <tbody>

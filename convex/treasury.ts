@@ -337,6 +337,7 @@ export const createCashPaymentVoucher = mutation({
     reference: v.optional(v.string()),
     costCenterId: v.optional(v.id("costCenters")),
     notes: v.optional(v.string()),
+    forMonth: v.optional(v.string()),
     createdBy: v.id("users"),
   },
   handler: async (ctx, args) => {
@@ -378,6 +379,7 @@ export const createCashPaymentVoucher = mutation({
       postingStatus: "unposted",
       allocationStatus: "unallocated",
       notes: args.notes,
+      forMonth: args.forMonth,
       createdBy: args.createdBy,
       createdAt: Date.now(),
     });
@@ -1161,7 +1163,7 @@ export const deleteBankAccount = mutation({
     if (!account) throw new Error('الحساب البنكي غير موجود');
     // Check if used in any payment vouchers
     const linked = await ctx.db
-      .query('paymentVouchers')
+      .query('cashPaymentVouchers')
       .filter((q) => q.eq(q.field('bankAccountId'), args.bankAccountId))
       .first();
     if (linked) throw new Error('لا يمكن حذف الحساب لأنه مرتبط بسندات صرف');
@@ -1193,5 +1195,71 @@ export const updateBankAccount = mutation({
     if (fields.isActive !== undefined) patch.isActive = fields.isActive;
     await ctx.db.patch(bankAccountId, patch);
     return { success: true };
+  },
+});
+
+// ─── ALLOCATION QUERIES ────────────────────────────────────────────────────────
+
+export const getReceiptAllocations = query({
+  args: { voucherId: v.id("cashReceiptVouchers") },
+  handler: async (ctx, { voucherId }) => {
+    const allocations = await ctx.db
+      .query("receiptAllocations")
+      .withIndex("by_voucher", (q) => q.eq("voucherId", voucherId))
+      .filter((q) => q.eq(q.field("isReversed"), false))
+      .collect();
+
+    return Promise.all(
+      allocations.map(async (a) => {
+        const invoice = await ctx.db.get(a.invoiceId);
+        return {
+          ...a,
+          invoiceNumber: invoice?.invoiceNumber ?? "—",
+          invoiceDate: invoice?.invoiceDate ?? "—",
+          invoiceTotal: invoice?.totalAmount ?? 0,
+        };
+      })
+    );
+  },
+});
+
+export const getOpenInvoicesForCustomer = query({
+  args: {
+    customerId: v.id("customers"),
+    companyId: v.id("companies"),
+  },
+  handler: async (ctx, { customerId, companyId }) => {
+    const invoices = await ctx.db
+      .query("salesInvoices")
+      .withIndex("by_customer", (q) => q.eq("customerId", customerId))
+      .collect();
+
+    const open = invoices.filter(
+      (inv) =>
+        inv.companyId === companyId &&
+        inv.postingStatus === "posted" &&
+        (inv.paymentStatus === "unpaid" || inv.paymentStatus === "partial")
+    );
+
+    const allocations = await ctx.db
+      .query("receiptAllocations")
+      .filter((q) => q.eq(q.field("isReversed"), false))
+      .collect();
+
+    const allocatedByInvoice = new Map<string, number>();
+    for (const a of allocations) {
+      const prev = allocatedByInvoice.get(a.invoiceId) ?? 0;
+      allocatedByInvoice.set(a.invoiceId, prev + a.allocatedAmount);
+    }
+
+    return open.map((inv) => ({
+      _id: inv._id,
+      invoiceNumber: inv.invoiceNumber,
+      invoiceDate: inv.invoiceDate,
+      totalAmount: inv.totalAmount,
+      paymentStatus: inv.paymentStatus,
+      alreadyAllocated: allocatedByInvoice.get(inv._id) ?? 0,
+      remaining: inv.totalAmount - (allocatedByInvoice.get(inv._id) ?? 0),
+    }));
   },
 });

@@ -906,7 +906,7 @@ export default function EmployeesPage() {
           <div className="desktop-table overflow-x-auto">
             <table className="w-full text-sm text-left border-collapse" dir={isRTL ? "rtl" : "ltr"}>
               <thead>
-                <tr className="bg-gray-50/70 border-b border-gray-100">
+                <tr style={{ background: "var(--brand-700)" }}>
                   {[
                     t("code") || "الكود",
                     t("name") || "الاسم",

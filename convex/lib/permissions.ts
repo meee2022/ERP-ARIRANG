@@ -27,7 +27,8 @@ export type Module =
   | "reports"
   | "settings"
   | "users"
-  | "hr";
+  | "hr"
+  | "production";
 
 export type AppRole =
   | "admin"
@@ -41,7 +42,7 @@ export type AppRole =
 // ─── Permission Map ───────────────────────────────────────────────────────────
 
 const ALL_PERMISSIONS: Permission[] = ["create", "edit", "delete", "post", "view"];
-const ALL_MODULES: Module[] = ["sales", "purchases", "treasury", "inventory", "finance", "reports", "settings", "users", "hr"];
+const ALL_MODULES: Module[] = ["sales", "purchases", "treasury", "inventory", "finance", "reports", "settings", "users", "hr", "production"];
 
 type PermissionMap = Partial<Record<Module, Permission[]>>;
 
@@ -58,6 +59,7 @@ export const ROLE_PERMISSIONS: Record<AppRole, PermissionMap> = {
     settings: ["view"],
     users: ["view", "create", "edit"],
     hr: ALL_PERMISSIONS,
+    production: ALL_PERMISSIONS,
   },
 
   accountant: {
@@ -70,6 +72,7 @@ export const ROLE_PERMISSIONS: Record<AppRole, PermissionMap> = {
     settings: ["view"],
     users: [],
     hr: ["view"],
+    production: ["view"],
   },
 
   cashier: {
@@ -82,6 +85,7 @@ export const ROLE_PERMISSIONS: Record<AppRole, PermissionMap> = {
     finance: [],
     purchases: [],
     hr: [],
+    production: ["view"],
   },
 
   sales: {
@@ -94,6 +98,7 @@ export const ROLE_PERMISSIONS: Record<AppRole, PermissionMap> = {
     settings: [],
     users: [],
     hr: [],
+    production: ["view"],
   },
 
   warehouse: {
@@ -106,6 +111,7 @@ export const ROLE_PERMISSIONS: Record<AppRole, PermissionMap> = {
     settings: [],
     users: [],
     hr: [],
+    production: ALL_PERMISSIONS,
   },
 
   viewer: {

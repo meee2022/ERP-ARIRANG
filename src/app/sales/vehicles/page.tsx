@@ -207,15 +207,15 @@ export default function VehiclesPage() {
         ) : (
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
-              <thead className="bg-[color:var(--ink-50)] text-[color:var(--ink-500)]">
-                <tr>
-                  <th className="px-4 py-3 text-start">{t("vehicleCode")}</th>
-                  <th className="px-4 py-3 text-start">{t("vehiclePlate")}</th>
-                  <th className="px-4 py-3 text-start">{t("vehicleDescription")}</th>
-                  <th className="px-4 py-3 text-start">{t("assignedSalesRep")}</th>
-                  <th className="px-4 py-3 text-start">{t("branch")}</th>
-                  <th className="px-4 py-3 text-center">{t("status")}</th>
-                  <th className="px-4 py-3 text-end">{t("actions")}</th>
+              <thead>
+                <tr style={{ background: "var(--brand-700)" }}>
+                  <th className="px-4 py-3 text-start text-[10px] font-bold text-white/80 uppercase tracking-widest whitespace-nowrap">{t("vehicleCode")}</th>
+                  <th className="px-4 py-3 text-start text-[10px] font-bold text-white/80 uppercase tracking-widest whitespace-nowrap">{t("vehiclePlate")}</th>
+                  <th className="px-4 py-3 text-start text-[10px] font-bold text-white/80 uppercase tracking-widest whitespace-nowrap">{t("vehicleDescription")}</th>
+                  <th className="px-4 py-3 text-start text-[10px] font-bold text-white/80 uppercase tracking-widest whitespace-nowrap">{t("assignedSalesRep")}</th>
+                  <th className="px-4 py-3 text-start text-[10px] font-bold text-white/80 uppercase tracking-widest whitespace-nowrap">{t("branch")}</th>
+                  <th className="px-4 py-3 text-center text-[10px] font-bold text-white/80 uppercase tracking-widest whitespace-nowrap">{t("status")}</th>
+                  <th className="px-4 py-3 text-end text-[10px] font-bold text-white/80 uppercase tracking-widest whitespace-nowrap">{t("actions")}</th>
                 </tr>
               </thead>
               <tbody>

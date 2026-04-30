@@ -20,6 +20,10 @@ import { SummaryStrip, LoadingState } from "@/components/ui/data-display";
 import { EmptyState } from "@/components/ui/empty-state";
 
 function todayISO() { return new Date().toISOString().split("T")[0]; }
+function currentMonthISO() {
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
+}
 function startOfMonthISO() {
   const d = new Date();
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-01`;
@@ -50,6 +54,7 @@ function NewReceiptForm({ onClose }: { onClose: () => void }) {
     amount: "",
     paymentMethod: "cash",
     reference: "",
+    forMonth: currentMonthISO(),
     costCenterId: "",
     notes: "",
     // cheque-specific fields
@@ -98,6 +103,7 @@ function NewReceiptForm({ onClose }: { onClose: () => void }) {
         reference: form.reference || (isCheque ? form.chequeNumber : undefined),
         costCenterId: form.costCenterId ? (form.costCenterId as any) : undefined,
         notes: form.notes || undefined,
+        forMonth: form.forMonth || undefined,
         createdBy: defaultUser._id,
       });
       // Auto-create cheque record if payment is by cheque
@@ -217,6 +223,10 @@ function NewReceiptForm({ onClose }: { onClose: () => void }) {
         <div>
           <label className="block text-xs font-medium text-[color:var(--ink-600)] mb-1">{t("reference")}</label>
           <input value={form.reference} onChange={(e) => set("reference", e.target.value)} className="input-field h-9" />
+        </div>
+        <div>
+          <label className="block text-xs font-medium text-[color:var(--ink-600)] mb-1">{t("forMonth")}</label>
+          <input type="month" value={form.forMonth} onChange={(e) => set("forMonth", e.target.value)} className="input-field h-9" />
         </div>
 
         {/* ── Cheque fields — shown only when payment method is cheque ── */}
@@ -631,15 +641,15 @@ export default function ReceiptsPage() {
           <div className="desktop-table overflow-x-auto">
             <table className="w-full text-sm text-left border-collapse" dir={isRTL ? "rtl" : "ltr"}>
               <thead>
-                <tr className="bg-gray-50/50 border-b border-gray-100">
-                  <th className="px-6 py-4 text-[10px] font-bold text-gray-400 uppercase tracking-widest">{t("receiptNo")}</th>
-                  <th className="px-6 py-4 text-[10px] font-bold text-gray-400 uppercase tracking-widest">{t("date")}</th>
-                  <th className="px-6 py-4 text-[10px] font-bold text-gray-400 uppercase tracking-widest">{t("receivedFrom")}</th>
-                  <th className="px-6 py-4 text-[10px] font-bold text-gray-400 uppercase tracking-widest text-end">{t("amount")}</th>
-                  <th className="px-6 py-4 text-[10px] font-bold text-gray-400 uppercase tracking-widest">{t("paymentMethod")}</th>
-                  <th className="px-6 py-4 text-[10px] font-bold text-gray-400 uppercase tracking-widest">{t("allocationStatus")}</th>
-                  <th className="px-6 py-4 text-[10px] font-bold text-gray-400 uppercase tracking-widest">{t("postingStatus")}</th>
-                  <th className="px-6 py-4 text-[10px] font-bold text-gray-400 uppercase tracking-widest text-end">{t("actions")}</th>
+                <tr style={{ background: "var(--brand-700)" }}>
+                  <th className="px-6 py-3.5 text-[10px] font-bold text-white/80 uppercase tracking-widest whitespace-nowrap">{t("receiptNo")}</th>
+                  <th className="px-6 py-3.5 text-[10px] font-bold text-white/80 uppercase tracking-widest whitespace-nowrap">{t("date")}</th>
+                  <th className="px-6 py-3.5 text-[10px] font-bold text-white/80 uppercase tracking-widest whitespace-nowrap">{t("receivedFrom")}</th>
+                  <th className="px-6 py-3.5 text-[10px] font-bold text-white/80 uppercase tracking-widest text-end whitespace-nowrap">{t("amount")}</th>
+                  <th className="px-6 py-3.5 text-[10px] font-bold text-white/80 uppercase tracking-widest whitespace-nowrap">{t("paymentMethod")}</th>
+                  <th className="px-6 py-3.5 text-[10px] font-bold text-white/80 uppercase tracking-widest whitespace-nowrap">{t("allocationStatus")}</th>
+                  <th className="px-6 py-3.5 text-[10px] font-bold text-white/80 uppercase tracking-widest whitespace-nowrap">{t("postingStatus")}</th>
+                  <th className="px-6 py-3.5 text-[10px] font-bold text-white/80 uppercase tracking-widest text-end whitespace-nowrap">{t("actions")}</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-50">

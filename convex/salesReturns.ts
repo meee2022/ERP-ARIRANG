@@ -558,9 +558,15 @@ export const getPostedSalesInvoices = query({
     return Promise.all(
       invoices.map(async (inv) => {
         const customer = inv.customerId ? await ctx.db.get(inv.customerId) : null;
+        const salesRep = (inv as any).salesRepId ? await ctx.db.get((inv as any).salesRepId) : null;
         return {
           ...inv,
           customerName: customer?.nameAr ?? "—",
+          customerNameEn: customer?.nameEn ?? "",
+          salesRepName: (inv as any).salesRepName ?? salesRep?.nameAr ?? "",
+          vehicleCode: (inv as any).vehicleCode ?? "",
+          invoiceDate: (inv as any).invoiceDate ?? "",
+          externalInvoiceNumber: (inv as any).externalInvoiceNumber ?? "",
         };
       })
     );

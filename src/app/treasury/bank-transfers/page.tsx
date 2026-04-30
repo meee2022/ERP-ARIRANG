@@ -307,13 +307,13 @@ export default function BankTransfersPage() {
           <div className="desktop-table overflow-x-auto">
             <table className="data-table">
               <thead>
-                <tr>
-                  <th>{t("reference")}</th>
-                  <th>{t("date")}</th>
-                  <th>{t("fromAccount")}</th>
-                  <th>{t("toAccount")}</th>
-                  <th className="text-end">{t("amount")}</th>
-                  <th>{t("status")}</th>
+                <tr style={{ background: "var(--brand-700)" }}>
+                  <th className="text-white/80 whitespace-nowrap">{t("reference")}</th>
+                  <th className="text-white/80 whitespace-nowrap">{t("date")}</th>
+                  <th className="text-white/80 whitespace-nowrap">{t("fromAccount")}</th>
+                  <th className="text-white/80 whitespace-nowrap">{t("toAccount")}</th>
+                  <th className="text-white/80 text-end whitespace-nowrap">{t("amount")}</th>
+                  <th className="text-white/80 whitespace-nowrap">{t("status")}</th>
                 </tr>
               </thead>
               <tbody>

@@ -21,6 +21,15 @@ function todayISO() {
   return new Date().toISOString().split("T")[0];
 }
 
+function InfoField({ label, value, accent }: { label: string; value: string; accent?: boolean }) {
+  return (
+    <div className="flex flex-col gap-0.5">
+      <span className="text-[10px] uppercase tracking-wider font-semibold text-[color:var(--ink-400)]">{label}</span>
+      <span className={`text-sm font-semibold ${accent ? "text-[color:var(--brand-700)]" : "text-[color:var(--ink-800)]"}`}>{value}</span>
+    </div>
+  );
+}
+
 // ─── New Sales Return Form ────────────────────────────────────────────────────
 
 function NewSalesReturnForm({ onClose }: { onClose: () => void }) {
@@ -32,6 +41,9 @@ function NewSalesReturnForm({ onClose }: { onClose: () => void }) {
 
   const [returnDate, setReturnDate] = useState(todayISO());
   const [selectedInvoiceId, setSelectedInvoiceId] = useState("");
+  const [invoiceSearch, setInvoiceSearch] = useState("");
+  const [showInvoiceDropdown, setShowInvoiceDropdown] = useState(false);
+  const invoiceSearchRef = React.useRef<HTMLDivElement>(null);
   const [reason, setReason] = useState("");
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
@@ -64,6 +76,29 @@ function NewSalesReturnForm({ onClose }: { onClose: () => void }) {
   const [warehouseId, setWarehouseId] = useState("");
 
   const createReturn = useMutation(api.salesReturns.createSalesReturn);
+
+  // Close invoice dropdown on outside click
+  React.useEffect(() => {
+    const handler = (e: MouseEvent) => {
+      if (invoiceSearchRef.current && !invoiceSearchRef.current.contains(e.target as Node)) {
+        setShowInvoiceDropdown(false);
+      }
+    };
+    document.addEventListener("mousedown", handler);
+    return () => document.removeEventListener("mousedown", handler);
+  }, []);
+
+  // Filtered invoices based on search text
+  const filteredInvoices = React.useMemo(() => {
+    const all = postedInvoices ?? [];
+    if (!invoiceSearch.trim()) return all;
+    const s = invoiceSearch.toLowerCase();
+    return all.filter((inv: any) =>
+      (inv.invoiceNumber ?? "").toLowerCase().includes(s) ||
+      (inv.externalInvoiceNumber ?? "").toLowerCase().includes(s) ||
+      (inv.customerName ?? "").toLowerCase().includes(s)
+    );
+  }, [postedInvoices, invoiceSearch]);
 
   // Set default warehouse when loaded
   React.useEffect(() => {
@@ -168,24 +203,71 @@ function NewSalesReturnForm({ onClose }: { onClose: () => void }) {
             </div>
           )}
 
-          {/* Invoice Selection */}
+          {/* Invoice Selection — searchable */}
           <div>
             <label className="block text-sm font-medium text-[color:var(--ink-700)] mb-1.5">
               {t("originalInvoice")} *
             </label>
-            <select
-              className="input-field w-full"
-              value={selectedInvoiceId}
-              onChange={(e) => setSelectedInvoiceId(e.target.value)}
-            >
-              <option value="">{t("selectInvoice")}</option>
-              {(postedInvoices ?? []).map((inv: any) => (
-                <option key={inv._id} value={inv._id}>
-                  {inv.invoiceNumber} — {inv.customerName} ({formatCurrency(inv.totalAmount, lang)})
-                </option>
-              ))}
-            </select>
+            <div className="relative" ref={invoiceSearchRef}>
+              <input
+                type="text"
+                className="input-field w-full"
+                placeholder={lang === "ar" ? "ابحث برقم الفاتورة الداخلي أو رقم العميل أو اسمه..." : "Search by invoice no, customer invoice no, or name..."}
+                value={invoiceSearch}
+                onChange={(e) => { setInvoiceSearch(e.target.value); setShowInvoiceDropdown(true); if (!e.target.value) { setSelectedInvoiceId(""); } }}
+                onFocus={() => setShowInvoiceDropdown(true)}
+                autoComplete="off"
+              />
+              {showInvoiceDropdown && filteredInvoices.length > 0 && (
+                <div className="absolute z-50 top-full mt-1 w-full bg-white border border-[color:var(--ink-200)] rounded-xl shadow-lg max-h-64 overflow-y-auto">
+                  {filteredInvoices.slice(0, 30).map((inv: any) => (
+                    <button
+                      key={inv._id}
+                      type="button"
+                      className="w-full text-start px-4 py-2.5 hover:bg-[color:var(--brand-50)] transition-colors border-b border-[color:var(--ink-50)] last:border-0"
+                      onClick={() => {
+                        setSelectedInvoiceId(inv._id);
+                        setInvoiceSearch(inv.invoiceNumber + (inv.externalInvoiceNumber ? ` / ${inv.externalInvoiceNumber}` : ""));
+                        setShowInvoiceDropdown(false);
+                      }}
+                    >
+                      <div className="flex items-center justify-between gap-3">
+                        <div className="flex items-center gap-2 min-w-0">
+                          <span className="font-mono text-xs font-bold text-[color:var(--brand-700)] shrink-0">{inv.invoiceNumber}</span>
+                          {inv.externalInvoiceNumber && (
+                            <span className="text-xs text-[color:var(--ink-400)] shrink-0">/ {inv.externalInvoiceNumber}</span>
+                          )}
+                          <span className="text-sm text-[color:var(--ink-700)] truncate">{inv.customerName}</span>
+                        </div>
+                        <span className="text-xs font-semibold text-[color:var(--ink-500)] shrink-0">{formatCurrency(inv.totalAmount, lang)}</span>
+                      </div>
+                      {inv.invoiceDate && <div className="text-[11px] text-[color:var(--ink-400)] mt-0.5">{inv.invoiceDate}</div>}
+                    </button>
+                  ))}
+                </div>
+              )}
+              {showInvoiceDropdown && invoiceSearch.trim() && filteredInvoices.length === 0 && (
+                <div className="absolute z-50 top-full mt-1 w-full bg-white border border-[color:var(--ink-200)] rounded-xl shadow-lg px-4 py-3 text-sm text-[color:var(--ink-400)]">
+                  {lang === "ar" ? "لا توجد نتائج" : "No results found"}
+                </div>
+              )}
+            </div>
           </div>
+
+          {/* Invoice Info Card */}
+          {selectedInvoice && (
+            <div className="rounded-xl border border-[color:var(--brand-200)] bg-[color:var(--brand-50)] px-4 py-3 grid grid-cols-2 gap-x-6 gap-y-2">
+              <div className="col-span-2 flex items-center gap-2 mb-1">
+                <span className="text-xs font-bold uppercase tracking-widest text-[color:var(--brand-600)]">{lang === "ar" ? "بيانات الفاتورة الأصلية" : "Original Invoice Details"}</span>
+                <span className="text-xs font-mono font-bold text-[color:var(--brand-700)]">{selectedInvoice.invoiceNumber}</span>
+              </div>
+              <InfoField label={t("customer")} value={selectedInvoice.customerName || "—"} />
+              <InfoField label={t("date")} value={selectedInvoice.invoiceDate || "—"} />
+              {selectedInvoice.salesRepName && <InfoField label={t("salesRep")} value={selectedInvoice.salesRepName} />}
+              {selectedInvoice.vehicleCode && <InfoField label={t("vehicleCode")} value={selectedInvoice.vehicleCode} />}
+              <InfoField label={lang === "ar" ? "إجمالي الفاتورة" : "Invoice Total"} value={formatCurrency(selectedInvoice.totalAmount, lang)} accent />
+            </div>
+          )}
 
           {/* Return Date & Warehouse */}
           <div className="grid grid-cols-2 gap-4">
@@ -381,16 +463,16 @@ export default function SalesReturnsPage() {
           <div className="desktop-table overflow-x-auto">
             <table className="data-table">
               <thead>
-                <tr>
-                  <th>{t("returnNumber")}</th>
-                  <th>{t("returnDate")}</th>
-                  <th>{t("originalInvoice")}</th>
-                  <th>{t("customers")}</th>
-                  <th>{isRTL ? "الفرع" : "Branch"}</th>
-                  <th>{isRTL ? "أنشأه" : "Created By"}</th>
-                  <th className="text-end">{t("grandTotal")}</th>
-                  <th className="text-center">{t("status")}</th>
-                  <th className="text-center">{t("actions")}</th>
+                <tr style={{ background: "var(--brand-700)" }}>
+                  <th className="text-white/80 whitespace-nowrap">{t("returnNumber")}</th>
+                  <th className="text-white/80 whitespace-nowrap">{t("returnDate")}</th>
+                  <th className="text-white/80 whitespace-nowrap">{t("originalInvoice")}</th>
+                  <th className="text-white/80 whitespace-nowrap">{t("customers")}</th>
+                  <th className="text-white/80 whitespace-nowrap">{isRTL ? "الفرع" : "Branch"}</th>
+                  <th className="text-white/80 whitespace-nowrap">{isRTL ? "أنشأه" : "Created By"}</th>
+                  <th className="text-white/80 text-end whitespace-nowrap">{t("grandTotal")}</th>
+                  <th className="text-white/80 text-center whitespace-nowrap">{t("status")}</th>
+                  <th className="text-white/80 text-center whitespace-nowrap">{t("actions")}</th>
                 </tr>
               </thead>
               <tbody>

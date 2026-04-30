@@ -1,17 +1,74 @@
 "use client";
 
-import { Bell, Globe, Menu, Search, User } from "lucide-react";
+import { Bell, Globe, LogOut, Menu, Search, User, FileText, Receipt, CreditCard, ShoppingCart } from "lucide-react";
 import { useAppStore } from "@/store/useAppStore";
 import { useI18n } from "@/hooks/useI18n";
 import { BranchPicker } from "./BranchPicker";
 import { PeriodBadge } from "./PeriodBadge";
-
+import { useRouter } from "next/navigation";
 import { useAuth } from "@/hooks/useAuth";
+import { useQuery } from "convex/react";
+import { api } from "../../../convex/_generated/api";
+import { useState, useRef, useEffect } from "react";
+
+const TYPE_ICON: Record<string, React.ReactNode> = {
+  salesInvoice:    <FileText className="w-4 h-4 text-blue-500" />,
+  receipt:         <Receipt className="w-4 h-4 text-green-500" />,
+  payment:         <CreditCard className="w-4 h-4 text-orange-500" />,
+  purchaseInvoice: <ShoppingCart className="w-4 h-4 text-purple-500" />,
+  customer:        <User className="w-4 h-4 text-indigo-500" />,
+};
+
+const BADGE_COLOR: Record<string, string> = {
+  salesInvoice:    "bg-blue-100 text-blue-700",
+  receipt:         "bg-green-100 text-green-700",
+  payment:         "bg-orange-100 text-orange-700",
+  purchaseInvoice: "bg-purple-100 text-purple-700",
+  customer:        "bg-indigo-100 text-indigo-700",
+};
 
 export function Header() {
   const { t, lang, toggleLanguage, isRTL } = useI18n();
-  const { currentUser } = useAuth();
+  const { currentUser, logout } = useAuth();
+  const router = useRouter();
   const toggleSidebarCollapsed = useAppStore((s) => s.toggleSidebarCollapsed);
+
+  const [query, setQuery] = useState("");
+  const [open, setOpen] = useState(false);
+  const wrapperRef = useRef<HTMLDivElement>(null);
+
+  const results = useQuery(
+    api.search.globalSearch,
+    currentUser?.companyId && query.trim().length >= 2
+      ? { companyId: currentUser.companyId as any, q: query }
+      : "skip"
+  );
+
+  // Close dropdown when clicking outside
+  useEffect(() => {
+    const handler = (e: MouseEvent) => {
+      if (wrapperRef.current && !wrapperRef.current.contains(e.target as Node)) {
+        setOpen(false);
+      }
+    };
+    document.addEventListener("mousedown", handler);
+    return () => document.removeEventListener("mousedown", handler);
+  }, []);
+
+  const handleLogout = async () => {
+    await logout();
+    router.replace("/login");
+  };
+
+  const handleSelect = (href: string) => {
+    setQuery("");
+    setOpen(false);
+    router.push(href);
+  };
+
+  const placeholder = lang === "ar"
+    ? "ابحث برقم الفاتورة أو السند أو العميل..."
+    : "Search by invoice #, voucher #, customer...";
 
   return (
     <header
@@ -35,7 +92,7 @@ export function Header() {
       </button>
 
       {/* Search */}
-      <div className="flex-1 max-w-xl">
+      <div className="flex-1 max-w-xl relative" ref={wrapperRef}>
         <div className="relative">
           <Search
             className={`absolute top-1/2 -translate-y-1/2 h-4 w-4 text-[color:var(--ink-400)] ${
@@ -44,10 +101,49 @@ export function Header() {
           />
           <input
             type="text"
-            placeholder={t("searchPlaceholder")}
+            value={query}
+            onChange={(e) => { setQuery(e.target.value); setOpen(true); }}
+            onFocus={() => query.length >= 2 && setOpen(true)}
+            placeholder={placeholder}
             className={`w-full h-9 ${isRTL ? "pr-9 pl-3" : "pl-9 pr-3"} rounded-lg bg-[color:var(--ink-50)] border border-transparent hover:border-[color:var(--ink-200)] focus:bg-white focus:border-[color:var(--brand-400)] focus:ring-2 focus:ring-[color:var(--brand-500)]/15 outline-none text-sm transition`}
           />
         </div>
+
+        {/* Dropdown results */}
+        {open && query.trim().length >= 2 && (
+          <div className="absolute top-full mt-1 w-full bg-white border border-[color:var(--ink-200)] rounded-xl shadow-lg z-50 overflow-hidden">
+            {results === undefined ? (
+              <div className="px-4 py-3 text-sm text-[color:var(--ink-400)]">
+                {lang === "ar" ? "جارٍ البحث..." : "Searching..."}
+              </div>
+            ) : results.length === 0 ? (
+              <div className="px-4 py-3 text-sm text-[color:var(--ink-400)]">
+                {lang === "ar" ? "لا توجد نتائج" : "No results found"}
+              </div>
+            ) : (
+              <ul>
+                {results.map((r, i) => (
+                  <li key={i}>
+                    <button
+                      type="button"
+                      onClick={() => handleSelect(r.href)}
+                      className="w-full flex items-center gap-3 px-4 py-2.5 hover:bg-[color:var(--ink-50)] transition-colors text-start"
+                    >
+                      <span className="shrink-0">{TYPE_ICON[r.type] ?? <FileText className="w-4 h-4" />}</span>
+                      <span className="flex-1 min-w-0">
+                        <span className="block font-semibold text-sm text-[color:var(--ink-900)] truncate">{r.label}</span>
+                        {r.sub && <span className="block text-xs text-[color:var(--ink-400)] truncate">{r.sub}</span>}
+                      </span>
+                      <span className={`shrink-0 text-xs font-medium px-2 py-0.5 rounded-full ${BADGE_COLOR[r.type] ?? "bg-gray-100 text-gray-600"}`}>
+                        {r.badge}
+                      </span>
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
+        )}
       </div>
 
       {/* Branch Picker */}
@@ -100,9 +196,17 @@ export function Header() {
               {currentUser?.name || t("adminUser")}
             </div>
             <div className="text-[11px] text-[color:var(--ink-500)]">
-              {currentUser?.email || "admin@demo.local"}
+              {currentUser?.email || ""}
             </div>
           </div>
+          <button
+            type="button"
+            onClick={handleLogout}
+            title={t("logout")}
+            className="h-9 w-9 rounded-lg flex items-center justify-center text-[color:var(--ink-500)] hover:text-red-600 hover:bg-red-50 transition-colors"
+          >
+            <LogOut className="h-[18px] w-[18px]" />
+          </button>
         </div>
       </div>
     </header>

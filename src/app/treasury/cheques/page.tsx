@@ -641,15 +641,15 @@ export default function ChequesPage() {
           <div className="desktop-table overflow-x-auto">
             <table className="data-table">
               <thead>
-                <tr>
-                  <th>{t("chequeNo")}</th>
-                  <th>{t("chequeType")}</th>
-                  <th>{t("bankName")}</th>
-                  <th>{t("drawerName")}</th>
-                  <th className="text-end">{t("amount")}</th>
-                  <th>{t("chequeDate")}</th>
-                  <th>{t("chequeStatus")}</th>
-                  <th className="text-end">{t("actions")}</th>
+                <tr style={{ background: "var(--brand-700)" }}>
+                  <th className="text-white/80 whitespace-nowrap">{t("chequeNo")}</th>
+                  <th className="text-white/80 whitespace-nowrap">{t("chequeType")}</th>
+                  <th className="text-white/80 whitespace-nowrap">{t("bankName")}</th>
+                  <th className="text-white/80 whitespace-nowrap">{t("drawerName")}</th>
+                  <th className="text-white/80 text-end whitespace-nowrap">{t("amount")}</th>
+                  <th className="text-white/80 whitespace-nowrap">{t("chequeDate")}</th>
+                  <th className="text-white/80 whitespace-nowrap">{t("chequeStatus")}</th>
+                  <th className="text-white/80 text-end whitespace-nowrap">{t("actions")}</th>
                 </tr>
               </thead>
               <tbody>

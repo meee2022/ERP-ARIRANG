@@ -366,14 +366,14 @@ export default function PurchaseReturnsPage() {
           <div className="overflow-x-auto">
             <table className="data-table">
               <thead>
-                <tr>
-                  <th>{t("returnNumber")}</th>
-                  <th>{t("returnDate")}</th>
-                  <th>{t("originalInvoice")}</th>
-                  <th>{t("suppliers")}</th>
-                  <th className="text-end">{t("grandTotal")}</th>
-                  <th>{t("status")}</th>
-                  <th>{t("actions")}</th>
+                <tr style={{ background: "var(--brand-700)" }}>
+                  <th className="text-white/80 whitespace-nowrap">{t("returnNumber")}</th>
+                  <th className="text-white/80 whitespace-nowrap">{t("returnDate")}</th>
+                  <th className="text-white/80 whitespace-nowrap">{t("originalInvoice")}</th>
+                  <th className="text-white/80 whitespace-nowrap">{t("suppliers")}</th>
+                  <th className="text-white/80 text-end whitespace-nowrap">{t("grandTotal")}</th>
+                  <th className="text-white/80 whitespace-nowrap">{t("status")}</th>
+                  <th className="text-white/80 whitespace-nowrap">{t("actions")}</th>
                 </tr>
               </thead>
               <tbody>

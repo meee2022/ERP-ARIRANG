@@ -100,15 +100,14 @@ export const createSalesInvoice = mutation({
 
     await validatePeriodOpen(ctx, args.periodId);
 
-    // Calculate totals
+    // Calculate totals (VAT disabled — always zero)
     let subtotal = 0;
-    let vatAmount = 0;
     for (const line of args.lines) {
-      subtotal += line.lineTotal - line.vatAmount;
-      vatAmount += line.vatAmount;
+      subtotal += line.lineTotal;
     }
+    const vatAmount = 0;
     const taxableAmount = subtotal - args.discountAmount;
-    const totalAmount = taxableAmount + vatAmount + args.serviceCharge;
+    const totalAmount = taxableAmount + args.serviceCharge;
     const creditAmount = totalAmount - args.cashReceived - args.cardReceived;
 
     // Generate invoice number
@@ -178,8 +177,8 @@ export const createSalesInvoice = mutation({
         unitPrice: line.unitPrice,
         discountPct: line.discountPct,
         discountAmount: line.discountAmount,
-        vatRate: line.vatRate,
-        vatAmount: line.vatAmount,
+        vatRate: 0,
+        vatAmount: 0,
         lineTotal: line.lineTotal,
         serviceChargeRate: 0,
         serviceChargeAmt: 0,
@@ -212,6 +211,7 @@ export const approveSalesInvoice = mutation({
     userId: v.id("users"),
   },
   handler: async (ctx, args) => {
+    await assertUserPermission(ctx, args.userId, "sales", "post");
     const invoice = await ctx.db.get(args.invoiceId);
     if (!invoice) throw new Error("الفاتورة غير موجودة");
     if (invoice.documentStatus !== "draft") {
@@ -225,6 +225,7 @@ export const approveSalesInvoice = mutation({
       approvedBy: args.userId,
       reviewedBy: args.userId,
       reviewedAt: Date.now(),
+      approvedAt: Date.now(),
       updatedAt: Date.now(),
     });
 
@@ -261,7 +262,7 @@ export const postSalesInvoice = mutation({
     await assertPeriodOpen(ctx, invoice.invoiceDate, invoice.companyId);
 
     // ── Auto-load posting rules if any account arg is missing ──
-    const rules = (!args.cashAccountId || !args.arAccountId || !args.vatPayableAccountId)
+    const rules = (!args.cashAccountId || !args.arAccountId)
       ? await requirePostingRules(ctx, invoice.companyId)
       : null;
 
@@ -270,9 +271,9 @@ export const postSalesInvoice = mutation({
     const arAccountId         = args.arAccountId         ?? rules?.arAccountId;
     const vatPayableAccountId = args.vatPayableAccountId ?? rules?.vatPayableAccountId;
 
-    if (!cashAccountId)       throw new Error("حساب الصندوق غير محدد — يرجى ضبط قواعد الترحيل");
-    if (!arAccountId)         throw new Error("حساب الذمم المدينة غير محدد — يرجى ضبط قواعد الترحيل");
-    if (!vatPayableAccountId) throw new Error("حساب ضريبة القيمة المضافة غير محدد — يرجى ضبط قواعد الترحيل");
+    if (!cashAccountId) throw new Error("حساب الصندوق غير محدد — يرجى ضبط قواعد الترحيل");
+    if (!arAccountId)   throw new Error("حساب الذمم المدينة غير محدد — يرجى ضبط قواعد الترحيل");
+    // vatPayableAccountId not required — VAT is disabled
 
     // Get all lines
     const lines = await ctx.db
@@ -1329,7 +1330,7 @@ export const updateDraftSalesInvoice = mutation({
     customerId: v.optional(v.id("customers")),
     warehouseId: v.id("warehouses"),
     salesRepId: v.optional(v.id("salesReps")),
-    vehicleId: v.optional(v.id("vehicles")),
+    vehicleId: v.optional(v.id("deliveryVehicles")),
     discountAmount: v.optional(v.number()),
     notes: v.optional(v.string()),
     lines: v.array(v.object({
@@ -1350,13 +1351,12 @@ export const updateDraftSalesInvoice = mutation({
     const user = await assertUserPermission(ctx, args.userId, "sales", "edit");
     assertUserBranch(user, invoice.branchId);
 
-    // Recalculate totals
+    // Recalculate totals (VAT disabled — always zero)
     const subtotal = args.lines.reduce((s, l) => s + l.quantity * l.unitPrice, 0);
     const discount = args.discountAmount ?? 0;
     const netAmount = Math.max(0, subtotal - discount);
-    const vatRate = 0.05;
-    const vatAmount = Math.round(netAmount * vatRate * 100) / 100;
-    const totalAmount = Math.round((netAmount + vatAmount) * 100) / 100;
+    const vatAmount = 0;
+    const totalAmount = Math.round(netAmount * 100) / 100;
 
     let cashReceived = 0, cardReceived = 0, creditAmount = 0;
     if (args.invoiceType === "cash_sale") {
