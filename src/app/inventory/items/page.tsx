@@ -826,12 +826,86 @@ export default function ItemsPage() {
   );
 }
 
+// ─── Supplier Price Row (with inline edit) ────────────────────────────────────
+
+function SupplierPriceRow({ row, formatCurrency }: { row: any; formatCurrency: (n: number) => string }) {
+  const updatePrice = useMutation(api.supplierItems.updateSupplierPrice);
+  const [editing, setEditing] = useState(false);
+  const [newPrice, setNewPrice] = useState("");
+  const [reason, setReason] = useState("");
+  const [saving, setSaving] = useState(false);
+
+  const handleSave = async () => {
+    const p = parseFloat(newPrice);
+    if (!p || p <= 0) return;
+    setSaving(true);
+    try {
+      await updatePrice({ supplierItemId: row._id, newPrice: p, reason: reason || undefined });
+      setEditing(false);
+      setNewPrice("");
+      setReason("");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <div className="rounded-xl border border-[color:var(--ink-100)] p-4">
+      <div className="flex items-start justify-between gap-2">
+        <div>
+          <div className="font-semibold text-[color:var(--ink-900)] text-sm">{row.supplier?.nameAr || row.supplier?.nameEn || "—"}</div>
+          {row.supplierItemName && <div className="text-xs text-[color:var(--ink-500)] mt-0.5">{row.supplierItemName}</div>}
+        </div>
+        <button onClick={() => { setEditing(!editing); setNewPrice(String(row.lastPrice ?? "")); }}
+          className="p-1.5 rounded-lg hover:bg-[color:var(--ink-50)] text-[color:var(--ink-400)] hover:text-[color:var(--brand-700)] flex-shrink-0">
+          <Edit2 className="h-3.5 w-3.5" />
+        </button>
+      </div>
+
+      <div className="grid grid-cols-3 gap-2 mt-3">
+        <div className="text-center">
+          <div className="text-xs text-[color:var(--ink-500)]">آخر سعر</div>
+          <div className="text-sm font-bold text-[color:var(--brand-700)]">{row.lastPrice != null ? formatCurrency(row.lastPrice) : "—"}</div>
+        </div>
+        <div className="text-center">
+          <div className="text-xs text-[color:var(--ink-500)]">الوحدة</div>
+          <div className="text-sm font-bold text-[color:var(--ink-700)]">{row.purchaseUom ?? "—"}</div>
+        </div>
+        <div className="text-center">
+          <div className="text-xs text-[color:var(--ink-500)]">عدد الشراء</div>
+          <div className="text-sm font-bold text-[color:var(--ink-400)]">{row.purchaseCount ?? "—"}</div>
+        </div>
+      </div>
+
+      {editing && (
+        <div className="mt-3 pt-3 border-t border-[color:var(--ink-100)] space-y-2">
+          <input type="number" value={newPrice} onChange={(e) => setNewPrice(e.target.value)}
+            placeholder="السعر الجديد" className="input-field h-9 w-full" />
+          <input type="text" value={reason} onChange={(e) => setReason(e.target.value)}
+            placeholder="سبب التعديل (اختياري)" className="input-field h-9 w-full" />
+          <div className="flex gap-2">
+            <button onClick={handleSave} disabled={saving}
+              className="flex-1 h-9 rounded-lg bg-[color:var(--brand-700)] text-white text-sm font-semibold disabled:opacity-60">
+              {saving ? "..." : "حفظ"}
+            </button>
+            <button onClick={() => setEditing(false)}
+              className="h-9 px-3 rounded-lg border border-[color:var(--ink-200)] text-sm text-[color:var(--ink-600)]">
+              إلغاء
+            </button>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ─── Item Detail Drawer ─────────────────────────────────────────────────────
 
 function ItemDetailDrawer({ item, onClose, formatCurrency }: { item: any; onClose: () => void; formatCurrency: (n: number) => string }) {
-  const supplierRows = useQuery(api.supplierItems.getByItem, { itemId: item._id }) ?? [];
-  const units        = useQuery(api.items.getAllUnits, item.companyId ? { companyId: item.companyId } : "skip") ?? [];
-  const [tab, setTab] = useState<"info" | "suppliers">("info");
+  const supplierRows  = useQuery(api.supplierItems.getByItem, { itemId: item._id }) ?? [];
+  const priceHistory  = useQuery(api.supplierItems.getPriceHistory, { itemId: item._id }) ?? [];
+  const units         = useQuery(api.items.getAllUnits, item.companyId ? { companyId: item.companyId } : "skip") ?? [];
+  const [tab, setTab] = useState<"info" | "suppliers" | "history">("info");
 
   function uomName(id: string) {
     const u = units.find((u: any) => u._id === id);
@@ -869,11 +943,15 @@ function ItemDetailDrawer({ item, onClose, formatCurrency }: { item: any; onClos
 
         {/* Tabs */}
         <div className="flex border-b border-[color:var(--ink-100)] px-5">
-          {["info", "suppliers"].map((t) => (
-            <button key={t} onClick={() => setTab(t as any)}
-              className={`py-2.5 px-4 text-sm font-semibold capitalize border-b-2 transition-colors ${
-                tab === t ? "border-[color:var(--brand-600)] text-[color:var(--brand-600)]" : "border-transparent text-[color:var(--ink-500)] hover:text-[color:var(--ink-900)]"
-              }`}>{t === "info" ? "Info" : `Suppliers (${supplierRows.length})`}</button>
+          {[
+            { key: "info", label: "Info" },
+            { key: "suppliers", label: `Suppliers (${supplierRows.length})` },
+            { key: "history", label: `Price History (${priceHistory.length})` },
+          ].map((t) => (
+            <button key={t.key} onClick={() => setTab(t.key as any)}
+              className={`py-2.5 px-3 text-sm font-semibold border-b-2 transition-colors whitespace-nowrap ${
+                tab === t.key ? "border-[color:var(--brand-600)] text-[color:var(--brand-600)]" : "border-transparent text-[color:var(--ink-500)] hover:text-[color:var(--ink-900)]"
+              }`}>{t.label}</button>
           ))}
         </div>
 
@@ -933,29 +1011,43 @@ function ItemDetailDrawer({ item, onClose, formatCurrency }: { item: any; onClos
             ) : (
               <div className="space-y-3">
                 {supplierRows.map((row: any) => (
-                  <div key={row._id} className="rounded-xl border border-[color:var(--ink-100)] p-4">
-                    <div className="font-semibold text-[color:var(--ink-900)] text-sm">{row.supplier?.nameAr || row.supplier?.nameEn || "—"}</div>
-                    {row.supplierItemName && <div className="text-xs text-[color:var(--ink-500)] mt-0.5">{row.supplierItemName}</div>}
-                    <div className="grid grid-cols-3 gap-2 mt-3">
-                      <div className="text-center">
-                        <div className="text-xs text-[color:var(--ink-500)]">Ref. Price</div>
-                        <div className="text-sm font-bold text-[color:var(--brand-700)]">{row.lastPrice != null ? formatCurrency(row.lastPrice) : "—"}</div>
-                      </div>
-                      <div className="text-center">
-                        <div className="text-xs text-[color:var(--ink-500)]">UOM</div>
-                        <div className="text-sm font-bold text-[color:var(--ink-700)]">{row.purchaseUom ?? "—"}</div>
-                      </div>
-                      <div className="text-center">
-                        <div className="text-xs text-[color:var(--ink-500)]">Purchases</div>
-                        <div className="text-sm font-bold text-[color:var(--ink-400)]">—</div>
-                      </div>
-                    </div>
-                    <div className="flex gap-2 mt-2 text-[10px] text-[color:var(--ink-500)]">
-                      {row.purchaseUom && <span>UOM: {row.purchaseUom}</span>}
-                      <span className="text-[color:var(--ink-300)]">· purchase history from real transactions</span>
-                    </div>
-                  </div>
+                  <SupplierPriceRow key={row._id} row={row} formatCurrency={formatCurrency} />
                 ))}
+              </div>
+            )
+          )}
+
+          {tab === "history" && (
+            priceHistory.length === 0 ? (
+              <div className="text-sm text-[color:var(--ink-400)] py-8 text-center">لا يوجد تاريخ تعديل أسعار بعد</div>
+            ) : (
+              <div className="space-y-3">
+                {priceHistory.map((h: any) => {
+                  const pct = h.oldPrice > 0 ? Math.round(((h.newPrice - h.oldPrice) / h.oldPrice) * 100) : null;
+                  const up = pct != null && pct > 0;
+                  const date = new Date(h.changedAt).toLocaleDateString("ar-EG", { year: "numeric", month: "short", day: "numeric" });
+                  return (
+                    <div key={h._id} className="rounded-xl border border-[color:var(--ink-100)] p-4">
+                      <div className="flex items-center justify-between gap-2">
+                        <div className="text-sm font-semibold text-[color:var(--ink-900)]">{h.supplierName}</div>
+                        {pct != null && (
+                          <span className={`text-xs font-bold px-2 py-0.5 rounded-full ${up ? "bg-red-50 text-red-600" : "bg-green-50 text-green-600"}`}>
+                            {up ? "+" : ""}{pct}%
+                          </span>
+                        )}
+                      </div>
+                      <div className="flex items-center gap-2 mt-1">
+                        <span className="text-sm line-through text-[color:var(--ink-400)]">{formatCurrency(h.oldPrice)}</span>
+                        <span className="text-[color:var(--ink-400)]">→</span>
+                        <span className="text-sm font-bold text-[color:var(--brand-700)]">{formatCurrency(h.newPrice)}</span>
+                      </div>
+                      <div className="flex items-center gap-2 mt-1.5 text-xs text-[color:var(--ink-400)]">
+                        <span>{date}</span>
+                        {h.reason && <><span>·</span><span>{h.reason}</span></>}
+                      </div>
+                    </div>
+                  );
+                })}
               </div>
             )
           )}

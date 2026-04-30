@@ -181,6 +181,18 @@ export default defineSchema({
     .index("by_supplier_item", ["supplierId", "itemId"])
     .index("by_supplier_normalized_name", ["supplierId", "normalizedItemName"]),
 
+  itemPriceHistory: defineTable({
+    supplierItemId: v.id("supplierItems"),
+    itemId: v.id("items"),
+    supplierId: v.id("suppliers"),
+    companyId: v.id("companies"),
+    oldPrice: v.number(),
+    newPrice: v.number(),
+    reason: v.optional(v.string()),
+    changedAt: v.number(),
+  }).index("by_item", ["itemId"])
+    .index("by_supplier_item", ["supplierItemId"]),
+
   itemCategories: defineTable({
     companyId: v.id("companies"), parentId: v.optional(v.id("itemCategories")),
     code: v.string(), nameAr: v.string(), nameEn: v.optional(v.string()),

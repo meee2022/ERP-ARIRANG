@@ -158,6 +158,59 @@ export const linkItem = mutation({
   },
 });
 
+// ─── UPDATE SUPPLIER PRICE + RECORD HISTORY ──────────────────────────────────
+export const updateSupplierPrice = mutation({
+  args: {
+    supplierItemId: v.id("supplierItems"),
+    newPrice: v.number(),
+    reason: v.optional(v.string()),
+  },
+  handler: async (ctx, args) => {
+    const si = await ctx.db.get(args.supplierItemId);
+    if (!si) throw new Error("السجل غير موجود");
+    if (!si.itemId) throw new Error("الصنف غير مرتبط");
+
+    const oldPrice = si.lastPrice ?? 0;
+
+    await ctx.db.patch(args.supplierItemId, {
+      lastPrice: args.newPrice,
+      supplierPrice: args.newPrice,
+    });
+
+    await ctx.db.insert("itemPriceHistory", {
+      supplierItemId: args.supplierItemId,
+      itemId: si.itemId,
+      supplierId: si.supplierId,
+      companyId: si.companyId,
+      oldPrice,
+      newPrice: args.newPrice,
+      reason: args.reason,
+      changedAt: Date.now(),
+    });
+  },
+});
+
+export const getPriceHistory = query({
+  args: { itemId: v.id("items") },
+  handler: async (ctx, args) => {
+    const history = await ctx.db
+      .query("itemPriceHistory")
+      .withIndex("by_item", (q) => q.eq("itemId", args.itemId))
+      .order("desc")
+      .collect();
+
+    return await Promise.all(
+      history.map(async (h) => {
+        const supplier = await ctx.db.get(h.supplierId);
+        return {
+          ...h,
+          supplierName: supplier?.nameAr ?? supplier?.nameEn ?? "—",
+        };
+      })
+    );
+  },
+});
+
 // ─── SUPPLIER PRICE COMPARISON ────────────────────────────────────────────────
 export const getSupplierPriceComparison = query({
   args: { companyId: v.id("companies") },
