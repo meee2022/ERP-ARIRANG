@@ -322,6 +322,87 @@ export const seedSalesReps = mutation({
   },
 });
 
+// ─── Seed Delivery Vehicles ───────────────────────────────────────────────────
+// plate → { code, descriptionEn, salesRepCode? }
+const VEHICLES_DATA: { plate: string; code: string; descriptionEn: string; salesRepCode?: string }[] = [
+  { plate: "232795", code: "VH-01", descriptionEn: "Route 01 — Farook",        salesRepCode: "SR-01" },
+  { plate: "285490", code: "VH-02", descriptionEn: "Route 02 — Ashok",         salesRepCode: "SR-02" },
+  { plate: "277624", code: "VH-03", descriptionEn: "Route 03 — Ajmal",         salesRepCode: "SR-03" },
+  { plate: "96157",  code: "VH-04", descriptionEn: "Route 04 — Hameed",        salesRepCode: "SR-04" },
+  { plate: "95872",  code: "VH-05", descriptionEn: "Route 05 — Abdul Jabbar",  salesRepCode: "SR-05" },
+  { plate: "246586", code: "VH-06", descriptionEn: "Route 06 — Nizar",         salesRepCode: "SR-06" },
+  { plate: "280890", code: "VH-07", descriptionEn: "Route 07 — Alam",          salesRepCode: "SR-07" },
+  { plate: "310810", code: "VH-08", descriptionEn: "Route 08 — Rafeek",        salesRepCode: "SR-08" },
+  { plate: "259106", code: "VH-11", descriptionEn: "Route 11 — JP",            salesRepCode: "SR-11" },
+  { plate: "326477", code: "VH-12", descriptionEn: "Route 12 — Badusha",       salesRepCode: "SR-12" },
+  { plate: "232720", code: "VH-13", descriptionEn: "Route 13 — Mushthaque",    salesRepCode: "SR-13" },
+  { plate: "258196", code: "VH-14", descriptionEn: "Route 14 — Sainudheen",    salesRepCode: "SR-14" },
+  { plate: "243340", code: "VH-15", descriptionEn: "Route 15 — Mamun",         salesRepCode: "SR-15" },
+  { plate: "252058", code: "VH-17", descriptionEn: "Route 17 — Hamza",         salesRepCode: "SR-17" },
+  // Spare / parking-area vehicles (no assigned sales rep)
+  { plate: "232981", code: "VH-P01", descriptionEn: "Parking Area" },
+  { plate: "229640", code: "VH-P02", descriptionEn: "Ailyn Robelles Corocoto" },
+  { plate: "230895", code: "VH-P03", descriptionEn: "Mohamed Gamal" },
+  { plate: "373362", code: "VH-P04", descriptionEn: "Mathew Joseph" },
+  { plate: "711809", code: "VH-P05", descriptionEn: "Bernal Lota" },
+  { plate: "95843",  code: "VH-P06", descriptionEn: "Yaseen Ali Baig (1)" },
+  { plate: "162540", code: "VH-P07", descriptionEn: "Yaseen Ali Baig (2)" },
+  { plate: "275975", code: "VH-P08", descriptionEn: "Muhammad Shahidul Alam" },
+];
+
+export const seedVehicles = mutation({
+  args: {},
+  handler: async (ctx: any) => {
+    const company = await ctx.db.query("companies").first();
+    if (!company) throw new Error("No company found");
+    const branch = await ctx.db.query("branches")
+      .withIndex("by_company", (q: any) => q.eq("companyId", company._id))
+      .first();
+
+    // Build a map of salesRep code → _id
+    const allReps = await ctx.db.query("salesReps")
+      .withIndex("by_company", (q: any) => q.eq("companyId", company._id))
+      .collect();
+    const repByCode: Record<string, any> = {};
+    for (const r of allReps) repByCode[r.code] = r._id;
+
+    const results: string[] = [];
+    const now = Date.now();
+
+    for (const v of VEHICLES_DATA) {
+      const existing = await ctx.db.query("deliveryVehicles")
+        .withIndex("by_company_code", (q: any) => q.eq("companyId", company._id).eq("code", v.code))
+        .first();
+
+      const assignedSalesRepId = v.salesRepCode ? repByCode[v.salesRepCode] : undefined;
+
+      if (existing) {
+        await ctx.db.patch(existing._id, {
+          plateNumber: v.plate,
+          descriptionEn: v.descriptionEn,
+          assignedSalesRepId,
+        });
+        results.push(`UPDATED ${v.code} — ${v.plate}`);
+      } else {
+        await ctx.db.insert("deliveryVehicles", {
+          companyId: company._id,
+          branchId: branch?._id,
+          code: v.code,
+          plateNumber: v.plate,
+          descriptionEn: v.descriptionEn,
+          descriptionAr: v.descriptionEn,
+          assignedSalesRepId,
+          isActive: true,
+          createdAt: now,
+        });
+        results.push(`CREATED ${v.code} — ${v.plate}`);
+      }
+    }
+
+    return { results, total: VEHICLES_DATA.length };
+  },
+});
+
 // ─── FG Items Seed ────────────────────────────────────────────────────────────
 
 const FG_ITEMS = [

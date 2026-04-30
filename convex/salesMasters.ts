@@ -160,6 +160,20 @@ export const toggleVehicleActive = mutation({
     await ctx.db.patch(args.id, { isActive: !vehicle.isActive });
   },
 });
+export const deleteVehicle = mutation({
+  args: { id: v.id("deliveryVehicles"), userId: v.optional(v.id("users")) },
+  handler: async (ctx, args) => {
+    if (args.userId) {
+      await assertUserPermission(ctx, args.userId, "sales", "edit");
+    }
+    const linked = await ctx.db.query("salesInvoices")
+      .filter((q: any) => q.eq(q.field("vehicleId"), args.id))
+      .first();
+    if (linked) throw new Error("VEHICLE_IN_USE");
+    await ctx.db.delete(args.id);
+  },
+});
+
 export const deleteSalesRep = mutation({
   args: { id: v.id("salesReps"), userId: v.optional(v.id("users")) },
   handler: async (ctx, args) => {
