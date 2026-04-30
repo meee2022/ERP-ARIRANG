@@ -402,45 +402,45 @@ export default function SalarySheetPage() {
           /* ── DETAILED FORMAT ── */
           <div className="overflow-x-auto">
             <table
-              className="w-full text-xs border-collapse salary-sheet-table"
+              className="border-collapse salary-sheet-table"
               dir={isRTL ? "rtl" : "ltr"}
-              style={{ fontSize: "11px" }}
+              style={{ fontSize: "11px", minWidth: "100%" }}
             >
               <thead>
                 <tr className="bg-gray-100 border-b border-gray-300">
-                  <th className="border border-gray-300 px-2 py-2 text-center font-bold whitespace-nowrap">{isRTL ? "م" : "SN"}</th>
-                  <th className="border border-gray-300 px-2 py-2 text-center font-bold whitespace-nowrap">{isRTL ? "الكود" : "ERP CODE"}</th>
-                  <th className="border border-gray-300 px-2 py-2 text-center font-bold min-w-[160px]">{isRTL ? "اسم الموظف" : "Employee Name"}</th>
-                  <th className="border border-gray-300 px-2 py-2 text-center font-bold whitespace-nowrap">{isRTL ? "أيام العمل" : "WORKING DAYS"}</th>
-                  <th className="border border-gray-300 px-2 py-2 text-center font-bold whitespace-nowrap bg-gray-50">
-                    {isRTL ? "الراتب الأساسي" : "BASIC SALARY"} <span className="text-red-600">QR</span>
+                  <th className="border border-gray-300 px-1 py-2 text-center font-bold w-8">{isRTL ? "م" : "SN"}</th>
+                  <th className="border border-gray-300 px-1 py-2 text-center font-bold w-14">{isRTL ? "الكود" : "CODE"}</th>
+                  <th className="border border-gray-300 px-2 py-2 text-center font-bold" style={{minWidth:"140px"}}>{isRTL ? "اسم الموظف" : "Employee Name"}</th>
+                  <th className="border border-gray-300 px-1 py-2 text-center font-bold w-14">{isRTL ? "أيام" : "Days"}</th>
+                  <th className="border border-gray-300 px-1 py-2 text-center font-bold bg-gray-50 w-20">
+                    {isRTL ? "الأساسي" : "Basic"} <span className="text-red-600">QR</span>
                   </th>
-                  <th className="border border-gray-300 px-2 py-2 text-center font-bold whitespace-nowrap bg-gray-50">
-                    {isRTL ? "البدلات الأخرى" : "OTHERS ALLOWANCE"} <span className="text-red-600">QR</span>
+                  <th className="border border-gray-300 px-1 py-2 text-center font-bold bg-gray-50 w-20">
+                    {isRTL ? "البدلات" : "Allow."} <span className="text-red-600">QR</span>
                   </th>
-                  <th className="border border-gray-300 px-2 py-2 text-center font-bold whitespace-nowrap bg-gray-50">
-                    {isRTL ? "إجمالي الراتب" : "TOTAL SALARY"} <span className="text-red-600">QR</span>
+                  <th className="border border-gray-300 px-1 py-2 text-center font-bold bg-gray-50 w-20">
+                    {isRTL ? "الإجمالي" : "Total"} <span className="text-red-600">QR</span>
                   </th>
-                  <th className="border border-gray-300 px-2 py-2 text-center font-bold whitespace-nowrap">
-                    {isRTL ? "سعر ساعة OT" : "ONE HOUR OT"}
+                  <th className="border border-gray-300 px-1 py-2 text-center font-bold w-16">
+                    {isRTL ? "ساعة OT" : "1hr OT"}
                   </th>
-                  <th className="border border-gray-300 px-2 py-2 text-center font-bold whitespace-nowrap">
-                    {isRTL ? "إجمالي ساعات OT" : "TOTAL OT FOR MONTH"}
+                  <th className="border border-gray-300 px-1 py-2 text-center font-bold w-14">
+                    {isRTL ? "ساعات OT" : "OT Hrs"}
                   </th>
-                  <th className="border border-gray-300 px-2 py-2 text-center font-bold whitespace-nowrap">
-                    {isRTL ? "مبلغ OT" : "TOTAL OVERTIME AMOUNT"} <span className="text-red-600">QR</span>
+                  <th className="border border-gray-300 px-1 py-2 text-center font-bold w-20">
+                    {isRTL ? "مبلغ OT" : "OT Amt"} <span className="text-red-600">QR</span>
                   </th>
-                  <th className="border border-gray-300 px-2 py-2 text-center font-bold whitespace-nowrap">
-                    {isRTL ? "أيام الغياب" : "ABSENT DAYS"}
+                  <th className="border border-gray-300 px-1 py-2 text-center font-bold w-14">
+                    {isRTL ? "غياب" : "Absent"}
                   </th>
-                  <th className="border border-gray-300 px-2 py-2 text-center font-bold whitespace-nowrap">
-                    {isRTL ? "قيمة الغياب" : "ABSENT SALARY"} <span className="text-red-600">QR</span>
+                  <th className="border border-gray-300 px-1 py-2 text-center font-bold w-20">
+                    {isRTL ? "خصم غياب" : "Abs.Sal"} <span className="text-red-600">QR</span>
                   </th>
-                  <th className="border border-gray-300 px-2 py-2 text-center font-bold whitespace-nowrap bg-gray-100">
-                    {isRTL ? "صافي المبلغ" : "NET AMOUNT"} <span className="text-red-600">QR</span>
+                  <th className="border border-gray-300 px-1 py-2 text-center font-bold bg-gray-100 w-20">
+                    {isRTL ? "الصافي" : "Net"} <span className="text-red-600">QR</span>
                   </th>
-                  <th className="border border-gray-300 px-2 py-2 text-center font-bold whitespace-nowrap print:w-24">
-                    {isRTL ? "التوقيع" : "Signature"}
+                  <th className="border border-gray-300 px-1 py-2 text-center font-bold w-20 print:w-24">
+                    {isRTL ? "التوقيع" : "Sign"}
                   </th>
                 </tr>
               </thead>
@@ -453,20 +453,20 @@ export default function SalarySheetPage() {
                   </tr>
                 ) : rows.map((r) => (
                   <tr key={r.sn} className="hover:bg-gray-50 border-b border-gray-200">
-                    <td className="border border-gray-200 px-2 py-2 text-center">{r.sn}</td>
-                    <td className="border border-gray-200 px-2 py-2 text-center font-bold">{r.erpCode}</td>
-                    <td className="border border-gray-200 px-2 py-2 font-medium">{r.name}</td>
-                    <td className="border border-gray-200 px-2 py-2 text-center tabular-nums">{r.workingDays}</td>
-                    <td className="border border-gray-200 px-2 py-2 text-center tabular-nums">{r.basic.toLocaleString()}</td>
-                    <td className="border border-gray-200 px-2 py-2 text-center tabular-nums">{r.othersAllowance.toLocaleString()}</td>
-                    <td className="border border-gray-200 px-2 py-2 text-center tabular-nums font-semibold">{r.totalSalary.toLocaleString()}</td>
-                    <td className="border border-gray-200 px-2 py-2 text-center tabular-nums">{r.oneHourOT.toFixed(2)}</td>
-                    <td className="border border-gray-200 px-2 py-2 text-center tabular-nums">{r.totalOTHours}</td>
-                    <td className="border border-gray-200 px-2 py-2 text-center tabular-nums">{r.totalOTAmount.toFixed(2)}</td>
-                    <td className="border border-gray-200 px-2 py-2 text-center tabular-nums">{r.absentDays}</td>
-                    <td className="border border-gray-200 px-2 py-2 text-center tabular-nums">{r.absentSalary.toFixed(2)}</td>
-                    <td className="border border-gray-200 px-2 py-2 text-center tabular-nums font-bold text-gray-900">{r.netAmount.toFixed(2)}</td>
-                    <td className="border border-gray-200 px-2 py-2 print:h-8">&nbsp;</td>
+                    <td className="border border-gray-200 px-1 py-1.5 text-center">{r.sn}</td>
+                    <td className="border border-gray-200 px-1 py-1.5 text-center font-bold">{r.erpCode}</td>
+                    <td className="border border-gray-200 px-2 py-1.5 font-medium">{r.name}</td>
+                    <td className="border border-gray-200 px-1 py-1.5 text-center tabular-nums">{r.workingDays}</td>
+                    <td className="border border-gray-200 px-1 py-1.5 text-center tabular-nums">{r.basic.toLocaleString()}</td>
+                    <td className="border border-gray-200 px-1 py-1.5 text-center tabular-nums">{r.othersAllowance.toLocaleString()}</td>
+                    <td className="border border-gray-200 px-1 py-1.5 text-center tabular-nums font-semibold">{r.totalSalary.toLocaleString()}</td>
+                    <td className="border border-gray-200 px-1 py-1.5 text-center tabular-nums">{r.oneHourOT.toFixed(2)}</td>
+                    <td className="border border-gray-200 px-1 py-1.5 text-center tabular-nums">{r.totalOTHours}</td>
+                    <td className="border border-gray-200 px-1 py-1.5 text-center tabular-nums">{r.totalOTAmount.toFixed(2)}</td>
+                    <td className="border border-gray-200 px-1 py-1.5 text-center tabular-nums">{r.absentDays}</td>
+                    <td className="border border-gray-200 px-1 py-1.5 text-center tabular-nums">{r.absentSalary.toFixed(2)}</td>
+                    <td className="border border-gray-200 px-1 py-1.5 text-center tabular-nums font-bold text-gray-900">{r.netAmount.toFixed(2)}</td>
+                    <td className="border border-gray-200 px-1 py-1.5 print:h-8">&nbsp;</td>
                   </tr>
                 ))}
               </tbody>
