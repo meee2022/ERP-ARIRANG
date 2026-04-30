@@ -175,13 +175,15 @@ export default function SalesInvoiceDetailPage() {
           periodLine={inv.invoiceDate}
         />
 
-        {/* Invoice number — visible in print only */}
+        {/* Invoice header — visible in print only */}
         <div className="hidden print:flex items-center justify-between mb-4 border-b-2 border-[color:var(--ink-800)] pb-3">
           <div>
             <p className="text-xs uppercase tracking-wider text-[color:var(--ink-500)] font-semibold">{t("salesInvoiceTitle")}</p>
             <p className="text-2xl font-extrabold text-[color:var(--ink-900)] mt-0.5"># {inv.invoiceNumber}</p>
             {inv.externalInvoiceNumber && (
-              <p className="text-sm text-[color:var(--ink-600)] mt-0.5">Ref: {inv.externalInvoiceNumber}</p>
+              <p className="text-sm font-semibold text-[color:var(--ink-700)] mt-1">
+                {t("customerInvoiceNo")}: <span className="font-bold text-[color:var(--ink-900)]">{inv.externalInvoiceNumber}</span>
+              </p>
             )}
           </div>
           <div className="text-end">
@@ -198,6 +200,11 @@ export default function SalesInvoiceDetailPage() {
           <div className="text-end">
             <h1 className="text-2xl font-extrabold text-[color:var(--brand-700)]">{t("salesInvoiceTitle")}</h1>
             <p className="text-lg font-bold text-[color:var(--ink-800)] mt-1"># {inv.invoiceNumber}</p>
+            {inv.externalInvoiceNumber && (
+              <p className="text-sm text-[color:var(--ink-600)] mt-0.5">
+                {t("customerInvoiceNo")}: <span className="font-semibold text-[color:var(--ink-800)]">{inv.externalInvoiceNumber}</span>
+              </p>
+            )}
             <p className="text-sm text-[color:var(--ink-600)]">{inv.invoiceDate}</p>
           </div>
         </div>
