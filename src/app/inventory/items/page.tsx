@@ -99,6 +99,8 @@ export default function ItemsPage() {
   const updateItem = useMutation(api.items.updateItem);
   const toggleActive = useMutation(api.items.toggleItemActive);
   const deleteItem   = useMutation(api.items.deleteItem);
+  const enableNegStock = useMutation(api.items.enableNegativeStockForAll);
+  const [enablingNeg, setEnablingNeg] = useState(false);
   const createLink   = useMutation(api.supplierItems.createLink);
   const seedFGItems  = useMutation(api.seedStaff.seedFGItems);
   const seedWHItems         = useMutation(api.seedStaff.seedWHItems);
@@ -324,6 +326,19 @@ export default function ItemsPage() {
                 </button>
                 <button onClick={openNew} className="btn-primary h-10 px-4 rounded-lg inline-flex items-center gap-2 text-sm font-semibold" disabled={units.length === 0}>
                   <Plus className="h-4 w-4" /> {t("newItem")}
+                </button>
+                <button
+                  onClick={async () => {
+                    if (!companyId) return;
+                    setEnablingNeg(true);
+                    try { await enableNegStock({ companyId }); } finally { setEnablingNeg(false); }
+                  }}
+                  disabled={enablingNeg}
+                  className="h-10 px-4 rounded-lg inline-flex items-center gap-2 text-sm font-semibold bg-teal-600 hover:bg-teal-700 text-white disabled:opacity-50"
+                  title="تفعيل المخزون السالب لكل الأصناف"
+                >
+                  <Percent className={`h-4 w-4 ${enablingNeg ? "animate-spin" : ""}`} />
+                  {enablingNeg ? "جاري..." : "تفعيل مخزون سالب للكل"}
                 </button>
               </div>
             ) : undefined

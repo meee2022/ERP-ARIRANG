@@ -44,8 +44,8 @@ export const getOpenPeriod = query({
       );
       if (exact) return exact;
 
-      // Fallback: first open period in year
-      return periods.find((p) => p.status === "open") ?? null;
+      // No period covers this exact date — return null so callers show a clear error
+      return null;
     }
 
     // No fiscal years — legacy path: search all open periods
