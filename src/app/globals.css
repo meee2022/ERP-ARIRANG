@@ -663,4 +663,6 @@ html[dir="rtl"] .rtl-flip { transform: scaleX(-1); }
   transition: transform 0.15s ease, box-shadow 0.15s ease;
 }
 .card-hover:hover {
-  trans
+  transform: translateY(-1px);
+  box-shadow: 0 4px 16px rgba(0,0,0,0.08);
+}

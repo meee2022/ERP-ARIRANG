@@ -247,4 +247,89 @@ export function sumBy<T>(arr: T[], key: keyof T): number {
 
 export function calcARAgingBuckets(
   invoices: Pick<SalesInvoice, "dueDate" | "invoiceDate" | "creditAmount" | "paymentStatus">[],
-  asOfDat
+  asOfDate: string
+): AgingBuckets {
+  const asOf = new Date(asOfDate);
+  const buckets: AgingBuckets = {
+    current: 0,
+    days1_30: 0,
+    days31_60: 0,
+    days61_90: 0,
+    days91Plus: 0,
+  };
+
+  for (const inv of invoices) {
+    if (inv.paymentStatus === "paid" || inv.paymentStatus === "not_applicable") continue;
+    if (inv.creditAmount <= 0) continue;
+    const dueDate = inv.dueDate ? new Date(inv.dueDate) : new Date(inv.invoiceDate);
+    const daysPast = Math.floor(
+      (asOf.getTime() - dueDate.getTime()) / (1000 * 60 * 60 * 24)
+    );
+    if (daysPast <= 0) buckets.current += inv.creditAmount;
+    else if (daysPast <= 30) buckets.days1_30 += inv.creditAmount;
+    else if (daysPast <= 60) buckets.days31_60 += inv.creditAmount;
+    else if (daysPast <= 90) buckets.days61_90 += inv.creditAmount;
+    else buckets.days91Plus += inv.creditAmount;
+  }
+
+  return buckets;
+}
+
+// ─── RTL DETECTION ────────────────────────────────────────────────────────────
+
+export function isRTL(): boolean {
+  if (typeof document === "undefined") return true;
+  return document.documentElement.dir === "rtl" || document.documentElement.lang === "ar";
+}
+
+// ─── MISC ─────────────────────────────────────────────────────────────────────
+
+export function truncate(str: string, maxLength: number): string {
+  if (str.length <= maxLength) return str;
+  return str.slice(0, maxLength) + "…";
+}
+
+export function debounce<T extends (...args: any[]) => any>(
+  fn: T,
+  delay: number
+): (...args: Parameters<T>) => void {
+  let timer: ReturnType<typeof setTimeout>;
+  return (...args: Parameters<T>) => {
+    clearTimeout(timer);
+    timer = setTimeout(() => fn(...args), delay);
+  };
+}
+
+export function calcPercentage(part: number, total: number): number {
+  if (total === 0) return 0;
+  return Math.round((part / total) * 10000) / 100;
+}
+
+export function exportToCSV(
+  data: Record<string, any>[],
+  filename: string,
+  headers?: Record<string, string>
+): void {
+  if (data.length === 0) return;
+  const keys = Object.keys(data[0]);
+  const headerRow = headers ? keys.map((k) => headers[k] ?? k) : keys;
+  const rows = data.map((row) =>
+    keys
+      .map((k) => {
+        const val = row[k];
+        const str = val === null || val === undefined ? "" : String(val);
+        return str.includes(",") || str.includes('"')
+          ? `"${str.replace(/"/g, '""')}"`
+          : str;
+      })
+      .join(",")
+  );
+  const csv = [headerRow.join(","), ...rows].join("\n");
+  const blob = new Blob(["\uFEFF" + csv], { type: "text/csv;charset=utf-8;" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = `${filename}.csv`;
+  a.click();
+  URL.revokeObjectURL(url);
+}
