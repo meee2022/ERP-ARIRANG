@@ -7,16 +7,41 @@ import { AppShellGuard } from "@/components/auth/AppShellGuard";
 import { ErrorBoundary } from "@/components/error-boundary";
 
 export const metadata: Metadata = {
-  title: "ERP ARIRANG",
-  description: "Arirang Bakery \u2014 Accounting & Distribution ERP",
-  icons: { icon: "/logo.png", apple: "/logo.png" },
-  openGraph: {
-    title: "ERP ARIRANG",
-    description: "Arirang Bakery \u2014 Accounting & Distribution ERP",
-    siteName: "ERP ARIRANG",
-    type: "website",
-    images: [{ url: "/logo.png", width: 800, height: 800, alt: "Arrirang Bakery" }],
+  title: { default: "Arirang Bakery ERP", template: "%s | Arirang Bakery" },
+  description: "Arirang Bakery \u2014 \u0646\u0638\u0627\u0645 \u0645\u062d\u0627\u0633\u0628\u0629 \u0648\u062a\u0648\u0632\u064a\u0639 | Accounting & Distribution ERP",
+  keywords: ["Arirang Bakery", "ERP", "accounting", "distribution", "Qatar", "\u0645\u062d\u0627\u0633\u0628\u0629", "\u0645\u062e\u0628\u0632"],
+  authors: [{ name: "Arirang Bakery" }],
+  creator: "Arirang Bakery",
+  icons: {
+    icon: [{ url: "/logo.png", type: "image/png" }],
+    apple: [{ url: "/logo.png" }],
+    shortcut: "/logo.png",
   },
+  openGraph: {
+    title: "Arirang Bakery ERP",
+    description: "Arirang Bakery \u2014 \u0646\u0638\u0627\u0645 \u0645\u062d\u0627\u0633\u0628\u0629 \u0648\u062a\u0648\u0632\u064a\u0639 | Accounting & Distribution ERP",
+    siteName: "Arirang Bakery ERP",
+    url: "https://erp-arirang.vercel.app",
+    type: "website",
+    locale: "ar_QA",
+    images: [
+      {
+        url: "https://erp-arirang.vercel.app/logo.png",
+        width: 800,
+        height: 800,
+        alt: "Arirang Bakery ERP",
+        type: "image/png",
+      },
+    ],
+  },
+  twitter: {
+    card: "summary",
+    title: "Arirang Bakery ERP",
+    description: "Arirang Bakery \u2014 Accounting & Distribution ERP",
+    images: ["https://erp-arirang.vercel.app/logo.png"],
+  },
+  robots: { index: false, follow: false },
+  metadataBase: new URL("https://erp-arirang.vercel.app"),
 };
 
 export default function RootLayout({
