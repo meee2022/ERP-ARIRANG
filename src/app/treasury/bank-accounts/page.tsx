@@ -14,6 +14,7 @@ import { EmptyState } from "@/components/ui/empty-state";
 import { SearchableSelect } from "@/components/ui/searchable-select";
 import { friendlyError } from "@/lib/utils";
 import { Landmark, Plus, X, Check, Pencil, PowerOff, Trash2 } from "lucide-react";
+import { toast } from "@/store/toastStore";
 
 // ─── Form ─────────────────────────────────────────────────────────────────────
 
@@ -209,7 +210,7 @@ export default function BankAccountsPage() {
     try {
       await deleteBankAccount({ bankAccountId: acc._id, userId: currentUser._id });
     } catch (e: any) {
-      alert(e.message);
+      toast.error(e);
     }
   };
 

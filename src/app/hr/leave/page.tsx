@@ -12,6 +12,7 @@ import { useI18n } from "@/hooks/useI18n";
 import { useAuth } from "@/hooks/useAuth";
 import { PageHeader } from "@/components/ui/page-header";
 import { EmptyState } from "@/components/ui/empty-state";
+import { toast } from "@/store/toastStore";
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -301,7 +302,7 @@ function RequestsTab({ isRTL, currentUserId }: { isRTL: boolean; currentUserId: 
     try {
       await approveLeave({ id: id as any, approvedBy: currentUserId as any });
     } catch (e: any) {
-      alert(String(e.message || e));
+      toast.error(e);
     }
   }
 
@@ -356,9 +357,9 @@ function RequestsTab({ isRTL, currentUserId }: { isRTL: boolean; currentUserId: 
           <div className="overflow-x-auto">
             <table className="w-full text-sm border-collapse" dir={isRTL ? "rtl" : "ltr"}>
               <thead>
-                <tr className="bg-gray-50/60 border-b border-gray-100">
+                <tr style={{ background: "var(--brand-700)", color: "#fff" }}>
                   {["Employee", "Leave Type", "Start Date", "End Date", "Days", "Reason", "Status", "Actions"].map((h) => (
-                    <th key={h} className="px-4 py-3 text-[10px] font-bold text-gray-400 uppercase tracking-widest text-start whitespace-nowrap">
+                    <th key={h} className="px-4 py-3 text-[10px] font-bold text-white/70 uppercase tracking-widest text-start whitespace-nowrap">
                       {h}
                     </th>
                   ))}
@@ -446,12 +447,12 @@ function BalancesTab({ isRTL }: { isRTL: boolean }) {
   const [initing, setIniting] = useState(false);
 
   async function handleInit() {
-    if (!selectedEmployeeId) { alert("Please select an employee first"); return; }
+    if (!selectedEmployeeId) { toast.warning("Please select an employee first"); return; }
     setIniting(true);
     try {
       await initBalances({ employeeId: selectedEmployeeId as any, year: initYear });
     } catch (e: any) {
-      alert(String(e.message || e));
+      toast.error(e);
     } finally {
       setIniting(false);
     }

@@ -39,6 +39,7 @@ import type * as lib_crypto from "../lib/crypto.js";
 import type * as lib_fiscalControl from "../lib/fiscalControl.js";
 import type * as lib_permissions from "../lib/permissions.js";
 import type * as lib_posting from "../lib/posting.js";
+import type * as notifications from "../notifications.js";
 import type * as postingRules from "../postingRules.js";
 import type * as production from "../production.js";
 import type * as productionItemsSeed from "../productionItemsSeed.js";
@@ -96,6 +97,7 @@ declare const fullApi: ApiFromModules<{
   "lib/fiscalControl": typeof lib_fiscalControl;
   "lib/permissions": typeof lib_permissions;
   "lib/posting": typeof lib_posting;
+  notifications: typeof notifications;
   postingRules: typeof postingRules;
   production: typeof production;
   productionItemsSeed: typeof productionItemsSeed;

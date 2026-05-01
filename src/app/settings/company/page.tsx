@@ -11,6 +11,7 @@ import {
   Building2, Save, Upload, X, Image as ImageIcon, Phone,
   Mail, MapPin, Hash, AlertCircle, CheckCircle2, Database,
 } from "lucide-react";
+import { toast } from "@/store/toastStore";
 
 export default function CompanySettingsPage() {
   const { t, isRTL, lang } = useI18n();
@@ -32,10 +33,10 @@ export default function CompanySettingsPage() {
     try {
       const result = await ensureMinimalSetup({});
       setSeedDone(true);
-      alert((result as any)?.message ?? "تم الإعداد بنجاح");
+      toast.success((result as any)?.message ?? "تم الإعداد بنجاح");
       window.location.reload();
     } catch (e: any) {
-      alert(isRTL ? `خطأ: ${e.message}` : `Error: ${e.message}`);
+      toast.error(e);
     } finally {
       setSeeding(false);
     }

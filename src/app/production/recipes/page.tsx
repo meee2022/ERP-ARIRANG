@@ -9,8 +9,7 @@ import { useI18n } from "@/hooks/useI18n";
 import { PageHeader } from "@/components/ui/page-header";
 import { LoadingState } from "@/components/ui/data-display";
 import { EmptyState } from "@/components/ui/empty-state";
-
-const ACCENT = "#22d3ee";
+import { toast } from "@/store/toastStore";
 
 export default function RecipesPage() {
   const { t, isRTL, formatCurrency } = useI18n();
@@ -52,7 +51,7 @@ export default function RecipesPage() {
       setShowModal(false);
       setEditRecipe(null);
     } catch (e: any) {
-      alert(e.message === "DUPLICATE_CODE" ? (isRTL ? "كود الوصفة موجود مسبقاً" : "Recipe code already exists") : e.message);
+      toast.error(e);
     }
   };
 
@@ -62,11 +61,10 @@ export default function RecipesPage() {
         title={t("recipesTitle")}
         subtitle={t("recipesSubtitle")}
         icon={FlaskConical}
-        iconColor={ACCENT}
+        iconColor="var(--brand-700)"
         actions={
           <button onClick={() => { setEditRecipe(null); setShowModal(true); }}
-            className="flex items-center gap-2 px-4 py-2 rounded-lg text-[13px] font-semibold transition-all hover:opacity-90"
-            style={{ background: ACCENT, color: "#0f172a" }}>
+            className="btn-primary flex items-center gap-2">
             <Plus className="h-4 w-4" /> {t("newRecipe")}
           </button>
         }
@@ -74,13 +72,13 @@ export default function RecipesPage() {
 
       {/* Search */}
       <div className="relative max-w-sm">
-        <Search className="absolute top-1/2 -translate-y-1/2 h-3.5 w-3.5 pointer-events-none"
-          style={{ [isRTL ? "right" : "left"]: "10px", color: "var(--muted-foreground)" }} />
+        <Search className="absolute top-1/2 -translate-y-1/2 h-3.5 w-3.5 pointer-events-none text-[color:var(--ink-400)]"
+          style={{ [isRTL ? "right" : "left"]: "10px" }} />
         <input value={search} onChange={(e) => setSearch(e.target.value)}
           placeholder={isRTL ? "بحث في الوصفات..." : "Search recipes..."}
-          className="w-full rounded-lg py-2 text-[12.5px] border border-white/10 focus:outline-none focus:border-[#22d3ee]/50 transition-colors"
-          style={{ background: "var(--card)", [isRTL ? "paddingRight" : "paddingLeft"]: "34px",
-            [isRTL ? "paddingLeft" : "paddingRight"]: "10px", color: "var(--foreground)" }} />
+          className="w-full rounded-lg py-2 text-[12.5px] border border-[color:var(--ink-200)] bg-white focus:outline-none focus:border-[color:var(--brand-400)] transition-colors text-[color:var(--ink-900)]"
+          style={{ [isRTL ? "paddingRight" : "paddingLeft"]: "34px",
+            [isRTL ? "paddingLeft" : "paddingRight"]: "10px" }} />
       </div>
 
       {/* Grid */}
@@ -91,8 +89,7 @@ export default function RecipesPage() {
           message={t("addFirstRecipe")}
           action={
             <button onClick={() => { setEditRecipe(null); setShowModal(true); }}
-              className="flex items-center gap-2 px-4 py-2 rounded-lg text-[13px] font-semibold"
-              style={{ background: ACCENT, color: "#0f172a" }}>
+              className="btn-primary flex items-center gap-2">
               <Plus className="h-4 w-4" /> {t("addRecipe")}
             </button>
           }
@@ -129,21 +126,18 @@ export default function RecipesPage() {
 // ── Recipe Card ───────────────────────────────────────────────────────────────
 function RecipeCard({ recipe: r, onEdit, onToggle, onDetail, t, isRTL, formatCurrency }: any) {
   return (
-    <div className="rounded-xl border border-white/8 hover:border-white/16 transition-all flex flex-col"
-      style={{ background: "var(--card)" }}>
-      <div className="p-4 border-b border-white/6 flex items-start justify-between gap-2">
+    <div className="bg-white rounded-xl border border-[color:var(--ink-100)] hover:border-[color:var(--ink-200)] hover:shadow-sm transition-all flex flex-col">
+      <div className="p-4 border-b border-[color:var(--ink-100)] flex items-start justify-between gap-2">
         <div className="flex items-center gap-2.5">
-          <span className="h-9 w-9 rounded-lg flex items-center justify-center shrink-0"
-            style={{ background: `${ACCENT}18`, border: `1px solid ${ACCENT}30` }}>
-            <FlaskConical className="h-4 w-4" style={{ color: ACCENT }} />
+          <span className="h-9 w-9 rounded-lg flex items-center justify-center shrink-0 bg-[color:var(--brand-50)]">
+            <FlaskConical className="h-4 w-4 text-[color:var(--brand-700)]" />
           </span>
           <div>
-            <p className="font-semibold text-[13px]" style={{ color: "var(--foreground)" }}>{r.nameAr}</p>
-            {r.nameEn && <p className="text-[11px]" style={{ color: "var(--muted-foreground)" }}>{r.nameEn}</p>}
+            <p className="font-semibold text-[13px] text-[color:var(--ink-900)]">{r.nameAr}</p>
+            {r.nameEn && <p className="text-[11px] text-[color:var(--ink-400)]">{r.nameEn}</p>}
           </div>
         </div>
-        <span className="text-[10px] font-mono px-2 py-0.5 rounded-md shrink-0"
-          style={{ background: "rgba(255,255,255,0.07)", color: "var(--muted-foreground)" }}>{r.code}</span>
+        <span className="text-[10px] font-mono px-2 py-0.5 rounded-md shrink-0 bg-[color:var(--ink-100)] text-[color:var(--ink-500)]">{r.code}</span>
       </div>
 
       <div className="p-4 space-y-2 flex-1">
@@ -155,25 +149,23 @@ function RecipeCard({ recipe: r, onEdit, onToggle, onDetail, t, isRTL, formatCur
           [t("costPerUnit"),      formatCurrency(r.costPerUnit)],
         ].map(([label, val]) => (
           <div key={label as string} className="flex justify-between text-[12px]">
-            <span style={{ color: "var(--muted-foreground)" }}>{label}</span>
-            <span className={label === t("totalRecipeCost") ? "font-semibold" : ""}
-              style={{ color: label === t("totalRecipeCost") ? ACCENT : "var(--foreground)" }}>{val}</span>
+            <span className="text-[color:var(--ink-400)]">{label}</span>
+            <span className={label === t("totalRecipeCost") ? "font-semibold text-[color:var(--brand-700)]" : "text-[color:var(--ink-700)]"}>{val}</span>
           </div>
         ))}
       </div>
 
-      <div className="px-4 py-2.5 border-t border-white/6 flex items-center justify-between">
+      <div className="px-4 py-2.5 border-t border-[color:var(--ink-100)] flex items-center justify-between">
         <div className="flex items-center gap-1.5">
-          <button onClick={onEdit} className="p-1.5 rounded-md hover:bg-white/8 transition-colors" title={t("edit")}>
-            <Edit2 className="h-3.5 w-3.5" style={{ color: "var(--muted-foreground)" }} />
+          <button onClick={onEdit} className="p-1.5 rounded-md hover:bg-[color:var(--ink-100)] transition-colors" title={t("edit")}>
+            <Edit2 className="h-3.5 w-3.5 text-[color:var(--ink-400)]" />
           </button>
-          <button onClick={onToggle} className="p-1.5 rounded-md hover:bg-white/8 transition-colors">
-            <Power className="h-3.5 w-3.5" style={{ color: r.isActive ? "#34d399" : "#f87171" }} />
+          <button onClick={onToggle} className="p-1.5 rounded-md hover:bg-[color:var(--ink-100)] transition-colors">
+            <Power className={`h-3.5 w-3.5 ${r.isActive ? "text-emerald-500" : "text-red-400"}`} />
           </button>
         </div>
         <button onClick={onDetail}
-          className="flex items-center gap-1 text-[11.5px] font-medium hover:underline"
-          style={{ color: ACCENT }}>
+          className="flex items-center gap-1 text-[11.5px] font-medium text-[color:var(--brand-700)] hover:underline">
           {isRTL ? "عرض المكونات" : "View Ingredients"}
           <ChevronRight className="h-3 w-3" />
         </button>
@@ -273,35 +265,33 @@ function IngredientsModal({ detail, items, units, onClose, upsertLine, deleteLin
 
   return (
     <Modal title={detail?.nameAr ?? ""} onClose={onClose} wide>
-      <p className="text-[11px] -mt-3 mb-3" style={{ color: "var(--muted-foreground)" }}>
+      <p className="text-[11px] -mt-3 mb-3 text-[color:var(--ink-400)]">
         {t("yieldQuantity")}: {detail?.yieldQuantity} {detail?.yieldUom?.nameAr} · {t("outputItem")}: {detail?.outputItem?.nameAr}
       </p>
-      <div className="overflow-x-auto max-h-72 rounded-lg border border-white/8">
+      <div className="overflow-x-auto max-h-72 rounded-lg border border-[color:var(--ink-100)]">
         <table className="w-full text-[12px]">
-          <thead style={{ background: "rgba(255,255,255,0.04)" }}>
+          <thead style={{ background: "#6b1523" }}>
             <tr>
               {[t("ingredientItem"), t("ingredientQty"), t("unit"), t("wastePct"), t("grossQty"), t("unitCost"), ""].map((h, i) => (
-                <th key={i} className="px-3 py-2 text-start font-semibold"
-                  style={{ color: "var(--muted-foreground)", borderBottom: "1px solid rgba(255,255,255,0.06)" }}>{h}</th>
+                <th key={i} className="px-3 py-2 text-start font-semibold text-white/80">{h}</th>
               ))}
             </tr>
           </thead>
           <tbody>
             {lines.map((line: any) => (
-              <tr key={line._id} className="hover:bg-white/4"
-                style={{ borderBottom: "1px solid rgba(255,255,255,0.04)" }}>
-                <td className="px-3 py-2" style={{ color: "var(--foreground)" }}>{line.item?.nameAr ?? "—"}</td>
-                <td className="px-3 py-2 tabular-nums" style={{ color: "var(--foreground)" }}>{line.quantity}</td>
-                <td className="px-3 py-2" style={{ color: "var(--muted-foreground)" }}>{line.uom?.nameAr ?? "—"}</td>
-                <td className="px-3 py-2 tabular-nums" style={{ color: "var(--muted-foreground)" }}>{line.wastePct}%</td>
-                <td className="px-3 py-2 tabular-nums" style={{ color: "var(--foreground)" }}>{line.grossQuantity.toFixed(3)}</td>
-                <td className="px-3 py-2 tabular-nums font-semibold" style={{ color: ACCENT }}>
+              <tr key={line._id} className="hover:bg-[color:var(--ink-50)] border-b border-[color:var(--ink-100)]">
+                <td className="px-3 py-2 text-[color:var(--ink-900)]">{line.item?.nameAr ?? "—"}</td>
+                <td className="px-3 py-2 tabular-nums text-[color:var(--ink-700)]">{line.quantity}</td>
+                <td className="px-3 py-2 text-[color:var(--ink-400)]">{line.uom?.nameAr ?? "—"}</td>
+                <td className="px-3 py-2 tabular-nums text-[color:var(--ink-400)]">{line.wastePct}%</td>
+                <td className="px-3 py-2 tabular-nums text-[color:var(--ink-700)]">{line.grossQuantity.toFixed(3)}</td>
+                <td className="px-3 py-2 tabular-nums font-semibold text-[color:var(--brand-700)]">
                   {formatCurrency((line.unitCost ?? 0) * line.grossQuantity)}
                 </td>
                 <td className="px-3 py-2">
                   <button onClick={() => deleteLine({ id: line._id })}
-                    className="p-1 rounded hover:bg-red-900/30 transition-colors">
-                    <Trash2 className="h-3.5 w-3.5 text-red-400" />
+                    className="p-1 rounded hover:bg-red-50 transition-colors">
+                    <Trash2 className="h-3.5 w-3.5 text-red-500" />
                   </button>
                 </td>
               </tr>
@@ -310,13 +300,13 @@ function IngredientsModal({ detail, items, units, onClose, upsertLine, deleteLin
         </table>
       </div>
       <div className="flex justify-between items-center pt-2">
-        <span className="text-[12px]" style={{ color: "var(--muted-foreground)" }}>{t("totalRecipeCost")}</span>
-        <span className="text-[15px] font-bold" style={{ color: ACCENT }}>{formatCurrency(totalCost)}</span>
+        <span className="text-[12px] text-[color:var(--ink-400)]">{t("totalRecipeCost")}</span>
+        <span className="text-[15px] font-bold text-[color:var(--brand-700)]">{formatCurrency(totalCost)}</span>
       </div>
 
       {adding ? (
-        <div className="pt-3 border-t border-white/8 space-y-3">
-          <p className="text-[12px] font-semibold" style={{ color: "var(--foreground)" }}>{t("addIngredient")}</p>
+        <div className="pt-3 border-t border-[color:var(--ink-100)] space-y-3">
+          <p className="text-[12px] font-semibold text-[color:var(--ink-900)]">{t("addIngredient")}</p>
           <div className="grid grid-cols-2 gap-3">
             <select value={newLine.itemId} onChange={(e) => setNewLine((f) => ({ ...f, itemId: e.target.value }))} className="input-field col-span-2">
               <option value="">— {t("ingredientItem")} —</option>
@@ -331,17 +321,15 @@ function IngredientsModal({ detail, items, units, onClose, upsertLine, deleteLin
             <input type="number" min="0" max="100" step="0.1" placeholder={`${t("wastePct")} %`}
               value={newLine.wastePct} onChange={(e) => setNewLine((f) => ({ ...f, wastePct: e.target.value }))} className="input-field" />
             <div className="flex gap-2">
-              <button onClick={handleAddLine} className="flex-1 py-2 rounded-lg text-[12px] font-semibold"
-                style={{ background: ACCENT, color: "#0f172a" }}>{t("save")}</button>
-              <button onClick={() => setAdding(false)} className="flex-1 py-2 rounded-lg text-[12px] border border-white/10 hover:bg-white/5"
-                style={{ color: "var(--muted-foreground)" }}>{t("cancel")}</button>
+              <button onClick={handleAddLine} className="btn-primary flex-1 py-2 text-[12px]">{t("save")}</button>
+              <button onClick={() => setAdding(false)} className="btn-ghost flex-1 py-2 text-[12px]">{t("cancel")}</button>
             </div>
           </div>
         </div>
       ) : (
-        <div className="pt-2 border-t border-white/8">
-          <button onClick={() => setAdding(true)} className="flex items-center gap-2 text-[12px] font-medium hover:underline"
-            style={{ color: ACCENT }}>
+        <div className="pt-2 border-t border-[color:var(--ink-100)]">
+          <button onClick={() => setAdding(true)}
+            className="flex items-center gap-2 text-[12px] font-medium text-[color:var(--brand-700)] hover:underline">
             <Plus className="h-3.5 w-3.5" /> {t("addIngredient")}
           </button>
         </div>
@@ -354,12 +342,13 @@ function IngredientsModal({ detail, items, units, onClose, upsertLine, deleteLin
 function Modal({ title, children, onClose, wide = false }: any) {
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-      <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={onClose} />
-      <div className={`relative z-10 w-full ${wide ? "max-w-2xl" : "max-w-lg"} rounded-2xl p-6 shadow-2xl`}
-        style={{ background: "var(--card)", border: "1px solid rgba(255,255,255,0.12)" }}>
+      <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" onClick={onClose} />
+      <div className={`relative z-10 w-full ${wide ? "max-w-2xl" : "max-w-lg"} bg-white rounded-2xl p-6 shadow-xl border border-[color:var(--ink-100)]`}>
         <div className="flex items-center justify-between mb-5">
-          <h2 className="font-bold text-[15px]" style={{ color: "var(--foreground)" }}>{title}</h2>
-          <button onClick={onClose}><X className="h-4 w-4" style={{ color: "var(--muted-foreground)" }} /></button>
+          <h2 className="font-bold text-[15px] text-[color:var(--ink-900)]">{title}</h2>
+          <button onClick={onClose} className="p-1 rounded hover:bg-[color:var(--ink-100)] transition-colors">
+            <X className="h-4 w-4 text-[color:var(--ink-400)]" />
+          </button>
         </div>
         {children}
       </div>
@@ -370,8 +359,8 @@ function Modal({ title, children, onClose, wide = false }: any) {
 function Field({ label, required, children }: any) {
   return (
     <div className="space-y-1">
-      <label className="block text-[11.5px] font-medium" style={{ color: "var(--muted-foreground)" }}>
-        {label}{required && <span className="text-red-400 ms-0.5">*</span>}
+      <label className="block text-[11.5px] font-medium text-[color:var(--ink-500)]">
+        {label}{required && <span className="text-red-500 ms-0.5">*</span>}
       </label>
       {children}
     </div>
@@ -381,12 +370,8 @@ function Field({ label, required, children }: any) {
 function ModalActions({ onClose, saving, t }: any) {
   return (
     <div className="flex gap-3 pt-1">
-      <button type="button" onClick={onClose}
-        className="flex-1 py-2 rounded-lg text-[13px] border border-white/10 hover:bg-white/5"
-        style={{ color: "var(--muted-foreground)" }}>{t("cancel")}</button>
-      <button type="submit" disabled={saving}
-        className="flex-1 py-2 rounded-lg text-[13px] font-semibold hover:opacity-90"
-        style={{ background: ACCENT, color: "#0f172a" }}>
+      <button type="button" onClick={onClose} className="btn-ghost flex-1 py-2 text-[13px]">{t("cancel")}</button>
+      <button type="submit" disabled={saving} className="btn-primary flex-1 py-2 text-[13px] disabled:opacity-60">
         {saving ? t("saving") : t("save")}
       </button>
     </div>

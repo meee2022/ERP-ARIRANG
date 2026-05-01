@@ -21,21 +21,27 @@ function SimpleGroupTable({ groupLabel, groupRows, startSn, isRTL }: any) {
   const groupTotal = groupRows.reduce((s: number, r: any) => s + r.totalSalary, 0);
   return (
     <div className="mb-6">
-      {/* Department header — dark blue like screenshot */}
-      <div className="bg-[#1e3a5f] text-white text-center font-bold py-2 text-sm uppercase tracking-wide">
+      {/* Department header */}
+      <div className="text-white text-center font-bold py-2 text-sm uppercase tracking-wide" style={{ background: "var(--brand-700)" }}>
         {groupLabel}
       </div>
       <table className="w-full text-sm border-collapse salary-sheet-table" dir={isRTL ? "rtl" : "ltr"}>
         <thead>
-          <tr className="bg-gray-100">
-            <th className="border border-gray-400 px-3 py-3 text-center font-bold">{isRTL ? "م" : "SL.NO"}</th>
-            <th className="border border-gray-400 px-3 py-3 text-center font-bold">{isRTL ? "الكود" : "ERP CODE"}</th>
-            <th className="border border-gray-400 px-3 py-3 text-center font-bold min-w-[180px]">{isRTL ? "الاسم" : "NAME"}</th>
-            <th className="border border-gray-400 px-3 py-3 text-center font-bold">{isRTL ? "المسمى الوظيفي" : "DESIGNATION"}</th>
-            <th className="border border-gray-400 px-3 py-3 text-center font-bold">{isRTL ? "الكفالة" : "Sponsorship"}</th>
-            <th className="border border-gray-400 px-3 py-3 text-center font-bold">{isRTL ? "أيام العمل" : "TOTAL WORKING DAYS"}</th>
-            <th className="border border-gray-400 px-3 py-3 text-center font-bold">{isRTL ? "إجمالي الراتب" : "TOTAL SALARY"}</th>
-            <th className="border border-gray-400 px-3 py-3 text-center font-bold print:w-28">{isRTL ? "التوقيع" : "SIGNATURE"}</th>
+          <tr style={{ background: "#6b1523", color: "#fff", WebkitPrintColorAdjust: "exact", printColorAdjust: "exact" }}>
+            {[
+              isRTL ? "م" : "SL.NO",
+              isRTL ? "الكود" : "ERP CODE",
+              isRTL ? "الاسم" : "NAME",
+              isRTL ? "المسمى الوظيفي" : "DESIGNATION",
+              isRTL ? "الكفالة" : "Sponsorship",
+              isRTL ? "أيام العمل" : "WORKING DAYS",
+              isRTL ? "إجمالي الراتب" : "TOTAL SALARY",
+              isRTL ? "التوقيع" : "SIGNATURE",
+            ].map((h) => (
+              <th key={h} style={{ border: "1px solid rgba(255,255,255,0.2)", padding: "7px 12px", textAlign: "center", fontWeight: 700, color: "#fff", fontSize: "11px", whiteSpace: "nowrap", background: "#6b1523" }}>
+                {h}
+              </th>
+            ))}
           </tr>
         </thead>
         <tbody>
@@ -85,7 +91,7 @@ function SimpleSheetView({ rows, groupBy, isRTL, monthLabel, sheetTitle }: any) 
     }
     let runningIdx = 1;
     return (
-      <div className="p-4 salary-sheet-table">
+      <div className="p-4 salary-sheet-printable print:overflow-visible">
         {Object.entries(groups).map(([dept, deptRows]) => {
           const startSn = runningIdx;
           runningIdx += deptRows.length;
@@ -114,7 +120,7 @@ function SimpleSheetView({ rows, groupBy, isRTL, monthLabel, sheetTitle }: any) 
 
   // All employees in one group
   return (
-    <div className="p-4">
+    <div className="p-4 salary-sheet-printable print:overflow-visible">
       <SimpleGroupTable
         groupLabel={isRTL ? "جميع الموظفين" : "All Staff"}
         groupRows={rows}
@@ -277,122 +283,132 @@ export default function SalarySheetPage() {
       </div>
 
       {/* Month/Year selector — hidden in print */}
-      <div className="print:hidden bg-white rounded-xl border border-gray-200 p-4 flex flex-wrap items-end gap-4">
-        <div className="flex flex-col gap-1">
-          <label className="text-[10px] font-bold text-gray-500 uppercase">{isRTL ? "السنة" : "Year"}</label>
-          <input
-            type="number"
-            value={year}
-            min={2020}
-            max={2099}
-            onChange={(e) => setYear(Number(e.target.value))}
-            className="h-10 px-3 border border-gray-200 rounded-md text-sm w-[100px] focus:outline-none focus:border-gray-400"
-          />
-        </div>
-        <div className="flex flex-col gap-1">
-          <label className="text-[10px] font-bold text-gray-500 uppercase">{isRTL ? "الشهر" : "Month"}</label>
-          <select
-            value={month}
-            onChange={(e) => setMonth(Number(e.target.value))}
-            className="h-10 px-3 border border-gray-200 rounded-md text-sm min-w-[140px] bg-white focus:outline-none focus:border-gray-400"
-          >
-            {MONTH_NAMES_EN.map((m, i) => (
-              <option key={i + 1} value={i + 1}>{isRTL ? MONTH_NAMES_AR[i] : m}</option>
-            ))}
-          </select>
-        </div>
-
-        {/* Manual working days override */}
-        <div className="flex flex-col gap-1">
-          <label className="text-[10px] font-bold text-gray-500 uppercase">
-            {isRTL ? "أيام العمل (يدوي)" : "Working Days (manual)"}
-          </label>
-          <div className="flex items-center gap-2">
+      <div className="print:hidden bg-white rounded-xl border border-gray-200 p-4">
+        <div className="flex flex-wrap items-end gap-3">
+          {/* Year */}
+          <div className="flex flex-col gap-1">
+            <label className="text-[10px] font-bold text-gray-500 uppercase">{isRTL ? "السنة" : "Year"}</label>
             <input
               type="number"
-              min={1}
-              max={31}
-              placeholder={isRTL ? "من الحضور" : "From attendance"}
-              value={manualWorkDays}
-              onChange={(e) => setManualWorkDays(e.target.value)}
-              className="h-10 px-3 border border-gray-200 rounded-md text-sm w-[140px] focus:outline-none focus:border-gray-400 tabular-nums"
+              value={year}
+              min={2020}
+              max={2099}
+              onChange={(e) => setYear(Number(e.target.value))}
+              className="h-9 px-3 border border-gray-200 rounded-md text-sm w-[90px] focus:outline-none focus:border-gray-400"
             />
-            {manualWorkDays !== "" && (
+          </div>
+
+          {/* Month */}
+          <div className="flex flex-col gap-1">
+            <label className="text-[10px] font-bold text-gray-500 uppercase">{isRTL ? "الشهر" : "Month"}</label>
+            <select
+              value={month}
+              onChange={(e) => setMonth(Number(e.target.value))}
+              className="h-9 px-3 border border-gray-200 rounded-md text-sm w-[130px] bg-white focus:outline-none focus:border-gray-400"
+            >
+              {MONTH_NAMES_EN.map((m, i) => (
+                <option key={i + 1} value={i + 1}>{isRTL ? MONTH_NAMES_AR[i] : m}</option>
+              ))}
+            </select>
+          </div>
+
+          {/* Divider */}
+          <div className="h-9 w-px bg-gray-200 self-end mb-0" />
+
+          {/* Manual working days */}
+          <div className={`flex flex-col gap-1 px-3 py-2 rounded-lg border transition-colors ${manualWorkDays !== "" ? "border-amber-300 bg-amber-50" : "border-dashed border-gray-300 bg-gray-50/60"}`}>
+            <label className={`text-[10px] font-bold uppercase ${manualWorkDays !== "" ? "text-amber-700" : "text-gray-500"}`}>
+              {isRTL ? "أيام العمل (يدوي)" : "Working Days (Manual)"}
+            </label>
+            <div className="flex items-center gap-1.5">
+              <input
+                type="number"
+                min={1}
+                max={31}
+                placeholder={isRTL ? "تلقائي" : "Auto"}
+                value={manualWorkDays}
+                onChange={(e) => setManualWorkDays(e.target.value)}
+                className={`h-9 px-3 rounded-md text-sm w-[90px] tabular-nums focus:outline-none transition-colors ${manualWorkDays !== "" ? "border-2 border-amber-400 bg-white font-bold text-amber-900 focus:border-amber-500" : "border border-gray-200 bg-white focus:border-gray-400"}`}
+              />
+              {manualWorkDays !== "" && (
+                <button
+                  onClick={() => setManualWorkDays("")}
+                  className="h-9 px-2.5 rounded-md border border-amber-300 text-xs text-amber-600 hover:bg-amber-100 font-bold"
+                >
+                  ✕
+                </button>
+              )}
+            </div>
+            <p className={`text-[10px] ${manualWorkDays !== "" ? "text-amber-600 font-semibold" : "text-gray-400"}`}>
+              {manualWorkDays !== ""
+                ? (isRTL ? `✓ ${manualWorkDays} يوم لكل الموظفين` : `✓ ${manualWorkDays} days for all`)
+                : (isRTL ? "من سجلات الحضور" : "From attendance")}
+            </p>
+          </div>
+
+          {/* Divider */}
+          <div className="h-9 w-px bg-gray-200 self-end mb-0" />
+
+          {/* Sheet Format toggle */}
+          <div className="flex flex-col gap-1">
+            <label className="text-[10px] font-bold text-gray-500 uppercase">
+              {isRTL ? "تنسيق الكشف" : "Sheet Format"}
+            </label>
+            <div className="flex rounded-md border border-gray-200 overflow-hidden h-9 text-sm">
               <button
-                onClick={() => setManualWorkDays("")}
-                className="h-10 px-3 rounded-md border border-gray-200 text-xs text-gray-500 hover:bg-gray-50"
+                onClick={() => setSheetFormat("detailed")}
+                className={`px-4 font-medium transition-colors ${sheetFormat === "detailed" ? "text-white" : "bg-white text-gray-600 hover:bg-gray-50"}`}
+                style={sheetFormat === "detailed" ? { background: "var(--brand-700)" } : {}}
               >
-                {isRTL ? "إعادة تعيين" : "Reset"}
+                {isRTL ? "تفصيلي" : "Detailed"}
               </button>
-            )}
+              <button
+                onClick={() => setSheetFormat("simple")}
+                className={`px-4 font-medium transition-colors border-l border-gray-200 ${sheetFormat === "simple" ? "text-white" : "bg-white text-gray-600 hover:bg-gray-50"}`}
+                style={sheetFormat === "simple" ? { background: "var(--brand-700)" } : {}}
+              >
+                {isRTL ? "مبسّط" : "Simple"}
+              </button>
+            </div>
           </div>
-          <p className="text-[10px] text-gray-400 mt-0.5">
-            {manualWorkDays !== ""
-              ? (isRTL ? `✓ سيستخدم ${manualWorkDays} يوم للكل` : `✓ Using ${manualWorkDays} days for all`)
-              : (isRTL ? "تلقائي: من سجلات الحضور" : "Auto: from attendance records")}
-          </p>
-        </div>
 
-        {/* Format toggle */}
-        <div className="flex flex-col gap-1">
-          <label className="text-[10px] font-bold text-gray-500 uppercase">
-            {isRTL ? "تنسيق الكشف" : "Sheet Format"}
-          </label>
-          <div className="flex rounded-md border border-gray-200 overflow-hidden h-10 text-sm">
-            <button
-              onClick={() => setSheetFormat("detailed")}
-              className={`flex-1 px-3 font-medium transition-colors ${sheetFormat === "detailed" ? "bg-gray-800 text-white" : "bg-white text-gray-600 hover:bg-gray-50"}`}
-            >
-              {isRTL ? "تفصيلي" : "Detailed"}
-            </button>
-            <button
-              onClick={() => setSheetFormat("simple")}
-              className={`flex-1 px-3 font-medium transition-colors border-l border-gray-200 ${sheetFormat === "simple" ? "bg-gray-800 text-white" : "bg-white text-gray-600 hover:bg-gray-50"}`}
-            >
-              {isRTL ? "مبسّط" : "Simple"}
-            </button>
+          {/* Group By toggle */}
+          <div className="flex flex-col gap-1">
+            <label className="text-[10px] font-bold text-gray-500 uppercase">
+              {isRTL ? "تجميع" : "Group By"}
+            </label>
+            <div className="flex rounded-md border border-gray-200 overflow-hidden h-9 text-sm">
+              <button
+                onClick={() => setGroupBy("all")}
+                className={`px-4 font-medium transition-colors ${groupBy === "all" ? "text-white" : "bg-white text-gray-600 hover:bg-gray-50"}`}
+                style={groupBy === "all" ? { background: "var(--brand-700)" } : {}}
+              >
+                {isRTL ? "الكل" : "All"}
+              </button>
+              <button
+                onClick={() => setGroupBy("department")}
+                className={`px-4 font-medium transition-colors border-l border-gray-200 ${groupBy === "department" ? "text-white" : "bg-white text-gray-600 hover:bg-gray-50"}`}
+                style={groupBy === "department" ? { background: "var(--brand-700)" } : {}}
+              >
+                {isRTL ? "بالأقسام" : "By Dept."}
+              </button>
+            </div>
           </div>
-        </div>
 
-        {/* Group by toggle */}
-        <div className="flex flex-col gap-1">
-          <label className="text-[10px] font-bold text-gray-500 uppercase">
-            {isRTL ? "تجميع" : "Group By"}
-          </label>
-          <div className="flex rounded-md border border-gray-200 overflow-hidden h-10 text-sm">
-            <button
-              onClick={() => setGroupBy("all")}
-              className={`flex-1 px-3 font-medium transition-colors ${groupBy === "all" ? "bg-blue-600 text-white" : "bg-white text-gray-600 hover:bg-gray-50"}`}
-            >
-              {isRTL ? "الكل" : "All"}
-            </button>
-            <button
-              onClick={() => setGroupBy("department")}
-              className={`flex-1 px-3 font-medium transition-colors border-l border-gray-200 ${groupBy === "department" ? "bg-blue-600 text-white" : "bg-white text-gray-600 hover:bg-gray-50"}`}
-            >
-              {isRTL ? "بالأقسام" : "By Dept."}
-            </button>
-          </div>
+          {rows.length > 0 && (
+            <div className={`${isRTL ? "mr-auto" : "ml-auto"} self-end pb-1 text-sm text-gray-500`}>
+              {isRTL ? `${rows.length} موظف` : `${rows.length} employees`}
+            </div>
+          )}
         </div>
-
-        {rows.length > 0 && (
-          <div className={`${isRTL ? "mr-auto" : "ml-auto"} text-sm text-gray-500`}>
-            {isRTL ? `${rows.length} موظف` : `${rows.length} employees`}
-          </div>
-        )}
       </div>
 
       {loading ? (
         <LoadingState label={isRTL ? "جاري التحميل..." : "Loading..."} />
       ) : (
-        <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
-          {/* Print header */}
-          <div className="print:block hidden text-center py-4 border-b border-gray-300">
-            <div className="text-xs text-gray-500">{company?.nameAr || company?.nameEn || ""}</div>
-          </div>
-
-          {/* Sheet title */}
-          <div className="px-4 py-3 border-b border-gray-200 print:border-black print:border-2">
+        <div className="bg-white rounded-xl border border-gray-200 overflow-hidden print:overflow-visible print:border-0 print:rounded-none print:bg-transparent">
+          {/* Sheet title — screen only */}
+          <div className="print:hidden px-4 py-3 border-b border-gray-200">
             <h2 className="text-center font-bold text-base uppercase tracking-wide">{sheetTitle}</h2>
           </div>
 
@@ -402,116 +418,134 @@ export default function SalarySheetPage() {
           ) : (
 
           /* ── DETAILED FORMAT ── */
-          <div className="overflow-x-auto">
+          <div className="overflow-x-auto print:overflow-visible salary-sheet-printable">
+            {/* Print-only title row */}
+            <div className="hidden print:block text-center py-2 mb-1">
+              <div className="text-[11px] font-bold uppercase tracking-widest text-gray-800">{sheetTitle}</div>
+            </div>
             <table
-              className="border-collapse salary-sheet-table"
+              className="border-collapse w-full salary-sheet-table"
               dir={isRTL ? "rtl" : "ltr"}
-              style={{ fontSize: "11px", minWidth: "100%" }}
+              style={{ fontSize: "10.5px" }}
             >
               <thead>
-                <tr className="bg-gray-100 border-b border-gray-300">
-                  <th className="border border-gray-300 px-1 py-2 text-center font-bold w-8">{isRTL ? "م" : "SN"}</th>
-                  <th className="border border-gray-300 px-1 py-2 text-center font-bold w-14">{isRTL ? "الكود" : "CODE"}</th>
-                  <th className="border border-gray-300 px-2 py-2 text-center font-bold" style={{minWidth:"140px", maxWidth:"180px", width:"180px"}}>{isRTL ? "اسم الموظف" : "Employee Name"}</th>
-                  <th className="border border-gray-300 px-1 py-2 text-center font-bold w-14">{isRTL ? "أيام" : "Days"}</th>
-                  <th className="border border-gray-300 px-1 py-2 text-center font-bold bg-gray-50 w-20">
-                    {isRTL ? "الأساسي" : "Basic"} <span className="text-red-600">QR</span>
-                  </th>
-                  <th className="border border-gray-300 px-1 py-2 text-center font-bold bg-gray-50 w-20">
-                    {isRTL ? "البدلات" : "Allow."} <span className="text-red-600">QR</span>
-                  </th>
-                  <th className="border border-gray-300 px-1 py-2 text-center font-bold bg-gray-50 w-20">
-                    {isRTL ? "الإجمالي" : "Total"} <span className="text-red-600">QR</span>
-                  </th>
-                  <th className="border border-gray-300 px-1 py-2 text-center font-bold w-16">
-                    {isRTL ? "ساعة OT" : "1hr OT"}
-                  </th>
-                  <th className="border border-gray-300 px-1 py-2 text-center font-bold w-14">
-                    {isRTL ? "ساعات OT" : "OT Hrs"}
-                  </th>
-                  <th className="border border-gray-300 px-1 py-2 text-center font-bold w-20">
-                    {isRTL ? "مبلغ OT" : "OT Amt"} <span className="text-red-600">QR</span>
-                  </th>
-                  <th className="border border-gray-300 px-1 py-2 text-center font-bold w-14">
-                    {isRTL ? "غياب" : "Absent"}
-                  </th>
-                  <th className="border border-gray-300 px-1 py-2 text-center font-bold w-20">
-                    {isRTL ? "خصم غياب" : "Abs.Sal"} <span className="text-red-600">QR</span>
-                  </th>
-                  <th className="border border-gray-300 px-1 py-2 text-center font-bold bg-gray-100 w-20">
-                    {isRTL ? "الصافي" : "Net"} <span className="text-red-600">QR</span>
-                  </th>
-                  <th className="border border-gray-300 px-1 py-2 text-center font-bold w-20 print:w-24">
-                    {isRTL ? "التوقيع" : "Sign"}
-                  </th>
+                <tr style={{ background: "#6b1523", color: "#fff", WebkitPrintColorAdjust: "exact", printColorAdjust: "exact" }}>
+                  {[
+                    { label: isRTL ? "م" : "SN", w: undefined },
+                    { label: isRTL ? "الكود" : "CODE", w: undefined },
+                    { label: isRTL ? "اسم الموظف" : "EMPLOYEE NAME", w: 160 },
+                    { label: isRTL ? "أيام" : "DAYS", w: undefined },
+                    { label: isRTL ? "الأساسي QR" : "BASIC QR", w: undefined },
+                    { label: isRTL ? "البدلات QR" : "ALLOW. QR", w: undefined },
+                    { label: isRTL ? "الإجمالي QR" : "TOTAL QR", w: undefined, accent: "#7d1e2c" },
+                    { label: isRTL ? "ساعة OT" : "1HR OT", w: undefined },
+                    { label: isRTL ? "ساعات OT" : "OT HRS", w: undefined },
+                    { label: isRTL ? "مبلغ OT QR" : "OT AMT QR", w: undefined },
+                    { label: isRTL ? "غياب" : "ABSENT", w: undefined },
+                    { label: isRTL ? "خصم QR" : "ABS.SAL QR", w: undefined },
+                    { label: isRTL ? "الصافي QR" : "NET QR", w: undefined, accent: "#7d1e2c" },
+                    { label: isRTL ? "التوقيع" : "SIGN", w: 70 },
+                  ].map(({ label, w, accent }) => (
+                    <th key={label} style={{ border: "1px solid rgba(255,255,255,0.2)", padding: "6px 4px", textAlign: "center", fontWeight: 700, whiteSpace: "nowrap", color: "#fff", fontSize: "10px", minWidth: w, background: accent ?? "#6b1523" }}>
+                      {label}
+                    </th>
+                  ))}
                 </tr>
               </thead>
               <tbody>
                 {rows.length === 0 ? (
                   <tr>
-                    <td colSpan={14} className="text-center py-8 text-gray-400 border border-gray-300">
+                    <td colSpan={14} className="text-center py-8 text-gray-400 border border-gray-200">
                       {isRTL ? "لا يوجد موظفون نشطون لهذا الشهر" : "No active employees for this period"}
                     </td>
                   </tr>
-                ) : rows.map((r) => (
-                  <tr key={r.sn} className="hover:bg-gray-50 border-b border-gray-200">
-                    <td className="border border-gray-200 px-1 py-1.5 text-center">{r.sn}</td>
-                    <td className="border border-gray-200 px-1 py-1.5 text-center font-bold">{r.erpCode}</td>
-                    <td className="border border-gray-200 px-2 py-1.5 font-medium" style={{maxWidth:"180px", overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap"}} title={r.name}>{r.name}</td>
-                    <td className="border border-gray-200 px-1 py-1.5 text-center tabular-nums">{r.workingDays}</td>
-                    <td className="border border-gray-200 px-1 py-1.5 text-center tabular-nums">{r.basic.toLocaleString()}</td>
-                    <td className="border border-gray-200 px-1 py-1.5 text-center tabular-nums">{r.othersAllowance.toLocaleString()}</td>
-                    <td className="border border-gray-200 px-1 py-1.5 text-center tabular-nums font-semibold">{r.totalSalary.toLocaleString()}</td>
-                    <td className="border border-gray-200 px-1 py-1.5 text-center tabular-nums">{r.oneHourOT.toFixed(2)}</td>
-                    <td className="border border-gray-200 px-1 py-1.5 text-center tabular-nums">{r.totalOTHours}</td>
-                    <td className="border border-gray-200 px-1 py-1.5 text-center tabular-nums">{r.totalOTAmount.toFixed(2)}</td>
-                    <td className="border border-gray-200 px-1 py-1.5 text-center tabular-nums">{r.absentDays}</td>
-                    <td className="border border-gray-200 px-1 py-1.5 text-center tabular-nums">{r.absentSalary.toFixed(2)}</td>
-                    <td className="border border-gray-200 px-1 py-1.5 text-center tabular-nums font-bold text-gray-900">{r.netAmount.toFixed(2)}</td>
-                    <td className="border border-gray-200 px-1 py-1.5 print:h-8">&nbsp;</td>
+                ) : rows.map((r, idx) => (
+                  <tr key={r.sn} style={{ background: idx % 2 === 0 ? "#fff" : "#f5f7fa" }}>
+                    <td className="border border-gray-300 px-1 py-1.5 text-center text-gray-500">{r.sn}</td>
+                    <td className="border border-gray-300 px-1 py-1.5 text-center font-bold text-blue-900">{r.erpCode}</td>
+                    <td className="border border-gray-300 px-2 py-1.5 font-semibold text-gray-900" style={{maxWidth:"200px", overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap"}} title={r.name}>{r.name}</td>
+                    <td className="border border-gray-300 px-1 py-1.5 text-center tabular-nums">{r.workingDays}</td>
+                    <td className="border border-gray-300 px-1 py-1.5 text-right tabular-nums pr-2">{r.basic.toLocaleString()}</td>
+                    <td className="border border-gray-300 px-1 py-1.5 text-right tabular-nums pr-2">{r.othersAllowance.toLocaleString()}</td>
+                    <td className="border border-gray-300 px-1 py-1.5 text-right tabular-nums pr-2 font-bold text-blue-900" style={{background: idx % 2 === 0 ? "#eef2fb" : "#e5ebf7"}}>{r.totalSalary.toLocaleString()}</td>
+                    <td className="border border-gray-300 px-1 py-1.5 text-center tabular-nums text-gray-500">{r.oneHourOT.toFixed(2)}</td>
+                    <td className="border border-gray-300 px-1 py-1.5 text-center tabular-nums">{r.totalOTHours || 0}</td>
+                    <td className="border border-gray-300 px-1 py-1.5 text-right tabular-nums pr-2">{r.totalOTAmount.toFixed(2)}</td>
+                    <td className="border border-gray-300 px-1 py-1.5 text-center tabular-nums">{r.absentDays || 0}</td>
+                    <td className="border border-gray-300 px-1 py-1.5 text-right tabular-nums pr-2 text-red-700">{r.absentSalary.toFixed(2)}</td>
+                    <td className="border border-gray-300 px-1 py-1.5 text-right tabular-nums pr-2 font-bold text-emerald-800" style={{background: idx % 2 === 0 ? "#ecfdf5" : "#d1fae5"}}>{r.netAmount.toFixed(2)}</td>
+                    <td className="border border-gray-300 px-1 py-1.5" style={{minWidth:"70px"}}>&nbsp;</td>
                   </tr>
                 ))}
               </tbody>
               {rows.length > 0 && (
                 <tfoot>
-                  <tr className="bg-gray-100 font-bold border-t-2 border-gray-400">
-                    <td colSpan={4} className="border border-gray-300 px-2 py-2 text-center font-bold">
+                  <tr style={{ background: "#6b1523", color: "#fff", fontWeight: "bold", WebkitPrintColorAdjust: "exact", printColorAdjust: "exact" }}>
+                    <td colSpan={4} style={{ border: "1px solid rgba(255,255,255,0.2)", padding: "6px 8px", textAlign: "center", fontSize: "12px", letterSpacing: "0.05em", color: "#fff" }}>
                       {isRTL ? "الإجمالي" : "TOTAL"}
                     </td>
-                    <td className="border border-gray-300 px-2 py-2 text-center tabular-nums">{totals.basic.toLocaleString()}</td>
-                    <td className="border border-gray-300 px-2 py-2 text-center tabular-nums">{totals.othersAllowance.toLocaleString()}</td>
-                    <td className="border border-gray-300 px-2 py-2 text-center tabular-nums">{totals.totalSalary.toLocaleString()}</td>
-                    <td className="border border-gray-300 px-2 py-2 text-center">—</td>
-                    <td className="border border-gray-300 px-2 py-2 text-center tabular-nums">{totals.totalOTHours}</td>
-                    <td className="border border-gray-300 px-2 py-2 text-center tabular-nums">{totals.totalOTAmount.toFixed(2)}</td>
-                    <td className="border border-gray-300 px-2 py-2 text-center tabular-nums">{totals.absentDays}</td>
-                    <td className="border border-gray-300 px-2 py-2 text-center tabular-nums">{totals.absentSalary.toFixed(2)}</td>
-                    <td className="border border-gray-300 px-2 py-2 text-center tabular-nums text-base">{totals.netAmount.toFixed(2)}</td>
-                    <td className="border border-gray-300 px-2 py-2"></td>
+                    <td style={{ border: "1px solid rgba(255,255,255,0.2)", padding: "6px 4px", textAlign: "right", color: "#fff" }}>{totals.basic.toLocaleString()}</td>
+                    <td style={{ border: "1px solid rgba(255,255,255,0.2)", padding: "6px 4px", textAlign: "right", color: "#fff" }}>{totals.othersAllowance.toLocaleString()}</td>
+                    <td style={{ border: "1px solid rgba(255,255,255,0.2)", padding: "6px 4px", textAlign: "right", color: "#fde68a", fontWeight: 800 }}>{totals.totalSalary.toLocaleString()}</td>
+                    <td style={{ border: "1px solid rgba(255,255,255,0.2)", padding: "6px 4px", textAlign: "center", color: "#fff" }}>—</td>
+                    <td style={{ border: "1px solid rgba(255,255,255,0.2)", padding: "6px 4px", textAlign: "center", color: "#fff" }}>{totals.totalOTHours}</td>
+                    <td style={{ border: "1px solid rgba(255,255,255,0.2)", padding: "6px 4px", textAlign: "right", color: "#fff" }}>{totals.totalOTAmount.toFixed(2)}</td>
+                    <td style={{ border: "1px solid rgba(255,255,255,0.2)", padding: "6px 4px", textAlign: "center", color: "#fff" }}>{totals.absentDays}</td>
+                    <td style={{ border: "1px solid rgba(255,255,255,0.2)", padding: "6px 4px", textAlign: "right", color: "#fff" }}>{totals.absentSalary.toFixed(2)}</td>
+                    <td style={{ border: "1px solid rgba(255,255,255,0.2)", padding: "6px 4px", textAlign: "right", color: "#6ee7b7", fontWeight: 800 }}>{totals.netAmount.toFixed(2)}</td>
+                    <td style={{ border: "1px solid rgba(255,255,255,0.2)", padding: "6px 4px" }}></td>
                   </tr>
                 </tfoot>
               )}
             </table>
-          </div>
-          )}
 
-          {/* Print footer */}
-          <div className="print:block hidden border-t border-gray-300 mt-6 pt-4 px-4 pb-4">
-            <div className="flex justify-between text-xs text-gray-500">
-              <div>{isRTL ? "اعتمد:" : "Approved by:"} ___________________</div>
-              <div>{isRTL ? "الموارد البشرية:" : "HR Manager:"} ___________________</div>
-              <div>{isRTL ? "المحاسبة:" : "Accounts:"} ___________________</div>
+            {/* Signatures row — print only */}
+            <div className="hidden print:flex justify-between mt-8 px-2 text-[10px] text-gray-600">
+              <div className="text-center">
+                <div className="border-t border-gray-400 pt-1 mt-6 w-40">{isRTL ? "اعتمد" : "Approved by"}</div>
+              </div>
+              <div className="text-center">
+                <div className="border-t border-gray-400 pt-1 mt-6 w-40">{isRTL ? "مدير الموارد البشرية" : "HR Manager"}</div>
+              </div>
+              <div className="text-center">
+                <div className="border-t border-gray-400 pt-1 mt-6 w-40">{isRTL ? "المحاسبة" : "Accounts"}</div>
+              </div>
             </div>
           </div>
+          )}
         </div>
       )}
 
       <style jsx global>{`
         @media print {
+          @page { size: A3 landscape; margin: 10mm 12mm; }
+
+          /* Hide all page chrome — sidebar, nav, headers, controls */
           body * { visibility: hidden; }
-          .salary-sheet-table, .salary-sheet-table * { visibility: visible; }
-          .salary-sheet-table { position: absolute; top: 0; left: 0; width: 100%; }
-          @page { size: A3 landscape; margin: 10mm; }
+
+          /* Show only the printable table zone */
+          .salary-sheet-printable,
+          .salary-sheet-printable * { visibility: visible; }
+
+          /* Let the printable block flow naturally so multi-page works */
+          .salary-sheet-printable {
+            position: static !important;
+            width: 100% !important;
+            overflow: visible !important;
+          }
+
+          /* Force background colors to print */
+          * {
+            -webkit-print-color-adjust: exact !important;
+            print-color-adjust: exact !important;
+          }
+
+          /* Repeat thead on every printed page */
+          thead { display: table-header-group; }
+          tfoot { display: table-footer-group; }
+
+          /* Don't split a row across pages */
+          tbody tr { page-break-inside: avoid; break-inside: avoid; }
         }
       `}</style>
     </div>

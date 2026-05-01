@@ -14,6 +14,7 @@ import { usePermissions } from "@/hooks/usePermissions";
 import { PageHeader } from "@/components/ui/page-header";
 import { FilterPanel } from "@/components/ui/filter-panel";
 import { EmptyState } from "@/components/ui/empty-state";
+import { toast } from "@/store/toastStore";
 
 // ─── Imported Branches Panel (group → branch accounts from customers table) ───
 
@@ -767,7 +768,7 @@ export default function CustomersPage() {
                                 try {
                                   await removeCustomer({ id: c._id, userId: currentUser?._id });
                                 } catch (e: any) {
-                                  alert(e.message);
+                                  toast.error(e);
                                 }
                               }
                             }}

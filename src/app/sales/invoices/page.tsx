@@ -17,6 +17,7 @@ import { PageHeader } from "@/components/ui/page-header";
 import { FilterPanel, FilterField } from "@/components/ui/filter-panel";
 import { SummaryStrip, LoadingState } from "@/components/ui/data-display";
 import { EmptyState } from "@/components/ui/empty-state";
+import { toast } from "@/store/toastStore";
 
 const PAGE_SIZE = 50;
 
@@ -817,7 +818,7 @@ export default function SalesInvoicesPage() {
       (inv: any) => inv.postingStatus === "unposted" && inv.documentStatus === "approved"
     );
     if (candidates.length === 0) {
-      alert(isRTL ? "لا توجد فواتير جاهزة للترحيل" : "No invoices ready to post");
+      toast.warning(isRTL ? "لا توجد فواتير جاهزة للترحيل" : "No invoices ready to post");
       return;
     }
     if (!window.confirm(isRTL
@@ -833,7 +834,7 @@ export default function SalesInvoicesPage() {
       });
       setBulkResult({ succeeded: res.succeeded, failed: res.failed });
     } catch (e: any) {
-      alert(e.message ?? "Error");
+      toast.error(e);
     } finally {
       setBulkPosting(false);
     }

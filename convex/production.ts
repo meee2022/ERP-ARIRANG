@@ -248,10 +248,12 @@ export const createProductionOrder = mutation({
     plannedDate: v.string(),
     warehouseId: v.optional(v.id("warehouses")),
     notes:       v.optional(v.string()),
-    createdBy:   v.id("users"),
+    createdBy:   v.optional(v.id("users")),
   },
   handler: async (ctx, args) => {
-    await assertUserPermission(ctx, args.createdBy, "production", "create");
+    if (args.createdBy) {
+      await assertUserPermission(ctx, args.createdBy, "production", "create");
+    }
     const now = Date.now();
     const { createdBy, ...rest } = args;
 
@@ -275,6 +277,7 @@ export const createProductionOrder = mutation({
 
     const orderId = await ctx.db.insert("productionOrders", {
       ...rest,
+      ...(createdBy ? { createdBy } : {}),
       status: "planned",
       materialCost,
       totalCost: materialCost,

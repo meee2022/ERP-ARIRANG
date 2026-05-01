@@ -11,6 +11,7 @@ import {
 import { useI18n } from "@/hooks/useI18n";
 import { PageHeader } from "@/components/ui/page-header";
 import { EmptyState } from "@/components/ui/empty-state";
+import { toast } from "@/store/toastStore";
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -256,7 +257,7 @@ function DailyView({ isRTL }: { isRTL: boolean }) {
 
   async function handleBulk(status: "present" | "absent" | "late") {
     if (selectedEmployees.size === 0) {
-      alert(isRTL ? "الرجاء اختيار موظفين أولاً" : "Please select employees first");
+      toast.warning(isRTL ? "الرجاء اختيار موظفين أولاً" : "Please select employees first");
       return;
     }
     
@@ -281,7 +282,7 @@ function DailyView({ isRTL }: { isRTL: boolean }) {
       }
       setSelectedEmployees(new Set()); // Clear selection after
     } catch (e: any) {
-      alert(String(e.message || e));
+      toast.error(e);
     } finally {
       setSavingId(null);
     }
@@ -331,9 +332,9 @@ function DailyView({ isRTL }: { isRTL: boolean }) {
         : undefined;
       const res = await resetAttendance({ attendanceDate: selectedDate, employeeIds });
       setSelectedEmployees(new Set());
-      alert(isRTL ? `تم مسح ${res.deleted} سجل` : `Reset ${res.deleted} record(s)`);
+      toast.success(isRTL ? `تم مسح ${res.deleted} سجل` : `Reset ${res.deleted} record(s)`);
     } catch (e: any) {
-      alert(String(e.message || e));
+      toast.error(e);
     } finally {
       setSavingId(null);
     }
@@ -351,7 +352,7 @@ function DailyView({ isRTL }: { isRTL: boolean }) {
         workedHours: status === 'present' ? 8 : status === 'late' ? 7 : undefined,
       });
     } catch (e: any) {
-      alert(String(e.message || e));
+      toast.error(e);
     } finally {
       setSavingId(null);
     }
@@ -458,17 +459,17 @@ function DailyView({ isRTL }: { isRTL: boolean }) {
           <div className="overflow-x-auto">
             <table className="w-full text-sm border-collapse" dir={isRTL ? "rtl" : "ltr"}>
               <thead>
-                <tr className="bg-gray-50/60 border-b border-gray-100">
+                <tr style={{ background: "var(--brand-700)", color: "#fff" }}>
                   <th className="px-3 py-3 w-10">
                     <input
                       type="checkbox"
                       checked={filtered.length > 0 && selectedEmployees.size === filtered.length}
                       onChange={toggleSelectAll}
-                      className="h-4 w-4 rounded border-gray-300 text-[color:var(--brand-600)] focus:ring-[color:var(--brand-600)]"
+                      className="h-4 w-4 rounded border-white/40 text-white focus:ring-white"
                     />
                   </th>
                   {["Employee", "Department", "Status", "Check In", "Check Out", "Worked", "Overtime", "Notes", "Actions"].map((h) => (
-                    <th key={h} className="px-4 py-3 text-[10px] font-bold text-gray-400 uppercase tracking-widest text-start whitespace-nowrap">
+                    <th key={h} className="px-4 py-3 text-[10px] font-bold text-white/70 uppercase tracking-widest text-start whitespace-nowrap">
                       {h}
                     </th>
                   ))}
@@ -660,19 +661,19 @@ function MonthlyView({ isRTL }: { isRTL: boolean }) {
           <div className="overflow-x-auto">
             <table className="w-full text-xs border-collapse" dir={isRTL ? "rtl" : "ltr"}>
               <thead>
-                <tr className="bg-gray-50/60 border-b border-gray-100">
-                  <th className="px-3 py-3 text-[10px] font-bold text-gray-400 uppercase tracking-widest text-start sticky left-0 bg-gray-50 z-10 min-w-[140px]">
+                <tr style={{ background: "var(--brand-700)", color: "#fff" }}>
+                  <th className="px-3 py-3 text-[10px] font-bold text-white/70 uppercase tracking-widest text-start sticky left-0 z-10 min-w-[140px]" style={{ background: "var(--brand-700)" }}>
                     Employee
                   </th>
                   {Array.from({ length: daysInMonth }, (_, i) => (
-                    <th key={i + 1} className="px-1.5 py-3 text-[10px] font-bold text-gray-400 text-center min-w-[28px]">
+                    <th key={i + 1} className="px-1.5 py-3 text-[10px] font-bold text-white/70 text-center min-w-[28px]">
                       {i + 1}
                     </th>
                   ))}
-                  <th className="px-2 py-3 text-[10px] font-bold text-gray-400 text-center min-w-[36px]">P</th>
-                  <th className="px-2 py-3 text-[10px] font-bold text-gray-400 text-center min-w-[36px]">A</th>
-                  <th className="px-2 py-3 text-[10px] font-bold text-gray-400 text-center min-w-[36px]">V</th>
-                  <th className="px-2 py-3 text-[10px] font-bold text-gray-400 text-center min-w-[40px]">OT</th>
+                  <th className="px-2 py-3 text-[10px] font-bold text-white/70 text-center min-w-[36px]">P</th>
+                  <th className="px-2 py-3 text-[10px] font-bold text-white/70 text-center min-w-[36px]">A</th>
+                  <th className="px-2 py-3 text-[10px] font-bold text-white/70 text-center min-w-[36px]">V</th>
+                  <th className="px-2 py-3 text-[10px] font-bold text-white/70 text-center min-w-[40px]">OT</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-50">

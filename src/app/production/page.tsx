@@ -9,8 +9,6 @@ import { PageHeader } from "@/components/ui/page-header";
 import { LoadingState } from "@/components/ui/data-display";
 import Link from "next/link";
 
-const ACCENT = "#22d3ee";
-
 export default function ProductionDashboardPage() {
   const { t, isRTL, formatCurrency } = useI18n();
 
@@ -35,10 +33,10 @@ export default function ProductionDashboardPage() {
   const completed   = orders.filter((o) => o.status === "completed").length;
 
   const kpis = [
-    { label: t("recipes"),          value: recipes.length,  icon: FlaskConical,  color: "#a78bfa", href: "/production/recipes" },
-    { label: t("statusPlanned"),    value: planned,          icon: Clock,         color: "#60a5fa", href: "/production/orders"  },
-    { label: t("statusInProgress"), value: inProgress,       icon: TrendingUp,    color: "#fbbf24", href: "/production/orders"  },
-    { label: t("statusCompleted"),  value: completed,        icon: CheckCircle2,  color: "#34d399", href: "/production/orders"  },
+    { label: t("recipes"),          value: recipes.length, icon: FlaskConical,  color: "text-[color:var(--brand-700)]", bg: "bg-[color:var(--brand-50)]",  href: "/production/recipes" },
+    { label: t("statusPlanned"),    value: planned,         icon: Clock,         color: "text-blue-600",                 bg: "bg-blue-50",                   href: "/production/orders"  },
+    { label: t("statusInProgress"), value: inProgress,      icon: TrendingUp,    color: "text-amber-600",                bg: "bg-amber-50",                  href: "/production/orders"  },
+    { label: t("statusCompleted"),  value: completed,       icon: CheckCircle2,  color: "text-emerald-600",              bg: "bg-emerald-50",                href: "/production/orders"  },
   ];
 
   return (
@@ -47,23 +45,21 @@ export default function ProductionDashboardPage() {
         title={t("productionDashboard")}
         subtitle={isRTL ? "نظرة عامة على الإنتاج والوصفات وأوامر التصنيع" : "Overview of production recipes and manufacturing orders"}
         icon={ChefHat}
-        iconColor={ACCENT}
+        iconColor="var(--brand-700)"
       />
 
       {/* KPI Cards */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
         {kpis.map((k) => (
           <Link key={k.label} href={k.href}
-            className="rounded-xl p-4 border border-white/8 hover:border-white/16 transition-all"
-            style={{ background: "var(--card)" }}>
+            className="bg-white rounded-xl p-4 border border-[color:var(--ink-100)] hover:border-[color:var(--ink-200)] hover:shadow-sm transition-all">
             <div className="flex items-center gap-3 mb-3">
-              <span className="h-9 w-9 rounded-lg flex items-center justify-center"
-                style={{ background: `${k.color}20`, border: `1px solid ${k.color}30` }}>
-                <k.icon className="h-4 w-4" style={{ color: k.color }} />
+              <span className={`h-9 w-9 rounded-lg flex items-center justify-center ${k.bg}`}>
+                <k.icon className={`h-4 w-4 ${k.color}`} />
               </span>
-              <span className="text-[12px]" style={{ color: "var(--muted-foreground)" }}>{k.label}</span>
+              <span className="text-[12px] text-[color:var(--ink-500)]">{k.label}</span>
             </div>
-            <p className="text-3xl font-bold" style={{ color: "var(--foreground)" }}>{k.value}</p>
+            <p className={`text-3xl font-bold ${k.color}`}>{k.value}</p>
           </Link>
         ))}
       </div>
@@ -71,54 +67,54 @@ export default function ProductionDashboardPage() {
       {/* Quick links */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
         {[
-          { href: "/production/recipes",       icon: FlaskConical,  color: "#a78bfa", title: t("recipesTitle"),           desc: isRTL ? "إدارة وصفات الإنتاج ومكوناتها"   : "Manage recipes and ingredients" },
-          { href: "/production/orders",        icon: ClipboardList, color: ACCENT,    title: t("productionOrdersTitle"),  desc: isRTL ? "تتبع أوامر الإنتاج وحالتها"      : "Track production orders and status" },
-          { href: "/reports/production-cost",  icon: TrendingUp,    color: "#fbbf24", title: t("productionCostTitle"),    desc: isRTL ? "تحليل تكاليف الإنتاج"             : "Analyze production costs" },
+          { href: "/production/recipes",       icon: FlaskConical,  iconClass: "text-[color:var(--brand-700)]", bgClass: "bg-[color:var(--brand-50)]", title: t("recipesTitle"),          desc: isRTL ? "إدارة وصفات الإنتاج ومكوناتها"   : "Manage recipes and ingredients" },
+          { href: "/production/orders",        icon: ClipboardList, iconClass: "text-blue-600",                 bgClass: "bg-blue-50",                 title: t("productionOrdersTitle"), desc: isRTL ? "تتبع أوامر الإنتاج وحالتها"      : "Track production orders and status" },
+          { href: "/reports/production-cost",  icon: TrendingUp,    iconClass: "text-amber-600",                bgClass: "bg-amber-50",                title: t("productionCostTitle"),   desc: isRTL ? "تحليل تكاليف الإنتاج"             : "Analyze production costs" },
         ].map((card) => (
           <Link key={card.href} href={card.href}
-            className="rounded-xl p-5 border border-white/8 hover:border-white/20 transition-all"
-            style={{ background: "var(--card)" }}>
+            className="bg-white rounded-xl p-5 border border-[color:var(--ink-100)] hover:border-[color:var(--ink-200)] hover:shadow-sm transition-all">
             <div className="flex items-center gap-3 mb-2">
-              <span className="h-10 w-10 rounded-xl flex items-center justify-center"
-                style={{ background: `${card.color}18`, border: `1px solid ${card.color}30` }}>
-                <card.icon className="h-5 w-5" style={{ color: card.color }} />
+              <span className={`h-10 w-10 rounded-xl flex items-center justify-center ${card.bgClass}`}>
+                <card.icon className={`h-5 w-5 ${card.iconClass}`} />
               </span>
-              <span className="font-semibold text-[14px]" style={{ color: "var(--foreground)" }}>{card.title}</span>
+              <span className="font-semibold text-[14px] text-[color:var(--ink-900)]">{card.title}</span>
             </div>
-            <p className="text-[12px]" style={{ color: "var(--muted-foreground)" }}>{card.desc}</p>
+            <p className="text-[12px] text-[color:var(--ink-400)]">{card.desc}</p>
           </Link>
         ))}
       </div>
 
       {/* Recent orders */}
       {orders.length > 0 && (
-        <div className="rounded-xl border border-white/8 overflow-hidden" style={{ background: "var(--card)" }}>
-          <div className="px-5 py-3 border-b border-white/8 flex items-center justify-between">
-            <h3 className="font-semibold text-[13px]" style={{ color: "var(--foreground)" }}>
+        <div className="bg-white rounded-xl border border-[color:var(--ink-100)] overflow-hidden">
+          <div className="px-5 py-3 border-b border-[color:var(--ink-100)] flex items-center justify-between">
+            <h3 className="font-semibold text-[13px] text-[color:var(--ink-900)]">
               {isRTL ? "أحدث أوامر الإنتاج" : "Recent Production Orders"}
             </h3>
-            <Link href="/production/orders" className="text-[11px] hover:underline" style={{ color: ACCENT }}>
+            <Link href="/production/orders"
+              className="text-[11px] hover:underline text-[color:var(--brand-700)]">
               {isRTL ? "عرض الكل" : "View all"}
             </Link>
           </div>
           <div className="overflow-x-auto">
             <table className="w-full text-[12.5px]">
               <thead>
-                <tr style={{ borderBottom: "1px solid rgba(255,255,255,0.06)" }}>
+                <tr style={{ background: "#6b1523" }}>
                   {[t("orderNumber"), t("outputItem"), t("plannedQty"), t("plannedDate"), t("orderStatus")].map((h) => (
-                    <th key={h} className="px-4 py-2.5 font-semibold text-start"
-                      style={{ color: "var(--muted-foreground)" }}>{h}</th>
+                    <th key={h} className="px-4 py-2.5 font-semibold text-start text-white/80">{h}</th>
                   ))}
                 </tr>
               </thead>
               <tbody>
                 {orders.slice(0, 6).map((o) => (
-                  <tr key={o._id} className="hover:bg-white/4 transition-colors"
-                    style={{ borderBottom: "1px solid rgba(255,255,255,0.04)" }}>
-                    <td className="px-4 py-2.5 font-mono text-[11px]" style={{ color: ACCENT }}>{o.orderNumber}</td>
-                    <td className="px-4 py-2.5" style={{ color: "var(--foreground)" }}>{o.outputItem?.nameAr ?? "—"}</td>
-                    <td className="px-4 py-2.5 tabular-nums" style={{ color: "var(--foreground)" }}>{o.plannedQty}</td>
-                    <td className="px-4 py-2.5" style={{ color: "var(--muted-foreground)" }}>{o.plannedDate}</td>
+                  <tr key={o._id}
+                    className="hover:bg-[color:var(--ink-50)] transition-colors border-b border-[color:var(--ink-100)]">
+                    <td className="px-4 py-2.5 font-mono text-[11px]">
+                      <span className="bg-[color:var(--brand-50)] text-[color:var(--brand-700)] px-2 py-0.5 rounded font-semibold">{o.orderNumber}</span>
+                    </td>
+                    <td className="px-4 py-2.5 text-[color:var(--ink-900)]">{o.outputItem?.nameAr ?? "—"}</td>
+                    <td className="px-4 py-2.5 tabular-nums text-[color:var(--ink-700)]">{o.plannedQty}</td>
+                    <td className="px-4 py-2.5 text-[color:var(--ink-400)]">{o.plannedDate}</td>
                     <td className="px-4 py-2.5"><StatusBadge status={o.status} t={t} /></td>
                   </tr>
                 ))}
@@ -132,15 +128,14 @@ export default function ProductionDashboardPage() {
 }
 
 function StatusBadge({ status, t }: any) {
-  const cfg: Record<string, { label: string; color: string; bg: string }> = {
-    planned:     { label: t("statusPlanned"),    color: "#60a5fa", bg: "#60a5fa20" },
-    in_progress: { label: t("statusInProgress"), color: "#fbbf24", bg: "#fbbf2420" },
-    completed:   { label: t("statusCompleted"),  color: "#34d399", bg: "#34d39920" },
-    cancelled:   { label: t("statusCancelled"),  color: "#f87171", bg: "#f8717120" },
+  const cfg: Record<string, { label: string; cls: string }> = {
+    planned:     { label: t("statusPlanned"),    cls: "bg-blue-50 text-blue-700" },
+    in_progress: { label: t("statusInProgress"), cls: "bg-amber-50 text-amber-700" },
+    completed:   { label: t("statusCompleted"),  cls: "bg-emerald-50 text-emerald-700" },
+    cancelled:   { label: t("statusCancelled"),  cls: "bg-red-50 text-red-600" },
   };
-  const c = cfg[status] ?? { label: status, color: "#94a3b8", bg: "#94a3b820" };
+  const c = cfg[status] ?? { label: status, cls: "bg-gray-100 text-gray-600" };
   return (
-    <span className="px-2 py-0.5 rounded-full text-[10.5px] font-semibold"
-      style={{ color: c.color, background: c.bg }}>{c.label}</span>
+    <span className={`px-2 py-0.5 rounded-full text-[10.5px] font-semibold ${c.cls}`}>{c.label}</span>
   );
 }

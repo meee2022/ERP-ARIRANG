@@ -44,7 +44,7 @@ export default function RecipeCostsPage() {
     }
   }
 
-  const totalCostSum  = recipes.reduce((s: number, r: any) => s + (r.totalCost ?? 0), 0);
+  const totalCostSum   = recipes.reduce((s: number, r: any) => s + (r.totalCost ?? 0), 0);
   const avgCostPerUnit = recipes.length
     ? recipes.reduce((s: number, r: any) => s + (r.costPerUnit ?? 0), 0) / recipes.length
     : 0;
@@ -57,36 +57,34 @@ export default function RecipeCostsPage() {
           ? "إعادة حساب تكاليف جميع الوصفات تلقائياً بناءً على متوسط التكلفة الحالي للمواد"
           : "Auto-recalculate all recipe costs based on current weighted-average material costs"}
         icon={ChefHat}
-        iconColor="#22d3ee"
+        iconColor="var(--brand-700)"
       />
 
       {/* KPIs */}
       <div className="grid grid-cols-3 gap-3">
         {[
-          { label: isRTL ? "إجمالي الوصفات" : "Total Recipes", value: recipes.length, icon: ChefHat, color: "#22d3ee" },
-          { label: isRTL ? "إجمالي تكلفة المواد" : "Total Material Cost", value: `${totalCostSum.toFixed(2)} ${isRTL ? "ر.ق" : "QAR"}`, icon: BarChart3, color: "#a78bfa" },
-          { label: isRTL ? "متوسط تكلفة الوحدة" : "Avg Cost / Unit", value: `${avgCostPerUnit.toFixed(3)} ${isRTL ? "ر.ق" : "QAR"}`, icon: TrendingUp, color: "#34d399" },
-        ].map(({ label, value, icon: Icon, color }) => (
-          <div key={label} className="rounded-xl border p-4 text-center"
-            style={{ background: "var(--card)", borderColor: "rgba(255,255,255,0.1)" }}>
-            <Icon className="h-5 w-5 mx-auto mb-1" style={{ color }} />
-            <p className="text-[18px] font-bold" style={{ color }}>{value}</p>
-            <p className="text-[11px] mt-0.5" style={{ color: "var(--muted-foreground)" }}>{label}</p>
+          { label: isRTL ? "إجمالي الوصفات" : "Total Recipes",        value: recipes.length,                                    icon: ChefHat,   iconCls: "text-[color:var(--brand-700)]", numCls: "text-[color:var(--brand-700)]" },
+          { label: isRTL ? "إجمالي تكلفة المواد" : "Total Material Cost", value: `${totalCostSum.toFixed(2)} ${isRTL?"ر.ق":"QAR"}`, icon: BarChart3, iconCls: "text-violet-600",               numCls: "text-violet-700" },
+          { label: isRTL ? "متوسط تكلفة الوحدة" : "Avg Cost / Unit",    value: `${avgCostPerUnit.toFixed(3)} ${isRTL?"ر.ق":"QAR"}`, icon: TrendingUp,iconCls: "text-emerald-600",              numCls: "text-emerald-700" },
+        ].map(({ label, value, icon: Icon, iconCls, numCls }) => (
+          <div key={label} className="bg-white rounded-xl border border-[color:var(--ink-100)] p-4 text-center">
+            <Icon className={`h-5 w-5 mx-auto mb-1 ${iconCls}`} />
+            <p className={`text-[18px] font-bold ${numCls}`}>{value}</p>
+            <p className="text-[11px] mt-0.5 text-[color:var(--ink-400)]">{label}</p>
           </div>
         ))}
       </div>
 
       {/* Recalculate button */}
-      <div className="rounded-2xl border p-5 flex flex-col sm:flex-row items-start sm:items-center gap-4"
-        style={{ background: "var(--card)", borderColor: "rgba(255,255,255,0.1)" }}>
+      <div className="bg-white rounded-2xl border border-[color:var(--ink-100)] p-5 flex flex-col sm:flex-row items-start sm:items-center gap-4">
         <div className="flex-1">
           <div className="flex items-center gap-2">
-            <Zap className="h-4 w-4" style={{ color: "#22d3ee" }} />
-            <p className="text-[13px] font-semibold" style={{ color: "var(--foreground)" }}>
+            <Zap className="h-4 w-4 text-[color:var(--brand-700)]" />
+            <p className="text-[13px] font-semibold text-[color:var(--ink-900)]">
               {isRTL ? "إعادة الحساب التلقائي" : "Auto Recalculate"}
             </p>
           </div>
-          <p className="text-[11.5px] mt-1" style={{ color: "var(--muted-foreground)" }}>
+          <p className="text-[11.5px] mt-1 text-[color:var(--ink-400)]">
             {isRTL
               ? "يقوم النظام بجلب متوسط التكلفة المرجحة لكل مادة خام من المخزون ثم يحدّث تكاليف جميع سطور الوصفات تلقائياً. لا تأثير على المبيعات أو القيود."
               : "Fetches the weighted-average cost for each raw material from stock and updates all recipe line costs automatically. No effect on posted invoices or journal entries."}
@@ -95,8 +93,7 @@ export default function RecipeCostsPage() {
         <button
           onClick={handleRecalculate}
           disabled={running}
-          className="flex items-center gap-2 px-5 py-2.5 rounded-xl font-bold text-[13px] transition-all disabled:opacity-60 whitespace-nowrap"
-          style={{ background: running ? "#0e7490" : "linear-gradient(135deg,#0891b2,#0284c7)", color: "white" }}>
+          className="btn-primary flex items-center gap-2 whitespace-nowrap disabled:opacity-60">
           {running
             ? <><RefreshCw className="h-4 w-4 animate-spin" />{isRTL ? "جارٍ الحساب..." : "Calculating..."}</>
             : <><Zap className="h-4 w-4" />{isRTL ? "أعد حساب التكاليف" : "Recalculate Costs"}</>}
@@ -105,14 +102,13 @@ export default function RecipeCostsPage() {
 
       {/* Result banner */}
       {result && (
-        <div className="rounded-xl p-4 border border-green-500/30 flex items-start gap-3"
-          style={{ background: "#34d39910" }}>
-          <CheckCircle2 className="h-5 w-5 text-green-400 flex-shrink-0 mt-0.5" />
+        <div className="rounded-xl p-4 border border-emerald-200 bg-emerald-50 flex items-start gap-3">
+          <CheckCircle2 className="h-5 w-5 text-emerald-600 flex-shrink-0 mt-0.5" />
           <div>
-            <p className="text-[13px] font-bold" style={{ color: "#34d399" }}>
+            <p className="text-[13px] font-bold text-emerald-700">
               {isRTL ? "✅ تم إعادة الحساب بنجاح" : "✅ Recalculation Complete"}
             </p>
-            <p className="text-[12px] mt-1" style={{ color: "var(--muted-foreground)" }}>
+            <p className="text-[12px] mt-1 text-[color:var(--ink-500)]">
               {isRTL
                 ? `تم تحديث ${result.updatedLines} سطر في ${result.updatedRecipes} وصفة من أصل ${result.totalRecipes}`
                 : `Updated ${result.updatedLines} lines across ${result.updatedRecipes} of ${result.totalRecipes} recipes`}
@@ -121,25 +117,23 @@ export default function RecipeCostsPage() {
         </div>
       )}
       {error && (
-        <div className="rounded-xl p-3 border border-red-500/30 flex items-center gap-3"
-          style={{ background: "#f8717110" }}>
-          <AlertTriangle className="h-4 w-4 text-red-400" />
-          <p className="text-[12px]" style={{ color: "#f87171" }}>{error}</p>
+        <div className="rounded-xl p-3 border border-red-200 bg-red-50 flex items-center gap-3">
+          <AlertTriangle className="h-4 w-4 text-red-500" />
+          <p className="text-[12px] text-red-600">{error}</p>
         </div>
       )}
 
       {/* Recipes table */}
-      <div className="rounded-2xl border overflow-hidden"
-        style={{ background: "var(--card)", borderColor: "rgba(255,255,255,0.1)" }}>
-        <div className="px-5 py-3 border-b border-white/8" style={{ background: "var(--background)" }}>
-          <p className="text-[12px] font-semibold" style={{ color: "var(--foreground)" }}>
+      <div className="bg-white rounded-2xl border border-[color:var(--ink-100)] overflow-hidden">
+        <div className="px-5 py-3 border-b border-[color:var(--ink-100)]">
+          <p className="text-[12px] font-semibold text-[color:var(--ink-900)]">
             {isRTL ? "تفاصيل تكاليف الوصفات" : "Recipe Cost Breakdown"}
           </p>
         </div>
         <div className="overflow-x-auto">
           <table className="w-full text-[12px]">
             <thead>
-              <tr style={{ background: "var(--background)", borderBottom: "1px solid rgba(255,255,255,0.08)" }}>
+              <tr style={{ background: "#6b1523" }}>
                 {[
                   isRTL ? "الكود" : "Code",
                   isRTL ? "الوصفة" : "Recipe",
@@ -148,31 +142,29 @@ export default function RecipeCostsPage() {
                   isRTL ? "إجمالي التكلفة" : "Total Cost",
                   isRTL ? "تكلفة الوحدة" : "Cost / Unit",
                 ].map((h) => (
-                  <th key={h} className="px-4 py-2.5 text-start font-semibold"
-                    style={{ color: "var(--muted-foreground)" }}>{h}</th>
+                  <th key={h} className="px-4 py-2.5 text-start font-semibold text-white/80">{h}</th>
                 ))}
               </tr>
             </thead>
             <tbody>
               {recipes.map((recipe: any) => (
-                <tr key={recipe._id} className="border-b border-white/5 hover:bg-white/3">
-                  <td className="px-4 py-3 font-mono text-[11px]"
-                    style={{ color: "var(--muted-foreground)" }}>
+                <tr key={recipe._id} className="border-b border-[color:var(--ink-100)] hover:bg-[color:var(--ink-50)] transition-colors">
+                  <td className="px-4 py-3 font-mono text-[11px] text-[color:var(--ink-400)]">
                     {recipe.code}
                   </td>
-                  <td className="px-4 py-3 font-semibold" style={{ color: "var(--foreground)" }}>
+                  <td className="px-4 py-3 font-semibold text-[color:var(--ink-900)]">
                     {isRTL ? recipe.nameAr : recipe.nameEn || recipe.nameAr}
                   </td>
-                  <td className="px-4 py-3" style={{ color: "var(--muted-foreground)" }}>
+                  <td className="px-4 py-3 text-[color:var(--ink-500)]">
                     {recipe.yieldQuantity}
                   </td>
-                  <td className="px-4 py-3 text-center" style={{ color: "var(--muted-foreground)" }}>
+                  <td className="px-4 py-3 text-center text-[color:var(--ink-500)]">
                     {recipe.lineCount ?? 0}
                   </td>
-                  <td className="px-4 py-3 font-bold" style={{ color: "#a78bfa" }}>
+                  <td className="px-4 py-3 font-bold text-violet-700">
                     {(recipe.totalCost ?? 0).toFixed(3)} {isRTL ? "ر.ق" : "QAR"}
                   </td>
-                  <td className="px-4 py-3 font-bold" style={{ color: "#22d3ee" }}>
+                  <td className="px-4 py-3 font-bold text-[color:var(--brand-700)]">
                     {(recipe.costPerUnit ?? 0).toFixed(4)} {isRTL ? "ر.ق" : "QAR"}
                   </td>
                 </tr>

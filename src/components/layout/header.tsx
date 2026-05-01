@@ -1,6 +1,10 @@
 "use client";
 
-import { Bell, Globe, LogOut, Menu, Search, User, FileText, Receipt, CreditCard, ShoppingCart } from "lucide-react";
+import {
+  Bell, Globe, LogOut, Menu, Search, User, FileText, Receipt,
+  CreditCard, ShoppingCart, FileCheck, CalendarDays, Package,
+  Shield, ShieldAlert, X, AlertTriangle,
+} from "lucide-react";
 import { useAppStore } from "@/store/useAppStore";
 import { useI18n } from "@/hooks/useI18n";
 import { BranchPicker } from "./BranchPicker";
@@ -10,7 +14,9 @@ import { useAuth } from "@/hooks/useAuth";
 import { useQuery } from "convex/react";
 import { api } from "../../../convex/_generated/api";
 import { useState, useRef, useEffect } from "react";
+import Link from "next/link";
 
+// ── Search result icons ───────────────────────────────────────────────────────
 const TYPE_ICON: Record<string, React.ReactNode> = {
   salesInvoice:    <FileText className="w-4 h-4 text-blue-500" />,
   receipt:         <Receipt className="w-4 h-4 text-green-500" />,
@@ -18,7 +24,6 @@ const TYPE_ICON: Record<string, React.ReactNode> = {
   purchaseInvoice: <ShoppingCart className="w-4 h-4 text-purple-500" />,
   customer:        <User className="w-4 h-4 text-indigo-500" />,
 };
-
 const BADGE_COLOR: Record<string, string> = {
   salesInvoice:    "bg-blue-100 text-blue-700",
   receipt:         "bg-green-100 text-green-700",
@@ -27,15 +32,158 @@ const BADGE_COLOR: Record<string, string> = {
   customer:        "bg-indigo-100 text-indigo-700",
 };
 
+// ── Notification icon map ─────────────────────────────────────────────────────
+const NOTIF_ICON: Record<string, React.ReactNode> = {
+  fileCheck:   <FileCheck  className="h-4 w-4" />,
+  creditCard:  <CreditCard className="h-4 w-4" />,
+  calendar:    <CalendarDays className="h-4 w-4" />,
+  package:     <Package    className="h-4 w-4" />,
+  shield:      <Shield     className="h-4 w-4" />,
+  shieldAlert: <ShieldAlert className="h-4 w-4" />,
+};
+const NOTIF_COLORS: Record<"critical" | "warning" | "info", { icon: string; badge: string; dot: string }> = {
+  critical: { icon: "bg-red-50 text-red-600",    badge: "bg-red-100 text-red-700",    dot: "bg-red-500"    },
+  warning:  { icon: "bg-amber-50 text-amber-600", badge: "bg-amber-100 text-amber-700", dot: "bg-amber-500" },
+  info:     { icon: "bg-blue-50 text-blue-600",   badge: "bg-blue-100 text-blue-700",  dot: "bg-blue-500"  },
+};
+
+// ── Notification Bell ─────────────────────────────────────────────────────────
+function NotificationBell({ companyId, isRTL }: { companyId: any; isRTL: boolean }) {
+  const [open, setOpen] = useState(false);
+  const ref = useRef<HTMLDivElement>(null);
+
+  const notifications = useQuery(
+    api.notifications.getNotifications,
+    companyId ? { companyId } : "skip"
+  ) ?? [];
+
+  const totalCount   = notifications.reduce((s, n) => s + n.count, 0);
+  const criticalCount = notifications.filter((n) => n.severity === "critical").reduce((s, n) => s + n.count, 0);
+
+  useEffect(() => {
+    const handler = (e: MouseEvent) => {
+      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
+    };
+    document.addEventListener("mousedown", handler);
+    return () => document.removeEventListener("mousedown", handler);
+  }, []);
+
+  return (
+    <div ref={ref} className="relative">
+      {/* Bell button */}
+      <button
+        type="button"
+        onClick={() => setOpen((o) => !o)}
+        aria-label="Notifications"
+        className="relative h-9 w-9 rounded-lg flex items-center justify-center text-[color:var(--ink-600)] hover:text-[color:var(--brand-700)] hover:bg-[color:var(--ink-50)] transition-colors"
+      >
+        <Bell className="h-[18px] w-[18px]" />
+        {totalCount > 0 && (
+          <span
+            className={`absolute top-1 end-1 min-w-[16px] h-4 rounded-full flex items-center justify-center text-[9px] font-bold text-white px-0.5 ${criticalCount > 0 ? "bg-red-500" : "bg-amber-500"}`}
+          >
+            {totalCount > 99 ? "99+" : totalCount}
+          </span>
+        )}
+      </button>
+
+      {/* Dropdown */}
+      {open && (
+        <div
+          className={`absolute top-full mt-2 w-80 bg-white border border-[color:var(--ink-200)] rounded-2xl shadow-xl z-[200] overflow-hidden ${isRTL ? "left-0" : "right-0"}`}
+        >
+          {/* Header */}
+          <div className="flex items-center justify-between px-4 py-3 border-b border-[color:var(--ink-100)]">
+            <div className="flex items-center gap-2">
+              <Bell className="h-4 w-4 text-[color:var(--brand-700)]" />
+              <span className="font-bold text-[13px] text-[color:var(--ink-900)]">
+                {isRTL ? "التنبيهات" : "Notifications"}
+              </span>
+              {totalCount > 0 && (
+                <span className="bg-[color:var(--brand-50)] text-[color:var(--brand-700)] text-[10px] font-bold px-1.5 py-0.5 rounded-full">
+                  {totalCount}
+                </span>
+              )}
+            </div>
+            <button onClick={() => setOpen(false)} className="p-1 rounded-md hover:bg-[color:var(--ink-100)] transition-colors">
+              <X className="h-3.5 w-3.5 text-[color:var(--ink-400)]" />
+            </button>
+          </div>
+
+          {/* List */}
+          <div className="max-h-[420px] overflow-y-auto divide-y divide-[color:var(--ink-50)]">
+            {notifications.length === 0 ? (
+              <div className="flex flex-col items-center justify-center py-10 gap-2">
+                <div className="h-10 w-10 rounded-full bg-[color:var(--ink-50)] flex items-center justify-center">
+                  <Bell className="h-5 w-5 text-[color:var(--ink-300)]" />
+                </div>
+                <p className="text-[12px] text-[color:var(--ink-400)]">
+                  {isRTL ? "لا توجد تنبيهات" : "No notifications"}
+                </p>
+              </div>
+            ) : (
+              notifications.map((n) => {
+                const colors = NOTIF_COLORS[n.severity];
+                return (
+                  <Link
+                    key={n.id}
+                    href={n.href}
+                    onClick={() => setOpen(false)}
+                    className="flex items-start gap-3 px-4 py-3.5 hover:bg-[color:var(--ink-50)] transition-colors group"
+                  >
+                    {/* Icon */}
+                    <span className={`mt-0.5 h-8 w-8 rounded-lg flex items-center justify-center shrink-0 ${colors.icon}`}>
+                      {NOTIF_ICON[n.icon] ?? <AlertTriangle className="h-4 w-4" />}
+                    </span>
+
+                    {/* Text */}
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2">
+                        <p className="text-[12.5px] font-semibold text-[color:var(--ink-900)] leading-tight">
+                          {isRTL ? n.titleAr : n.titleEn}
+                        </p>
+                        <span className={`shrink-0 text-[10px] font-bold px-1.5 py-0.5 rounded-full ${colors.badge}`}>
+                          {n.count}
+                        </span>
+                      </div>
+                      <p className="text-[11px] text-[color:var(--ink-400)] mt-0.5 leading-snug">
+                        {isRTL ? n.bodyAr : n.bodyEn}
+                      </p>
+                    </div>
+
+                    {/* Dot */}
+                    <span className={`mt-2 h-2 w-2 rounded-full shrink-0 ${colors.dot}`} />
+                  </Link>
+                );
+              })
+            )}
+          </div>
+
+          {/* Footer */}
+          {notifications.length > 0 && (
+            <div className="px-4 py-2.5 border-t border-[color:var(--ink-100)] bg-[color:var(--ink-50)]">
+              <p className="text-[10.5px] text-[color:var(--ink-400)] text-center">
+                {isRTL
+                  ? "انقر على أي تنبيه للانتقال إلى الصفحة المعنية"
+                  : "Click any notification to navigate to the relevant page"}
+              </p>
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ── Main Header ───────────────────────────────────────────────────────────────
 export function Header() {
   const { t, lang, toggleLanguage, isRTL } = useI18n();
   const { currentUser, logout } = useAuth();
   const router = useRouter();
-  const toggleSidebarCollapsed = useAppStore((s) => s.toggleSidebarCollapsed);
 
   const [query, setQuery] = useState("");
-  const [open, setOpen] = useState(false);
-  const wrapperRef = useRef<HTMLDivElement>(null);
+  const [open, setOpen]   = useState(false);
+  const wrapperRef        = useRef<HTMLDivElement>(null);
 
   const results = useQuery(
     api.search.globalSearch,
@@ -44,7 +192,6 @@ export function Header() {
       : "skip"
   );
 
-  // Close dropdown when clicking outside
   useEffect(() => {
     const handler = (e: MouseEvent) => {
       if (wrapperRef.current && !wrapperRef.current.contains(e.target as Node)) {
@@ -75,18 +222,12 @@ export function Header() {
       className="h-16 flex items-center gap-3 px-5 bg-white/90 backdrop-blur-sm border-b border-[color:var(--ink-200)]"
       style={{ boxShadow: "0 1px 2px rgba(26,19,22,0.04)" }}
     >
-      {/* Sidebar toggle */}
+      {/* Sidebar toggle — desktop only */}
       <button
         type="button"
         aria-label={t("toggleSidebar")}
-        onClick={() => {
-          if (window.innerWidth < 1024) {
-            useAppStore.getState().toggleSidebar();
-          } else {
-            toggleSidebarCollapsed();
-          }
-        }}
-        className="h-9 w-9 rounded-lg flex items-center justify-center text-[color:var(--ink-600)] hover:text-[color:var(--brand-700)] hover:bg-[color:var(--ink-50)] transition-colors"
+        onClick={() => useAppStore.getState().toggleSidebar()}
+        className="hidden lg:flex h-9 w-9 rounded-lg items-center justify-center text-[color:var(--ink-600)] hover:text-[color:var(--brand-700)] hover:bg-[color:var(--ink-50)] transition-colors"
       >
         <Menu className="h-[18px] w-[18px]" />
       </button>
@@ -109,7 +250,7 @@ export function Header() {
           />
         </div>
 
-        {/* Dropdown results */}
+        {/* Search results dropdown */}
         {open && query.trim().length >= 2 && (
           <div className="absolute top-full mt-1 w-full bg-white border border-[color:var(--ink-200)] rounded-xl shadow-lg z-50 overflow-hidden">
             {results === undefined ? (
@@ -164,26 +305,14 @@ export function Header() {
           <span className="tracking-wide">{lang === "ar" ? "EN" : "عربي"}</span>
         </button>
 
-        {/* Notifications */}
-        <button
-          type="button"
-          aria-label={t("notifications")}
-          className="relative h-9 w-9 rounded-lg flex items-center justify-center text-[color:var(--ink-600)] hover:text-[color:var(--brand-700)] hover:bg-[color:var(--ink-50)] transition-colors"
-        >
-          <Bell className="h-[18px] w-[18px]" />
-          <span
-            className="absolute top-2 end-2 h-1.5 w-1.5 rounded-full"
-            style={{ background: "var(--brand-600)" }}
-          />
-        </button>
+        {/* Notification Bell */}
+        <NotificationBell companyId={currentUser?.companyId} isRTL={isRTL} />
 
         {/* Profile */}
         <div className="ms-2 flex items-center gap-2.5 ps-2 border-s border-[color:var(--ink-200)]">
           <div
             className="h-9 w-9 rounded-full flex items-center justify-center text-white font-semibold text-sm shadow-sm"
-            style={{
-              background: "linear-gradient(135deg, var(--brand-600), var(--brand-800))",
-            }}
+            style={{ background: "linear-gradient(135deg, var(--brand-600), var(--brand-800))" }}
           >
             {currentUser?.name ? (
               <span className="uppercase">{currentUser.name.charAt(0)}</span>

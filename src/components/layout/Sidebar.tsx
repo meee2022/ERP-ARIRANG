@@ -9,7 +9,7 @@ import {
   ArrowLeftRight, Scale, ShoppingCart, LogOut, BarChart2, Shield, CheckCircle2,
   TrendingUp, PieChart, RotateCcw, CalendarDays, Archive, PackageOpen,
   Building2, Search, X, HardDrive, Zap, FlaskConical, ClipboardList, ChefHat,
-  AlertTriangle, Trash2, CalendarCheck2, Barcode, Clock,
+  AlertTriangle, Trash2, CalendarCheck2, Barcode, Clock, MoreHorizontal,
 } from "lucide-react";
 import { useI18n } from "@/hooks/useI18n";
 import type { TKey } from "@/lib/i18n";
@@ -630,6 +630,213 @@ export function Sidebar() {
           isActive={isActive}
         />
       )}
+    </>
+  );
+}
+
+// ─── Mobile Bottom Navigation ─────────────────────────────────────────────────
+export function MobileBottomNav() {
+  const [openSection, setOpenSection] = useState<string | null>(null);
+  const [showMore, setShowMore]       = useState(false);
+  const pathname                      = usePathname();
+  const { t, isRTL }                  = useI18n();
+  const { isAdmin, canView }          = usePermissions();
+
+  const isActive = useCallback(
+    (href: string) =>
+      href === "/" ? pathname === "/" : pathname === href || pathname.startsWith(href + "/"),
+    [pathname]
+  );
+
+  const visibleSections = useMemo(() => {
+    const base = isAdmin
+      ? SECTIONS
+      : SECTIONS.filter((s) => s.id !== "settings" && s.id !== "legacy");
+    return base
+      .map((s) => ({
+        ...s,
+        items: s.items.filter((item) => {
+          const mod = itemModule(item.href);
+          if (!mod) return isAdmin;
+          return canView(mod as any);
+        }),
+      }))
+      .filter((s) => s.items.length > 0);
+  }, [isAdmin, canView]);
+
+  useEffect(() => {
+    setOpenSection(null);
+    setShowMore(false);
+  }, [pathname]);
+
+  const PRIMARY_COUNT    = 4;
+  const primarySections  = visibleSections.slice(0, PRIMARY_COUNT);
+  const overflowSections = visibleSections.slice(PRIMARY_COUNT);
+  const hasMore          = overflowSections.length > 0;
+
+  const activeSectionId  = visibleSections.find((s) => s.items.some((i) => isActive(i.href)))?.id ?? null;
+  const openSectionData  = visibleSections.find((s) => s.id === openSection) ?? null;
+  const isSheetOpen      = !!openSection || showMore;
+
+  return (
+    <>
+      <style>{`
+        @keyframes sheet-up {
+          from { transform: translateY(100%); opacity: 0; }
+          to   { transform: translateY(0);    opacity: 1; }
+        }
+      `}</style>
+
+      {/* Backdrop */}
+      {isSheetOpen && (
+        <div
+          className="fixed inset-0 z-[55] lg:hidden bg-black/50 backdrop-blur-sm"
+          onClick={() => { setOpenSection(null); setShowMore(false); }}
+        />
+      )}
+
+      {/* Section Sub-items Sheet */}
+      {openSection && openSectionData && (
+        <div
+          className="fixed inset-x-0 z-[60] lg:hidden rounded-t-2xl shadow-2xl flex flex-col overflow-hidden"
+          style={{ bottom: 56, background: "var(--sidebar)", maxHeight: "65vh", animation: "sheet-up 0.22s ease-out" }}
+        >
+          <div className="flex items-center justify-between px-4 py-3.5 border-b border-white/10 shrink-0">
+            <div className="flex items-center gap-2.5">
+              <span className="h-7 w-7 rounded-lg flex items-center justify-center shrink-0"
+                style={{ background: `${openSectionData.color}22`, border: `1px solid ${openSectionData.color}40` }}>
+                <openSectionData.icon className="h-3.5 w-3.5" style={{ color: openSectionData.color }} />
+              </span>
+              <span className="font-bold text-[14px]" style={{ color: "rgba(243,233,214,0.95)" }}>
+                {t(openSectionData.titleKey as TKey)}
+              </span>
+            </div>
+            <button onClick={() => setOpenSection(null)}
+              className="h-7 w-7 rounded-lg flex items-center justify-center opacity-50 hover:opacity-80"
+              style={{ background: "rgba(255,255,255,0.08)" }}>
+              <X className="h-3.5 w-3.5" style={{ color: "rgba(243,233,214,0.9)" }} />
+            </button>
+          </div>
+          <div className="overflow-y-auto custom-scrollbar">
+            {openSectionData.items.map((item) => {
+              const active = isActive(item.href);
+              return (
+                <Link key={item.href} href={item.href}
+                  onClick={() => setOpenSection(null)}
+                  className="flex items-center gap-3 px-4 py-3.5 border-b border-white/5 transition-colors"
+                  style={{
+                    background: active ? `${openSectionData.color}15` : "transparent",
+                    color: active ? "rgba(243,233,214,0.97)" : "rgba(243,233,214,0.65)",
+                    boxShadow: active ? `inset ${isRTL ? "-" : ""}3px 0 0 ${openSectionData.color}` : undefined,
+                  }}>
+                  <item.icon className="h-4 w-4 shrink-0"
+                    style={{ color: active ? openSectionData.color : "rgba(243,233,214,0.35)" }} />
+                  <span className="text-[13px] font-medium flex-1">{t(item.key)}</span>
+                  {active && <span className="h-1.5 w-1.5 rounded-full shrink-0" style={{ background: openSectionData.color }} />}
+                </Link>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
+      {/* More Sections Sheet */}
+      {showMore && (
+        <div
+          className="fixed inset-x-0 z-[60] lg:hidden rounded-t-2xl shadow-2xl flex flex-col overflow-hidden"
+          style={{ bottom: 56, background: "var(--sidebar)", maxHeight: "70vh", animation: "sheet-up 0.22s ease-out" }}
+        >
+          <div className="flex items-center justify-between px-4 py-3.5 border-b border-white/10 shrink-0">
+            <span className="font-bold text-[14px]" style={{ color: "rgba(243,233,214,0.95)" }}>
+              {isRTL ? "جميع الأقسام" : "All Sections"}
+            </span>
+            <button onClick={() => setShowMore(false)}
+              className="h-7 w-7 rounded-lg flex items-center justify-center opacity-50 hover:opacity-80"
+              style={{ background: "rgba(255,255,255,0.08)" }}>
+              <X className="h-3.5 w-3.5" style={{ color: "rgba(243,233,214,0.9)" }} />
+            </button>
+          </div>
+          <div className="overflow-y-auto custom-scrollbar">
+            <div className="grid grid-cols-2">
+              {overflowSections.map((section) => {
+                const active = activeSectionId === section.id;
+                return (
+                  <button key={section.id}
+                    onClick={() => { setShowMore(false); setOpenSection(section.id); }}
+                    className="flex items-center gap-2.5 px-4 py-4 border-b border-e border-white/5 text-start transition-colors"
+                    style={{ background: active ? `${section.color}12` : "transparent" }}>
+                    <span className="h-8 w-8 rounded-lg flex items-center justify-center shrink-0"
+                      style={{ background: `${section.color}18`, border: `1px solid ${section.color}30` }}>
+                      <section.icon className="h-4 w-4" style={{ color: section.color }} />
+                    </span>
+                    <span className="text-[12px] font-medium"
+                      style={{ color: active ? section.color : "rgba(243,233,214,0.72)" }}>
+                      {isRTL ? section.labelAr : section.labelEn}
+                    </span>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Bottom Tab Bar */}
+      <nav
+        className="fixed inset-x-0 bottom-0 z-50 lg:hidden flex items-stretch border-t"
+        style={{
+          background: "var(--sidebar)",
+          borderColor: "rgba(255,255,255,0.08)",
+          paddingBottom: "env(safe-area-inset-bottom)",
+          height: 56,
+        }}
+      >
+        {/* Home */}
+        <Link href="/"
+          className="flex-1 flex flex-col items-center justify-center gap-0.5 py-1"
+          style={{ color: isActive("/") ? "rgba(243,233,214,0.95)" : "rgba(243,233,214,0.38)" }}>
+          <LayoutDashboard className="h-[22px] w-[22px]"
+            style={{ transform: isActive("/") ? "scale(1.1)" : "scale(1)", transition: "transform 0.15s" }} />
+          <span className="text-[9px] font-medium leading-none">
+            {isRTL ? "الرئيسية" : "Home"}
+          </span>
+        </Link>
+
+        {/* Primary sections */}
+        {primarySections.map((section) => {
+          const highlighted = activeSectionId === section.id || openSection === section.id;
+          return (
+            <button key={section.id}
+              onClick={() => { setShowMore(false); setOpenSection(openSection === section.id ? null : section.id); }}
+              className="flex-1 flex flex-col items-center justify-center gap-0.5 py-1 transition-colors">
+              <section.icon className="h-[22px] w-[22px]"
+                style={{
+                  color: highlighted ? section.color : "rgba(243,233,214,0.38)",
+                  transform: highlighted ? "scale(1.1)" : "scale(1)",
+                  transition: "transform 0.15s, color 0.15s",
+                }} />
+              <span className="text-[9px] font-medium leading-none"
+                style={{ color: highlighted ? section.color : "rgba(243,233,214,0.35)" }}>
+                {isRTL ? section.labelAr : section.labelEn}
+              </span>
+            </button>
+          );
+        })}
+
+        {/* More */}
+        {hasMore && (
+          <button
+            onClick={() => { setOpenSection(null); setShowMore(!showMore); }}
+            className="flex-1 flex flex-col items-center justify-center gap-0.5 py-1 transition-colors">
+            <MoreHorizontal className="h-[22px] w-[22px]"
+              style={{ color: showMore ? "rgba(243,233,214,0.95)" : "rgba(243,233,214,0.38)" }} />
+            <span className="text-[9px] font-medium leading-none"
+              style={{ color: showMore ? "rgba(243,233,214,0.9)" : "rgba(243,233,214,0.35)" }}>
+              {isRTL ? "المزيد" : "More"}
+            </span>
+          </button>
+        )}
+      </nav>
     </>
   );
 }

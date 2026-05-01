@@ -16,6 +16,7 @@ import { PageHeader } from "@/components/ui/page-header";
 import { FilterPanel, FilterField } from "@/components/ui/filter-panel";
 import { LoadingState } from "@/components/ui/data-display";
 import { EmptyState } from "@/components/ui/empty-state";
+import { toast } from "@/store/toastStore";
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
@@ -189,10 +190,9 @@ export default function ItemsPage() {
     setSeedingFG(true);
     try {
       const res = await seedFGItems({});
-      alert(`Done!\n\nItems:\n  ✅ Inserted: ${res.inserted}\n  🔄 Updated (names only, prices kept): ${res.updated}\n  🗑️ Deleted: ${res.deleted}\n\nRecipes:\n  🗑️ Deleted (orphaned): ${res.recipesDeleted}\n  ✅ Kept (valid): ${res.recipesKept}`);
+      toast.success(`Done!\n\nItems:\n  ✅ Inserted: ${res.inserted}\n  🔄 Updated (names only, prices kept): ${res.updated}\n  🗑️ Deleted: ${res.deleted}\n\nRecipes:\n  🗑️ Deleted (orphaned): ${res.recipesDeleted}\n  ✅ Kept (valid): ${res.recipesKept}`);
     } catch (e: any) {
-      const msg = String(e?.message || e).replace(/\[CONVEX.*?\]\s*/g, "").replace(/Server Error\s*/gi, "").trim();
-      alert("Error: " + msg);
+      toast.error(e);
     } finally {
       setSeedingFG(false);
     }
@@ -209,7 +209,7 @@ export default function ItemsPage() {
     setSeedingWH(true);
     try {
       const res = await seedWHItems({});
-      alert(
+      toast.success(
         `WH Import Done!\n\n` +
         `  ✅ Inserted: ${res.inserted}\n` +
         `  🔄 Updated (name + price): ${res.updated}\n` +
@@ -218,8 +218,7 @@ export default function ItemsPage() {
         `  📦 Total WH RM items: ${res.totalWH}`
       );
     } catch (e: any) {
-      const msg = String(e?.message || e).replace(/\[CONVEX.*?\]\s*/g, "").replace(/Server Error\s*/gi, "").trim();
-      alert("Error: " + msg);
+      toast.error(e);
     } finally {
       setSeedingWH(false);
     }
@@ -237,7 +236,7 @@ export default function ItemsPage() {
     setSeedingSuppliers(true);
     try {
       const res = await seedSupplierLinks({});
-      alert(
+      toast.success(
         `Supplier Links Done!\n\n` +
         `  🏭 Suppliers created: ${res.suppCreated}\n` +
         `  ✅ Suppliers existing: ${res.suppExisting}\n` +
@@ -246,8 +245,7 @@ export default function ItemsPage() {
         `  ⚠️ Skipped (no supplier): ${res.skipped}`
       );
     } catch (e: any) {
-      const msg = String(e?.message || e).replace(/\[CONVEX.*?\]\s*/g, "").replace(/Server Error\s*/gi, "").trim();
-      alert("Error: " + msg);
+      toast.error(e);
     } finally {
       setSeedingSuppliers(false);
     }
@@ -686,7 +684,7 @@ export default function ItemsPage() {
                 try {
                   const res = await deduplicateItems({ companyId, userId: currentUser._id as any });
                   setShowDuplicates(false);
-                  alert(isRTL ? `تم حذف ${res.deleted} صنف مكرر` : `Deleted ${res.deleted} duplicate items`);
+                  toast.success(isRTL ? `تم حذف ${res.deleted} صنف مكرر` : `Deleted ${res.deleted} duplicate items`);
                 } finally { setDeduping(false); }
               }}
               className="w-full h-10 rounded-lg bg-red-600 hover:bg-red-700 text-white text-sm font-semibold disabled:opacity-60 inline-flex items-center justify-center gap-2"

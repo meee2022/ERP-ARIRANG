@@ -185,7 +185,7 @@ export default defineSchema({
     supplierItemId: v.id("supplierItems"),
     itemId: v.id("items"),
     supplierId: v.id("suppliers"),
-    companyId: v.id("companies"),
+    companyId: v.optional(v.id("companies")),
     oldPrice: v.number(),
     newPrice: v.number(),
     reason: v.optional(v.string()),
@@ -281,7 +281,7 @@ export default defineSchema({
     materialCost: v.optional(v.number()),
     totalCost: v.optional(v.number()),
     notes: v.optional(v.string()),
-    createdBy: v.id("users"),
+    createdBy: v.optional(v.id("users")),
     createdAt: v.number(),
     updatedAt: v.number(),
   }).index("by_company", ["companyId"])

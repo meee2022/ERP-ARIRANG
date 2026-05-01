@@ -11,6 +11,7 @@ import {
 import { useI18n } from "@/hooks/useI18n";
 import { PageHeader } from "@/components/ui/page-header";
 import { EmptyState } from "@/components/ui/empty-state";
+import { toast } from "@/store/toastStore";
 
 // ─── Shared Helpers ───────────────────────────────────────────────────────────
 
@@ -143,7 +144,7 @@ function DepartmentsTab({ t, isRTL }: { t: any; isRTL: boolean }) {
     try {
       await updateDept({ id: d._id, isActive: !d.isActive });
     } catch (e: any) {
-      alert(e.message);
+      toast.error(e);
     }
   }
 
@@ -170,12 +171,12 @@ function DepartmentsTab({ t, isRTL }: { t: any; isRTL: boolean }) {
           <div className="overflow-x-auto">
             <table className="w-full text-sm" dir={isRTL ? "rtl" : "ltr"}>
               <thead>
-                <tr className="border-b border-gray-100 bg-gray-50/60">
-                  <th className="px-5 py-3 text-[10px] font-bold text-gray-400 uppercase tracking-widest text-start">{t("code") || "الكود"}</th>
-                  <th className="px-5 py-3 text-[10px] font-bold text-gray-400 uppercase tracking-widest text-start">{t("nameAr") || "الاسم بالعربي"}</th>
-                  <th className="px-5 py-3 text-[10px] font-bold text-gray-400 uppercase tracking-widest text-start">{t("nameEn") || "الاسم بالإنجليزي"}</th>
-                  <th className="px-5 py-3 text-[10px] font-bold text-gray-400 uppercase tracking-widest text-center">{t("status") || "الحالة"}</th>
-                  <th className="px-5 py-3 text-[10px] font-bold text-gray-400 uppercase tracking-widest text-end">{t("actions") || "الإجراءات"}</th>
+                <tr style={{ background: "var(--brand-700)", color: "#fff" }}>
+                  <th className="px-5 py-3 text-[10px] font-bold text-white/70 uppercase tracking-widest text-start">{t("code") || "الكود"}</th>
+                  <th className="px-5 py-3 text-[10px] font-bold text-white/70 uppercase tracking-widest text-start">{t("nameAr") || "الاسم بالعربي"}</th>
+                  <th className="px-5 py-3 text-[10px] font-bold text-white/70 uppercase tracking-widest text-start">{t("nameEn") || "الاسم بالإنجليزي"}</th>
+                  <th className="px-5 py-3 text-[10px] font-bold text-white/70 uppercase tracking-widest text-center">{t("status") || "الحالة"}</th>
+                  <th className="px-5 py-3 text-[10px] font-bold text-white/70 uppercase tracking-widest text-end">{t("actions") || "الإجراءات"}</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-50">
@@ -329,7 +330,7 @@ function DesignationsTab({ t, isRTL }: { t: any; isRTL: boolean }) {
     try {
       await updateDesig({ id: d._id, isActive: !d.isActive });
     } catch (e: any) {
-      alert(e.message);
+      toast.error(e);
     }
   }
 
@@ -356,13 +357,13 @@ function DesignationsTab({ t, isRTL }: { t: any; isRTL: boolean }) {
           <div className="overflow-x-auto">
             <table className="w-full text-sm" dir={isRTL ? "rtl" : "ltr"}>
               <thead>
-                <tr className="border-b border-gray-100 bg-gray-50/60">
-                  <th className="px-5 py-3 text-[10px] font-bold text-gray-400 uppercase tracking-widest text-start">{t("code") || "الكود"}</th>
-                  <th className="px-5 py-3 text-[10px] font-bold text-gray-400 uppercase tracking-widest text-start">{t("nameAr") || "الاسم بالعربي"}</th>
-                  <th className="px-5 py-3 text-[10px] font-bold text-gray-400 uppercase tracking-widest text-start">{t("nameEn") || "الاسم بالإنجليزي"}</th>
+                <tr style={{ background: "var(--brand-700)", color: "#fff" }}>
+                  <th className="px-5 py-3 text-[10px] font-bold text-white/70 uppercase tracking-widest text-start">{t("code") || "الكود"}</th>
+                  <th className="px-5 py-3 text-[10px] font-bold text-white/70 uppercase tracking-widest text-start">{t("nameAr") || "الاسم بالعربي"}</th>
+                  <th className="px-5 py-3 text-[10px] font-bold text-white/70 uppercase tracking-widest text-start">{t("nameEn") || "الاسم بالإنجليزي"}</th>
                   <th className="px-5 py-3 text-[10px] font-bold text-gray-400 uppercase tracking-widest text-start">{t("department") || "القسم"}</th>
-                  <th className="px-5 py-3 text-[10px] font-bold text-gray-400 uppercase tracking-widest text-center">{t("status") || "الحالة"}</th>
-                  <th className="px-5 py-3 text-[10px] font-bold text-gray-400 uppercase tracking-widest text-end">{t("actions") || "الإجراءات"}</th>
+                  <th className="px-5 py-3 text-[10px] font-bold text-white/70 uppercase tracking-widest text-center">{t("status") || "الحالة"}</th>
+                  <th className="px-5 py-3 text-[10px] font-bold text-white/70 uppercase tracking-widest text-end">{t("actions") || "الإجراءات"}</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-50">
@@ -541,7 +542,7 @@ function LeaveTypesTab({ t, isRTL }: { t: any; isRTL: boolean }) {
     try {
       await updateLT({ id: lt._id, isActive: !lt.isActive });
     } catch (e: any) {
-      alert(e.message);
+      toast.error(e);
     }
   }
 
@@ -568,14 +569,14 @@ function LeaveTypesTab({ t, isRTL }: { t: any; isRTL: boolean }) {
           <div className="overflow-x-auto">
             <table className="w-full text-sm" dir={isRTL ? "rtl" : "ltr"}>
               <thead>
-                <tr className="border-b border-gray-100 bg-gray-50/60">
-                  <th className="px-5 py-3 text-[10px] font-bold text-gray-400 uppercase tracking-widest text-start">{t("code") || "الكود"}</th>
-                  <th className="px-5 py-3 text-[10px] font-bold text-gray-400 uppercase tracking-widest text-start">{t("nameAr") || "الاسم بالعربي"}</th>
-                  <th className="px-5 py-3 text-[10px] font-bold text-gray-400 uppercase tracking-widest text-start">{t("nameEn") || "الاسم بالإنجليزي"}</th>
+                <tr style={{ background: "var(--brand-700)", color: "#fff" }}>
+                  <th className="px-5 py-3 text-[10px] font-bold text-white/70 uppercase tracking-widest text-start">{t("code") || "الكود"}</th>
+                  <th className="px-5 py-3 text-[10px] font-bold text-white/70 uppercase tracking-widest text-start">{t("nameAr") || "الاسم بالعربي"}</th>
+                  <th className="px-5 py-3 text-[10px] font-bold text-white/70 uppercase tracking-widest text-start">{t("nameEn") || "الاسم بالإنجليزي"}</th>
                   <th className="px-5 py-3 text-[10px] font-bold text-gray-400 uppercase tracking-widest text-center">{t("type") || "النوع"}</th>
                   <th className="px-5 py-3 text-[10px] font-bold text-gray-400 uppercase tracking-widest text-center">{t("daysPerYear") || "أيام/سنة"}</th>
-                  <th className="px-5 py-3 text-[10px] font-bold text-gray-400 uppercase tracking-widest text-center">{t("status") || "الحالة"}</th>
-                  <th className="px-5 py-3 text-[10px] font-bold text-gray-400 uppercase tracking-widest text-end">{t("actions") || "الإجراءات"}</th>
+                  <th className="px-5 py-3 text-[10px] font-bold text-white/70 uppercase tracking-widest text-center">{t("status") || "الحالة"}</th>
+                  <th className="px-5 py-3 text-[10px] font-bold text-white/70 uppercase tracking-widest text-end">{t("actions") || "الإجراءات"}</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-50">

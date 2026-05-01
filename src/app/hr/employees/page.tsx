@@ -16,6 +16,7 @@ import { EmptyState } from "@/components/ui/empty-state";
 import Link from "next/link";
 import { PdfDownloadButton } from "@/components/ui/PdfDownloadButton";
 import { EmployeeListPdf } from "@/lib/pdf/EmployeeListPdf";
+import { toast } from "@/store/toastStore";
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -459,7 +460,7 @@ function StatusDropdown({ employee }: { employee: any }) {
     try {
       await updateStatus({ id: employee._id, status: status as any });
     } catch (e: any) {
-      alert(e.message);
+      toast.error(e);
     }
   }
 
@@ -509,7 +510,7 @@ function DeleteEmployeeButton({ employeeId }: { employeeId: any }) {
       setLoading(true);
       await removeEmployee({ id: employeeId });
     } catch (e: any) {
-      alert(e.message || t("errUnexpected"));
+      toast.error(e);
     } finally {
       setLoading(false);
     }
@@ -552,8 +553,8 @@ export default function EmployeesPage() {
     setSeeding(true);
     try {
       const res = await seedStaff({});
-      alert(isRTL ? `تم بنجاح! ${(res as any).total} موظف` : `Done! ${(res as any).total} employees added`);
-    } catch (e: any) { alert(e.message); }
+      toast.success(isRTL ? `تم بنجاح! ${(res as any).total} موظف` : `Done! ${(res as any).total} employees added`);
+    } catch (e: any) { toast.error(e); }
     finally { setSeeding(false); }
   };
 

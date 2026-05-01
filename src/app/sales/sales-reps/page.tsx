@@ -11,6 +11,7 @@ import { usePermissions } from "@/hooks/usePermissions";
 import { PageHeader } from "@/components/ui/page-header";
 import { EmptyState } from "@/components/ui/empty-state";
 import { LoadingState } from "@/components/ui/data-display";
+import { toast } from "@/store/toastStore";
 
 export default function SalesRepsPage() {
   const { t, isRTL } = useI18n();
@@ -67,9 +68,9 @@ export default function SalesRepsPage() {
     setSeeding(true);
     try {
       const result = await seedSalesReps({});
-      alert(`Import complete! Processed ${result.total} sales reps.\n\n${result.results.join("\n")}`);
+      toast.success(`Import complete! Processed ${result.total} sales reps.\n\n${result.results.join("\n")}`);
     } catch (e: any) {
-      alert("Import failed: " + friendlyError(e));
+      toast.error(e);
     } finally {
       setSeeding(false);
     }
@@ -234,7 +235,7 @@ export default function SalesRepsPage() {
                               try {
                                 await deleteSalesRep({ id: rep._id, userId: currentUser?._id });
                               } catch (e: any) {
-                                alert("Delete failed: " + friendlyError(e));
+                                toast.error(e);
                               }
                             }}
                             className="h-8 w-8 rounded-lg hover:bg-red-50 text-red-500 inline-flex items-center justify-center"

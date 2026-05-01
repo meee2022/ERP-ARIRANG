@@ -1,7 +1,7 @@
 // @ts-nocheck
 "use client";
 
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { useQuery, useMutation } from "convex/react";
 import { api } from "../../../../convex/_generated/api";
 import {
@@ -11,18 +11,17 @@ import {
 import { useI18n } from "@/hooks/useI18n";
 import { useAppStore } from "@/store/useAppStore";
 import { useAuth } from "@/hooks/useAuth";
+import { toast } from "@/store/toastStore";
 import { PageHeader } from "@/components/ui/page-header";
 import { LoadingState } from "@/components/ui/data-display";
 import { EmptyState } from "@/components/ui/empty-state";
 // @ts-ignore
 
-const ACCENT = "#22d3ee";
-
-const STATUS_CFG: Record<string, { color: string; bg: string; label: string }> = {
-  planned:     { color: "#60a5fa", bg: "#60a5fa20", label: "" },
-  in_progress: { color: "#fbbf24", bg: "#fbbf2420", label: "" },
-  completed:   { color: "#34d399", bg: "#34d39920", label: "" },
-  cancelled:   { color: "#f87171", bg: "#f8717120", label: "" },
+const STATUS_CFG: Record<string, { color: string; bg: string; text: string; badge: string; label: string }> = {
+  planned:     { color: "#3b82f6", bg: "#eff6ff", text: "text-blue-700",  badge: "bg-blue-100 text-blue-700 border-blue-200",   label: "" },
+  in_progress: { color: "#f59e0b", bg: "#fffbeb", text: "text-amber-700", badge: "bg-amber-100 text-amber-700 border-amber-200", label: "" },
+  completed:   { color: "#16a34a", bg: "#f0fdf4", text: "text-green-700", badge: "bg-green-100 text-green-700 border-green-200", label: "" },
+  cancelled:   { color: "#ef4444", bg: "#fef2f2", text: "text-red-600",   badge: "bg-red-100 text-red-600 border-red-200",       label: "" },
 };
 
 export default function ProductionOrdersPage() {
@@ -80,7 +79,10 @@ export default function ProductionOrdersPage() {
     try {
       const effectiveBranchId = selectedBranchId !== "all" ? selectedBranchId : defaultBranch?._id;
       const branchId = effectiveBranchId;
-      if (!branchId) { alert(isRTL ? "لم يتم اختيار فرع" : "No branch selected"); return; }
+      if (!branchId) {
+        toast.warning(isRTL ? "لم يتم اختيار فرع" : "No branch selected");
+        return;
+      }
       await createOrder({
         companyId,
         branchId,
@@ -92,11 +94,12 @@ export default function ProductionOrdersPage() {
         plannedDate: data.plannedDate,
         warehouseId: data.warehouseId as any || undefined,
         notes: data.notes || undefined,
-        createdBy: currentUser?._id as any,
+        createdBy: currentUser?._id as any || undefined,
       });
       setShowModal(false);
+      toast.success(isRTL ? "تم إنشاء أمر الإنتاج بنجاح" : "Production order created successfully");
     } catch (e: any) {
-      alert(e.message);
+      toast.error(e);
     }
   };
 
@@ -109,8 +112,9 @@ export default function ProductionOrdersPage() {
         completedDate: data.completedDate || undefined,
       });
       setStatusModal(null);
+      toast.success(isRTL ? "تم تحديث الحالة بنجاح" : "Status updated successfully");
     } catch (e: any) {
-      alert(e.message);
+      toast.error(e);
     }
   };
 
@@ -122,76 +126,65 @@ export default function ProductionOrdersPage() {
   };
 
   return (
-    <div className="p-6 space-y-5">
+    <div className="space-y-5" dir={isRTL ? "rtl" : "ltr"}>
       <PageHeader
-        title={t("productionOrdersTitle")}
-        subtitle={t("productionOrdersSubtitle")}
+        title={isRTL ? "أوامر الإنتاج" : "Production Orders"}
+        subtitle={isRTL ? "إنشاء ومتابعة أوامر الإنتاج" : "Create and track production orders"}
         icon={ClipboardList}
-        iconColor={ACCENT}
         actions={
           <button
             onClick={() => setShowModal(true)}
-            className="flex items-center gap-2 px-4 py-2 rounded-lg text-[13px] font-semibold transition-all hover:opacity-90"
-            style={{ background: ACCENT, color: "#0f172a" }}
+            className="btn-primary h-9 px-4 rounded-xl inline-flex items-center gap-2 text-sm font-semibold"
           >
             <Plus className="h-4 w-4" />
-            {t("newOrder")}
+            {isRTL ? "أمر جديد" : "New Order"}
           </button>
         }
       />
 
       {/* Status KPI strip */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-        {(["all", "planned", "in_progress", "completed", "cancelled"] as const).slice(1).map((s) => {
+        {(["planned", "in_progress", "completed", "cancelled"] as const).map((s) => {
           const cfg = STATUS_CFG[s];
+          const active = statusFilter === s;
           return (
             <button
               key={s}
-              onClick={() => setStatus(statusFilter === s ? "all" : s)}
-              className="rounded-xl p-3 border transition-all text-start"
+              onClick={() => setStatus(active ? "all" : s)}
+              className="rounded-2xl p-4 bg-white border text-start transition-all shadow-[0_1px_4px_rgba(0,0,0,0.05)] hover:shadow-md"
               style={{
-                background: "var(--card)",
-                borderColor: statusFilter === s ? cfg.color : "rgba(255,255,255,0.08)",
-                boxShadow: statusFilter === s ? `0 0 0 1px ${cfg.color}40` : "none",
+                borderColor: active ? cfg.color : "var(--ink-100)",
+                boxShadow: active ? `0 0 0 2px ${cfg.color}30` : undefined,
               }}
             >
-              <p className="text-[11px]" style={{ color: "var(--muted-foreground)" }}>{cfg.label}</p>
-              <p className="text-2xl font-bold mt-0.5" style={{ color: cfg.color }}>{counts[s]}</p>
+              <p className="text-[11px] font-semibold text-[color:var(--ink-400)] uppercase tracking-wider">{cfg.label}</p>
+              <p className={`text-3xl font-bold mt-1 tabular-nums ${cfg.text}`}>{counts[s]}</p>
             </button>
           );
         })}
       </div>
 
       {/* Search + filter */}
-      <div className="flex gap-3 flex-wrap">
-        <div className="relative flex-1 min-w-[200px] max-w-sm">
-          <Search
-            className="absolute top-1/2 -translate-y-1/2 h-3.5 w-3.5 pointer-events-none"
-            style={{ [isRTL ? "right" : "left"]: "10px", color: "var(--muted-foreground)" }}
-          />
+      <div className="flex gap-3 flex-wrap items-center">
+        <div className="relative flex-1 min-w-[220px] max-w-sm">
+          <Search className={`absolute top-1/2 -translate-y-1/2 h-4 w-4 text-[color:var(--ink-400)] pointer-events-none ${isRTL ? "right-3" : "left-3"}`} />
           <input
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             placeholder={isRTL ? "بحث بالرقم أو الصنف..." : "Search by number or item..."}
-            className="w-full rounded-lg py-2 text-[12.5px] bg-[var(--card)] border border-white/10 focus:outline-none focus:border-[#22d3ee]/50"
-            style={{
-              [isRTL ? "paddingRight" : "paddingLeft"]: "34px",
-              [isRTL ? "paddingLeft" : "paddingRight"]: "10px",
-              color: "var(--foreground)",
-            }}
+            className={`input-field h-9 w-full rounded-lg text-sm ${isRTL ? "pr-9 pl-3" : "pl-9 pr-3"}`}
           />
         </div>
         <select
           value={statusFilter}
           onChange={(e) => setStatus(e.target.value)}
-          className="rounded-lg px-3 py-2 text-[12.5px] bg-[var(--card)] border border-white/10 focus:outline-none"
-          style={{ color: "var(--foreground)" }}
+          className="input-field h-9 px-3 rounded-lg text-sm"
         >
-          <option value="all">{t("allStatuses")}</option>
-          <option value="planned">{t("statusPlanned")}</option>
-          <option value="in_progress">{t("statusInProgress")}</option>
-          <option value="completed">{t("statusCompleted")}</option>
-          <option value="cancelled">{t("statusCancelled")}</option>
+          <option value="all">{isRTL ? "كل الحالات" : "All statuses"}</option>
+          <option value="planned">{isRTL ? "مخطط" : "Planned"}</option>
+          <option value="in_progress">{isRTL ? "قيد التنفيذ" : "In Progress"}</option>
+          <option value="completed">{isRTL ? "مكتمل" : "Completed"}</option>
+          <option value="cancelled">{isRTL ? "ملغي" : "Cancelled"}</option>
         </select>
       </div>
 
@@ -199,67 +192,75 @@ export default function ProductionOrdersPage() {
       {filtered.length === 0 ? (
         <EmptyState
           icon={ClipboardList}
-        iconColor={ACCENT}
-          title={t("noProductionOrdersYet")}
-          message={t("addFirstOrder")}
+          title={isRTL ? "لا توجد أوامر إنتاج بعد" : "No production orders yet"}
+          message={isRTL ? "أنشئ أول أمر إنتاج" : "Create your first production order"}
           action={
             <button
               onClick={() => setShowModal(true)}
-              className="flex items-center gap-2 px-4 py-2 rounded-lg text-[13px] font-semibold"
-              style={{ background: ACCENT, color: "#0f172a" }}
+              className="btn-primary h-9 px-4 rounded-xl inline-flex items-center gap-2 text-sm font-semibold"
             >
-              <Plus className="h-4 w-4" /> {t("newOrder")}
+              <Plus className="h-4 w-4" /> {isRTL ? "أمر جديد" : "New Order"}
             </button>
           }
         />
       ) : (
-        <div className="rounded-xl border border-white/8 overflow-hidden" style={{ background: "var(--card)" }}>
+        <div className="bg-white rounded-2xl shadow-[0_2px_10px_rgba(0,0,0,0.04)] border border-[color:var(--ink-100)] overflow-hidden">
           <div className="overflow-x-auto">
-            <table className="w-full text-[12.5px]">
+            <table className="w-full text-sm border-collapse">
               <thead>
-                <tr style={{ borderBottom: "1px solid rgba(255,255,255,0.06)", background: "rgba(255,255,255,0.02)" }}>
-                  {[t("orderNumber"), t("recipe"), t("outputItem"), t("plannedQty"), t("plannedDate"), t("materialCost"), t("orderStatus"), t("actions")].map((h) => (
-                    <th key={h} className={`px-4 py-3 font-semibold text-${isRTL ? "right" : "left"}`} style={{ color: "var(--muted-foreground)" }}>
+                <tr style={{ background: "#6b1523", color: "#fff", WebkitPrintColorAdjust: "exact", printColorAdjust: "exact" }}>
+                  {[
+                    isRTL ? "رقم الأمر"    : "Order #",
+                    isRTL ? "الوصفة"       : "Recipe",
+                    isRTL ? "المنتج الناتج": "Output Item",
+                    isRTL ? "الكمية"       : "Qty",
+                    isRTL ? "التاريخ"      : "Date",
+                    isRTL ? "التكلفة"      : "Cost",
+                    isRTL ? "الحالة"       : "Status",
+                    isRTL ? "إجراء"        : "Action",
+                  ].map((h) => (
+                    <th key={h} className="px-4 py-3 text-[10px] font-bold text-white/80 uppercase tracking-widest text-start whitespace-nowrap">
                       {h}
                     </th>
                   ))}
                 </tr>
               </thead>
-              <tbody>
+              <tbody className="divide-y divide-[color:var(--ink-50)]">
                 {filtered.map((o) => {
                   const cfg = STATUS_CFG[o.status] ?? STATUS_CFG.planned;
+                  const recipeName  = isRTL ? (o.recipe?.nameAr ?? "—")     : (o.recipe?.nameEn     || o.recipe?.nameAr     || "—");
+                  const outputName  = isRTL ? (o.outputItem?.nameAr ?? "—") : (o.outputItem?.nameEn || o.outputItem?.nameAr || "—");
                   return (
-                    <tr
-                      key={o._id}
-                      className="hover:bg-white/4 transition-colors"
-                      style={{ borderBottom: "1px solid rgba(255,255,255,0.04)" }}
-                    >
-                      <td className="px-4 py-3 font-mono text-[11px]" style={{ color: ACCENT }}>{o.orderNumber}</td>
-                      <td className="px-4 py-3" style={{ color: "var(--muted-foreground)" }}>{o.recipe?.nameAr ?? "—"}</td>
-                      <td className="px-4 py-3 font-medium" style={{ color: "var(--foreground)" }}>{o.outputItem?.nameAr ?? "—"}</td>
-                      <td className="px-4 py-3 tabular-nums" style={{ color: "var(--foreground)" }}>
+                    <tr key={o._id} className="hover:bg-[color:var(--ink-50)]/50 transition-colors">
+                      <td className="px-4 py-3">
+                        <span className="font-mono text-[11px] font-bold text-[color:var(--brand-700)] bg-[color:var(--brand-50)] px-2 py-0.5 rounded">
+                          {o.orderNumber}
+                        </span>
+                      </td>
+                      <td className="px-4 py-3 text-[color:var(--ink-600)] text-[13px]">{recipeName}</td>
+                      <td className="px-4 py-3 font-semibold text-[color:var(--ink-900)] text-[13px]">{outputName}</td>
+                      <td className="px-4 py-3 tabular-nums text-[color:var(--ink-700)]">
                         {o.actualQty != null ? (
                           <span>
-                            <span className="font-semibold">{o.actualQty}</span>
-                            <span className="text-[10px] ms-1" style={{ color: "var(--muted-foreground)" }}>/ {o.plannedQty}</span>
+                            <span className="font-bold text-green-700">{o.actualQty}</span>
+                            <span className="text-[11px] text-[color:var(--ink-400)] ms-1">/ {o.plannedQty}</span>
                           </span>
-                        ) : o.plannedQty}
-                        <span className="ms-1 text-[10px]" style={{ color: "var(--muted-foreground)" }}>{o.uom?.nameAr ?? ""}</span>
+                        ) : <span className="font-medium">{o.plannedQty}</span>}
+                        {o.uom?.nameAr && <span className="ms-1 text-[11px] text-[color:var(--ink-400)]">{isRTL ? o.uom.nameAr : (o.uom.nameEn || o.uom.nameAr)}</span>}
                       </td>
-                      <td className="px-4 py-3" style={{ color: "var(--muted-foreground)" }}>{o.plannedDate}</td>
-                      <td className="px-4 py-3 tabular-nums font-semibold" style={{ color: ACCENT }}>
+                      <td className="px-4 py-3 text-[color:var(--ink-500)] text-[12px] tabular-nums">{o.plannedDate}</td>
+                      <td className="px-4 py-3 tabular-nums font-bold text-[color:var(--brand-700)]">
                         {formatCurrency(o.materialCost ?? 0)}
                       </td>
                       <td className="px-4 py-3">
-                        <span className="px-2 py-0.5 rounded-full text-[10.5px] font-semibold" style={{ color: cfg.color, background: cfg.bg }}>
+                        <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-[10.5px] font-bold border ${cfg.badge}`}>
                           {cfg.label}
                         </span>
                       </td>
                       <td className="px-4 py-3">
                         <button
                           onClick={() => setStatusModal(o)}
-                          className="flex items-center gap-1 text-[11px] font-medium hover:underline"
-                          style={{ color: ACCENT }}
+                          className="h-7 px-2.5 rounded-md bg-[color:var(--brand-50)] hover:bg-[color:var(--brand-100)] text-[color:var(--brand-700)] text-xs font-semibold border border-[color:var(--brand-100)] inline-flex items-center gap-1 transition-colors"
                         >
                           <Edit2 className="h-3 w-3" />
                           {isRTL ? "تحديث" : "Update"}
@@ -271,12 +272,12 @@ export default function ProductionOrdersPage() {
               </tbody>
             </table>
           </div>
-          <div className="px-4 py-2.5 border-t border-white/6 flex items-center justify-between">
-            <span className="text-[11px]" style={{ color: "var(--muted-foreground)" }}>
-              {filtered.length} {t("ordersCount")}
+          <div className="px-5 py-3 border-t border-[color:var(--ink-100)] flex items-center justify-between bg-[color:var(--ink-50)]/50">
+            <span className="text-[12px] text-[color:var(--ink-400)]">
+              {filtered.length} {isRTL ? "أمر" : filtered.length === 1 ? "order" : "orders"}
             </span>
-            <span className="text-[11px] font-semibold" style={{ color: ACCENT }}>
-              {formatCurrency((filtered.reduce((s, o) => s + (o.materialCost ?? 0), 0)))} {isRTL ? "إجمالي" : "total cost"}
+            <span className="text-[12px] font-bold text-[color:var(--brand-700)]">
+              {isRTL ? "الإجمالي: " : "Total: "}{formatCurrency(filtered.reduce((s, o) => s + (o.materialCost ?? 0), 0))}
             </span>
           </div>
         </div>
@@ -287,6 +288,7 @@ export default function ProductionOrdersPage() {
         <OrderFormModal
           recipes={recipes ?? []}
           warehouses={warehouses ?? []}
+          companyId={companyId}
           onSave={handleCreate}
           onClose={() => setShowModal(false)}
           t={t}
@@ -310,7 +312,7 @@ export default function ProductionOrdersPage() {
 }
 
 // ── Order Form Modal ──────────────────────────────────────────────────────────
-function OrderFormModal({ recipes, warehouses, onSave, onClose, t, isRTL, formatCurrency }: any) {
+function OrderFormModal({ recipes, warehouses, companyId, onSave, onClose, isRTL, formatCurrency }: any) {
   const [form, setForm] = useState({
     orderNumber: `PO-${Date.now().toString().slice(-6)}`,
     recipeId: "",
@@ -337,9 +339,46 @@ function OrderFormModal({ recipes, warehouses, onSave, onClose, t, isRTL, format
     }));
   };
 
+  // Fetch full recipe details with ingredient names when recipe selected
+  const recipeDetails = useQuery(
+    api.production.getRecipeWithDetails,
+    form.recipeId ? { id: form.recipeId as any } : "skip"
+  );
+
+  // Fetch stock for selected warehouse
+  const stockBalances = useQuery(
+    api.inventory.listStockBalances,
+    form.warehouseId && companyId
+      ? { warehouseId: form.warehouseId as any, companyId: companyId as any }
+      : "skip"
+  );
+
+  // Build itemId → qty map
+  const stockMap = useMemo(() => {
+    if (!stockBalances) return {} as Record<string, number>;
+    return Object.fromEntries(
+      (stockBalances as any[]).map((sb: any) => [sb.itemId, sb.quantity ?? 0])
+    );
+  }, [stockBalances]);
+
+  const scale = selectedRecipe
+    ? Number(form.plannedQty || 1) / (selectedRecipe.yieldQuantity || 1)
+    : 1;
+
   const estimatedCost = selectedRecipe
     ? (selectedRecipe.costPerUnit ?? 0) * Number(form.plannedQty || 0)
     : 0;
+
+  const lines: any[] = recipeDetails?.lines ?? [];
+
+  const stockSummary = useMemo(() => {
+    if (!form.warehouseId || lines.length === 0) return null;
+    const shortage = lines.filter((line: any) => {
+      const req = (line.grossQuantity ?? line.quantity) * scale;
+      return (stockMap[line.itemId] ?? 0) < req;
+    });
+    return { total: lines.length, shortage: shortage.length };
+  }, [lines, stockMap, scale, form.warehouseId]);
 
   const handleSubmit = async (e: any) => {
     e.preventDefault();
@@ -350,90 +389,191 @@ function OrderFormModal({ recipes, warehouses, onSave, onClose, t, isRTL, format
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4" dir={isRTL ? "rtl" : "ltr"}>
       <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={onClose} />
-      <div
-        className="relative z-10 w-full max-w-lg rounded-2xl p-6 shadow-2xl"
-        style={{ background: "var(--card)", border: "1px solid rgba(255,255,255,0.12)" }}
-      >
-        <div className="flex items-center justify-between mb-5">
-          <h2 className="font-bold text-[15px]" style={{ color: "var(--foreground)" }}>
-            {t("addProductionOrder")}
-          </h2>
-          <button onClick={onClose}><X className="h-4 w-4" style={{ color: "var(--muted-foreground)" }} /></button>
+      <div className="relative z-10 w-full max-w-2xl bg-white rounded-2xl shadow-2xl border border-[color:var(--ink-100)] flex flex-col max-h-[90vh]">
+
+        {/* Header */}
+        <div className="flex items-center justify-between px-6 py-4 border-b border-[color:var(--ink-100)] shrink-0">
+          <div>
+            <h2 className="font-bold text-[15px] text-[color:var(--ink-900)]">
+              {isRTL ? "إنشاء أمر إنتاج" : "New Production Order"}
+            </h2>
+            <p className="text-[11px] text-[color:var(--ink-400)] mt-0.5">
+              {isRTL ? "اختر وصفة وحدد الكمية المطلوبة" : "Select a recipe and specify the required quantity"}
+            </p>
+          </div>
+          <button
+            onClick={onClose}
+            className="h-8 w-8 rounded-lg flex items-center justify-center text-[color:var(--ink-400)] hover:text-[color:var(--ink-700)] hover:bg-[color:var(--ink-50)] transition-colors"
+          >
+            <X className="h-4 w-4" />
+          </button>
         </div>
 
-        <form onSubmit={handleSubmit} className="space-y-3.5">
-          <div className="grid grid-cols-2 gap-3">
-            <Field label={t("orderNumber")} required>
-              <input value={form.orderNumber} onChange={set("orderNumber")} className="input-field" required />
-            </Field>
-            <Field label={t("plannedDate")} required>
-              <input type="date" value={form.plannedDate} onChange={set("plannedDate")} className="input-field" required />
-            </Field>
-          </div>
+        {/* Scrollable body */}
+        <div className="flex-1 overflow-y-auto px-6 py-5">
+          <form id="prod-order-form" onSubmit={handleSubmit} className="space-y-5">
 
-          <Field label={t("selectRecipe")} required>
-            <select value={form.recipeId} onChange={handleRecipeChange} className="input-field" required>
-              <option value="">— {t("recipe")} —</option>
-              {recipes.filter((r: any) => r.isActive).map((r: any) => (
-                <option key={r._id} value={r._id}>{r.nameAr} ({r.code})</option>
-              ))}
-            </select>
-          </Field>
-
-          {selectedRecipe && (
-            <div className="rounded-lg p-3 text-[12px] space-y-1" style={{ background: `${ACCENT}10`, border: `1px solid ${ACCENT}25` }}>
-              <div className="flex justify-between">
-                <span style={{ color: "var(--muted-foreground)" }}>{t("outputItem")}</span>
-                <span style={{ color: "var(--foreground)" }}>{selectedRecipe.outputItem?.nameAr}</span>
-              </div>
-              <div className="flex justify-between">
-                <span style={{ color: "var(--muted-foreground)" }}>{t("costPerUnit")}</span>
-                <span style={{ color: ACCENT }}>{formatCurrency(selectedRecipe.costPerUnit)}</span>
-              </div>
-              <div className="flex justify-between font-semibold">
-                <span style={{ color: "var(--muted-foreground)" }}>{t("materialCost")}</span>
-                <span style={{ color: ACCENT }}>{formatCurrency(estimatedCost)}</span>
-              </div>
+            {/* Row 1 */}
+            <div className="grid grid-cols-2 gap-4">
+              <Field label={isRTL ? "رقم الأمر" : "Order Number"} required>
+                <input value={form.orderNumber} onChange={set("orderNumber")} className="input-field w-full" required />
+              </Field>
+              <Field label={isRTL ? "التاريخ المخطط" : "Planned Date"} required>
+                <input type="date" value={form.plannedDate} onChange={set("plannedDate")} className="input-field w-full" required />
+              </Field>
             </div>
-          )}
 
-          <div className="grid grid-cols-2 gap-3">
-            <Field label={t("plannedQty")} required>
-              <input
-                type="number" min="0.001" step="0.001"
-                value={form.plannedQty} onChange={set("plannedQty")}
-                className="input-field" required
-              />
-            </Field>
-            <Field label={t("selectWarehouse")}>
-              <select value={form.warehouseId} onChange={set("warehouseId")} className="input-field">
-                <option value="">— {t("warehouse")} —</option>
-                {warehouses.map((w: any) => (
-                  <option key={w._id} value={w._id}>{w.nameAr}</option>
+            {/* Recipe */}
+            <Field label={isRTL ? "الوصفة" : "Recipe"} required>
+              <select value={form.recipeId} onChange={handleRecipeChange} className="input-field w-full" required>
+                <option value="">— {isRTL ? "اختر وصفة" : "Select recipe"} —</option>
+                {recipes.filter((r: any) => r.isActive).map((r: any) => (
+                  <option key={r._id} value={r._id}>{r.nameAr} ({r.code})</option>
                 ))}
               </select>
             </Field>
-          </div>
 
-          <Field label={t("notes")}>
-            <textarea value={form.notes} onChange={set("notes")} rows={2} className="input-field resize-none" />
-          </Field>
+            {/* Recipe info card */}
+            {selectedRecipe && (
+              <div className="rounded-xl border border-[color:var(--brand-100)] bg-[color:var(--brand-50)] p-3.5 grid grid-cols-3 gap-3 text-[12px]">
+                <div>
+                  <div className="text-[color:var(--ink-400)] mb-0.5">{isRTL ? "المنتج الناتج" : "Output Item"}</div>
+                  <div className="font-semibold text-[color:var(--ink-900)]">{selectedRecipe.outputItem?.nameAr ?? "—"}</div>
+                </div>
+                <div>
+                  <div className="text-[color:var(--ink-400)] mb-0.5">{isRTL ? "تكلفة الوحدة" : "Cost / Unit"}</div>
+                  <div className="font-bold text-[color:var(--brand-700)]">{formatCurrency(selectedRecipe.costPerUnit)}</div>
+                </div>
+                <div>
+                  <div className="text-[color:var(--ink-400)] mb-0.5">{isRTL ? "التكلفة الإجمالية" : "Total Cost"}</div>
+                  <div className="font-bold text-[color:var(--brand-700)]">{formatCurrency(estimatedCost)}</div>
+                </div>
+              </div>
+            )}
 
-          <div className="flex gap-3 pt-1">
-            <button type="button" onClick={onClose}
-              className="flex-1 py-2 rounded-lg text-[13px] border border-white/10 hover:bg-white/5"
-              style={{ color: "var(--muted-foreground)" }}>
-              {t("cancel")}
-            </button>
-            <button type="submit" disabled={saving}
-              className="flex-1 py-2 rounded-lg text-[13px] font-semibold hover:opacity-90"
-              style={{ background: ACCENT, color: "#0f172a" }}>
-              {saving ? t("saving") : t("save")}
-            </button>
-          </div>
-        </form>
+            {/* Qty + Warehouse */}
+            <div className="grid grid-cols-2 gap-4">
+              <Field label={isRTL ? "الكمية المخططة" : "Planned Qty"} required>
+                <input
+                  type="number" min="0.001" step="0.001"
+                  value={form.plannedQty} onChange={set("plannedQty")}
+                  className="input-field w-full" required
+                />
+              </Field>
+              <Field label={isRTL ? "المستودع" : "Warehouse"}>
+                <select value={form.warehouseId} onChange={set("warehouseId")} className="input-field w-full">
+                  <option value="">— {isRTL ? "اختر مستودعاً" : "Select warehouse"} —</option>
+                  {warehouses.map((w: any) => (
+                    <option key={w._id} value={w._id}>{isRTL ? w.nameAr : (w.nameEn || w.nameAr)}</option>
+                  ))}
+                </select>
+              </Field>
+            </div>
+
+            {/* Ingredients table */}
+            {form.recipeId && (
+              <div>
+                <div className="flex items-center justify-between mb-2">
+                  <h3 className="text-[11px] font-bold text-[color:var(--ink-500)] uppercase tracking-widest">
+                    {isRTL ? "المكونات" : "Ingredients"}
+                    {lines.length > 0 && <span className="ms-1.5 text-[color:var(--ink-400)] font-normal normal-case tracking-normal">({lines.length})</span>}
+                  </h3>
+                  {stockSummary && (
+                    stockSummary.shortage === 0
+                      ? <span className="text-[11px] font-semibold px-2 py-0.5 rounded-full bg-green-100 text-green-700">✓ {isRTL ? "المخزون كافٍ" : "Stock sufficient"}</span>
+                      : <span className="text-[11px] font-semibold px-2 py-0.5 rounded-full bg-red-100 text-red-700">⚠ {isRTL ? `${stockSummary.shortage} مادة غير كافية` : `${stockSummary.shortage} item(s) short`}</span>
+                  )}
+                </div>
+
+                {lines.length === 0 ? (
+                  <div className="rounded-xl border border-[color:var(--ink-100)] py-6 text-center text-[12px] text-[color:var(--ink-400)]">
+                    {recipeDetails === undefined ? (isRTL ? "جاري التحميل..." : "Loading...") : (isRTL ? "لا توجد مكونات لهذه الوصفة" : "No ingredients found")}
+                  </div>
+                ) : (
+                  <div className="rounded-xl border border-[color:var(--ink-100)] overflow-hidden">
+                    <table className="w-full text-[12px]">
+                      <thead>
+                        <tr className="bg-[color:var(--ink-50)] border-b border-[color:var(--ink-100)]">
+                          <th className="px-3 py-2 text-start font-semibold text-[color:var(--ink-500)]">{isRTL ? "المادة" : "Ingredient"}</th>
+                          <th className="px-3 py-2 text-center font-semibold text-[color:var(--ink-500)]">{isRTL ? "الكمية المطلوبة" : "Required"}</th>
+                          {form.warehouseId && (
+                            <>
+                              <th className="px-3 py-2 text-center font-semibold text-[color:var(--ink-500)]">{isRTL ? "المتوفر" : "In Stock"}</th>
+                              <th className="px-3 py-2 text-center font-semibold text-[color:var(--ink-500)]">{isRTL ? "الحالة" : "Status"}</th>
+                            </>
+                          )}
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-[color:var(--ink-50)]">
+                        {lines.map((line: any, idx: number) => {
+                          const req = (line.grossQuantity ?? line.quantity) * scale;
+                          const avail = form.warehouseId ? (stockMap[line.itemId] ?? 0) : null;
+                          const ok = avail === null || avail >= req;
+                          return (
+                            <tr key={line._id ?? idx} className={!ok ? "bg-red-50/60" : "hover:bg-gray-50/50"}>
+                              <td className="px-3 py-2.5 font-medium text-[color:var(--ink-900)]">
+                                {line.item?.nameAr ?? line.item?.nameEn ?? "—"}
+                              </td>
+                              <td className="px-3 py-2.5 text-center tabular-nums text-[color:var(--ink-700)]">
+                                {req.toFixed(3)}
+                                <span className="ms-1 text-[color:var(--ink-400)]">{line.uom?.code ?? ""}</span>
+                              </td>
+                              {form.warehouseId && (
+                                <>
+                                  <td className={`px-3 py-2.5 text-center tabular-nums font-semibold ${ok ? "text-green-700" : "text-red-600"}`}>
+                                    {(avail ?? 0).toFixed(3)}
+                                    <span className="ms-1 text-[color:var(--ink-400)] font-normal">{line.uom?.code ?? ""}</span>
+                                  </td>
+                                  <td className="px-3 py-2.5 text-center text-[11px]">
+                                    {ok
+                                      ? <span className="text-green-600 font-bold text-base leading-none">✓</span>
+                                      : <span className="font-semibold text-red-600">
+                                          {isRTL
+                                            ? `نقص ${(req - (avail ?? 0)).toFixed(2)}`
+                                            : `−${(req - (avail ?? 0)).toFixed(2)}`}
+                                        </span>
+                                    }
+                                  </td>
+                                </>
+                              )}
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+
+                {!form.warehouseId && lines.length > 0 && (
+                  <p className="text-[11px] text-[color:var(--ink-400)] mt-1.5 text-center">
+                    {isRTL ? "اختر مستودعاً لعرض توفر المخزون لكل مادة" : "Select a warehouse to check stock availability"}
+                  </p>
+                )}
+              </div>
+            )}
+
+            <Field label={isRTL ? "ملاحظات" : "Notes"}>
+              <textarea value={form.notes} onChange={set("notes")} rows={2}
+                className="input-field w-full resize-none"
+                placeholder={isRTL ? "ملاحظات اختيارية..." : "Optional notes..."} />
+            </Field>
+
+          </form>
+        </div>
+
+        {/* Footer */}
+        <div className="flex items-center justify-end gap-3 px-6 py-4 border-t border-[color:var(--ink-100)] shrink-0">
+          <button type="button" onClick={onClose}
+            className="btn-ghost h-10 px-5 rounded-lg text-sm font-semibold">
+            {isRTL ? "إلغاء" : "Cancel"}
+          </button>
+          <button type="submit" form="prod-order-form" disabled={saving}
+            className="btn-primary h-10 px-5 rounded-lg text-sm font-semibold inline-flex items-center gap-2 disabled:opacity-60">
+            {saving ? (isRTL ? "جاري الحفظ..." : "Saving...") : (isRTL ? "إنشاء الأمر" : "Create Order")}
+          </button>
+        </div>
       </div>
     </div>
   );
@@ -460,25 +600,24 @@ function StatusUpdateModal({ order, onSave, onClose, t, isRTL }: any) {
   const statuses = ["planned", "in_progress", "completed", "cancelled"] as const;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4" dir={isRTL ? "rtl" : "ltr"}>
       <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={onClose} />
-      <div
-        className="relative z-10 w-full max-w-sm rounded-2xl p-6 shadow-2xl"
-        style={{ background: "var(--card)", border: "1px solid rgba(255,255,255,0.12)" }}
-      >
-        <div className="flex items-center justify-between mb-5">
+      <div className="relative z-10 w-full max-w-sm bg-white rounded-2xl shadow-2xl border border-[color:var(--ink-100)]">
+        <div className="flex items-center justify-between px-5 py-4 border-b border-[color:var(--ink-100)]">
           <div>
-            <h2 className="font-bold text-[14px]" style={{ color: "var(--foreground)" }}>
+            <h2 className="font-bold text-[14px] text-[color:var(--ink-900)]">
               {isRTL ? "تحديث حالة الأمر" : "Update Order Status"}
             </h2>
-            <p className="text-[11px] font-mono mt-0.5" style={{ color: ACCENT }}>{order.orderNumber}</p>
+            <p className="text-[11px] font-mono text-[color:var(--brand-700)] mt-0.5">{order.orderNumber}</p>
           </div>
-          <button onClick={onClose}><X className="h-4 w-4" style={{ color: "var(--muted-foreground)" }} /></button>
+          <button onClick={onClose} className="h-8 w-8 rounded-lg flex items-center justify-center text-[color:var(--ink-400)] hover:bg-[color:var(--ink-50)] transition-colors">
+            <X className="h-4 w-4" />
+          </button>
         </div>
 
-        <form onSubmit={handleSubmit} className="space-y-3.5">
-          <Field label={t("orderStatus")} required>
-            <select value={form.status} onChange={set("status")} className="input-field" required>
+        <form onSubmit={handleSubmit} className="p-5 space-y-4">
+          <Field label={isRTL ? "الحالة" : "Status"} required>
+            <select value={form.status} onChange={set("status")} className="input-field w-full" required>
               {statuses.map((s) => (
                 <option key={s} value={s}>{STATUS_CFG[s]?.label ?? s}</option>
               ))}
@@ -487,27 +626,23 @@ function StatusUpdateModal({ order, onSave, onClose, t, isRTL }: any) {
 
           {(form.status === "completed" || form.status === "in_progress") && (
             <>
-              <Field label={t("actualQty")}>
-                <input type="number" min="0" step="0.001" value={form.actualQty} onChange={set("actualQty")} className="input-field" />
+              <Field label={isRTL ? "الكمية الفعلية" : "Actual Qty"}>
+                <input type="number" min="0" step="0.001" value={form.actualQty} onChange={set("actualQty")} className="input-field w-full" />
               </Field>
               {form.status === "completed" && (
-                <Field label={t("completedDate")}>
-                  <input type="date" value={form.completedDate} onChange={set("completedDate")} className="input-field" />
+                <Field label={isRTL ? "تاريخ الاكتمال" : "Completion Date"}>
+                  <input type="date" value={form.completedDate} onChange={set("completedDate")} className="input-field w-full" />
                 </Field>
               )}
             </>
           )}
 
           <div className="flex gap-3 pt-1">
-            <button type="button" onClick={onClose}
-              className="flex-1 py-2 rounded-lg text-[13px] border border-white/10 hover:bg-white/5"
-              style={{ color: "var(--muted-foreground)" }}>
-              {t("cancel")}
+            <button type="button" onClick={onClose} className="btn-ghost flex-1 h-10 rounded-lg text-sm font-semibold">
+              {isRTL ? "إلغاء" : "Cancel"}
             </button>
-            <button type="submit" disabled={saving}
-              className="flex-1 py-2 rounded-lg text-[13px] font-semibold hover:opacity-90"
-              style={{ background: ACCENT, color: "#0f172a" }}>
-              {saving ? t("saving") : t("save")}
+            <button type="submit" disabled={saving} className="btn-primary flex-1 h-10 rounded-lg text-sm font-semibold disabled:opacity-60">
+              {saving ? (isRTL ? "جاري الحفظ..." : "Saving...") : (isRTL ? "حفظ" : "Save")}
             </button>
           </div>
         </form>
@@ -518,9 +653,10 @@ function StatusUpdateModal({ order, onSave, onClose, t, isRTL }: any) {
 
 function Field({ label, required, children }: any) {
   return (
-    <div className="space-y-1">
-      <label className="block text-[11.5px] font-medium" style={{ color: "var(--muted-foreground)" }}>
-        {label}{required && <span className="text-red-400 ms-0.5">*</span>}      </label>
+    <div className="space-y-1.5">
+      <label className="block text-xs font-semibold text-[color:var(--ink-700)]">
+        {label}{required && <span className="text-[color:var(--brand-600)] ms-0.5">*</span>}
+      </label>
       {children}
     </div>
   );

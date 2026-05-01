@@ -11,6 +11,7 @@ import { usePermissions } from "@/hooks/usePermissions";
 import { PageHeader } from "@/components/ui/page-header";
 import { EmptyState } from "@/components/ui/empty-state";
 import { LoadingState } from "@/components/ui/data-display";
+import { toast } from "@/store/toastStore";
 
 export default function VehiclesPage() {
   const { t, isRTL } = useI18n();
@@ -133,7 +134,7 @@ export default function VehiclesPage() {
     try {
       await deleteVehicle({ id: vehicle._id, userId: currentUser?._id });
     } catch (e: any) {
-      alert(String((e as any).message || e));
+      toast.error(e);
     }
   }
 
@@ -143,9 +144,9 @@ export default function VehiclesPage() {
     setSeeding(true);
     try {
       const result = await seedVehicles({});
-      alert(`Done: ${result.total} vehicles processed.\n${result.results.join("\n")}`);
+      toast.success(`Done: ${result.total} vehicles processed.\n${result.results.join("\n")}`);
     } catch (e: any) {
-      alert(String(e.message || e));
+      toast.error(e);
     } finally {
       setSeeding(false);
     }

@@ -18,6 +18,7 @@ import { usePermissions } from "@/hooks/usePermissions";
 import { LoadingState } from "@/components/ui/data-display";
 import { PageHeader } from "@/components/ui/page-header";
 import { EmptyState } from "@/components/ui/empty-state";
+import { toast } from "@/store/toastStore";
 
 type AccountDoc = Doc<"accounts">;
 type CompanyDoc = Doc<"companies">;
@@ -559,7 +560,7 @@ function AccountDetail({
                     ACCOUNT_IN_USE_BY_CASHBOX: isRTL ? "الحساب مرتبط بصندوق" : "Account is linked to a cash box",
                     ACCOUNT_IN_USE_BY_FIXED_ASSET: isRTL ? "الحساب مرتبط بأصل ثابت" : "Account is linked to a fixed asset",
                   };
-                  alert(map[msg] ?? msg);
+                  toast.error(map[msg] ?? msg);
                 }
               }}
               className="h-8 px-3 rounded-lg inline-flex items-center gap-1.5 text-xs font-semibold bg-red-50 text-red-600 hover:bg-red-100"
@@ -711,11 +712,11 @@ export default function ChartOfAccountsPage() {
     try {
       const result = await addDirectExpenses({ companyId: company._id });
       const created = typeof result === "object" && result && "count" in result ? Number(result.count ?? 0) : 0;
-      alert(isRTL
+      toast.success(isRTL
         ? `تم إضافة ${created} حساب مصاريف مباشرة بنجاح`
         : `Added ${created} Direct Expenses accounts successfully`);
     } catch (error: unknown) {
-      alert(error instanceof Error ? error.message : String(error));
+      toast.error(error);
     } finally {
       setSeedingExpenses(false);
     }
@@ -739,14 +740,14 @@ export default function ChartOfAccountsPage() {
     try {
       const res = await cleanupOldAccounts({ companyId: company._id, userId: currentUser._id as Id<"users">, force: true });
       const { deleted, skipped, linesDeleted } = res as { deleted: number; skipped: number; linesDeleted: number };
-      alert(
+      toast.success(
         isRTL
           ? `تم الحذف: ${deleted} حساب${linesDeleted > 0 ? `\nقيود محذوفة: ${linesDeleted}` : ""}${skipped > 0 ? `\nتعذّر حذف: ${skipped}` : ""}`
           : `Deleted: ${deleted} account(s)${linesDeleted > 0 ? `\nJournal lines deleted: ${linesDeleted}` : ""}${skipped > 0 ? `\nSkipped: ${skipped}` : ""}`
       );
       setSelectedAccount(null);
     } catch (error: unknown) {
-      alert(error instanceof Error ? error.message : String(error));
+      toast.error(error);
     } finally {
       setCleaningUp(false);
     }
@@ -789,18 +790,6 @@ export default function ChartOfAccountsPage() {
                     {cleaningUp
                       ? (isRTL ? "جاري الحذف..." : "Deleting...")
                       : (isRTL ? `حذف الحسابات القديمة (${oldAccountsCount})` : `Delete Old Accounts (${oldAccountsCount})`)}
-                  </button>
-                )}
-                {!hasDirectExpenses && (
-                  <button
-                    onClick={handleAddDirectExpenses}
-                    disabled={seedingExpenses}
-                    className="h-9 px-4 rounded-xl inline-flex items-center gap-2 text-sm font-semibold border border-orange-300 bg-orange-50 text-orange-700 hover:bg-orange-100 disabled:opacity-50"
-                  >
-                    <Layers className="h-4 w-4" />
-                    {seedingExpenses
-                      ? (isRTL ? "جاري الإضافة..." : "Adding...")
-                      : (isRTL ? "إضافة المصاريف المباشرة" : "Add Direct Expenses")}
                   </button>
                 )}
                 <button
