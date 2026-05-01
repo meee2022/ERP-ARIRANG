@@ -4,7 +4,7 @@ import React, { useState, FormEvent } from "react";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/hooks/useAuth";
 import { useAppStore } from "@/store/useAppStore";
-import { AlertCircle, Mail, Lock, Loader2 } from "lucide-react";
+import { AlertCircle, Mail, Lock, Loader2, Eye, EyeOff } from "lucide-react";
 import Image from "next/image";
 
 const translations = {
@@ -15,6 +15,8 @@ const translations = {
     password: "كلمة المرور",
     submit: "دخول",
     loading: "جارٍ التحقق...",
+    showPassword: "إظهار كلمة المرور",
+    hidePassword: "إخفاء كلمة المرور",
     error: {
       empty: "يرجى إدخال البريد الإلكتروني وكلمة المرور",
       invalid: "بيانات الدخول غير صحيحة",
@@ -22,6 +24,7 @@ const translations = {
       network: "خطأ في الاتصال، حاول مرة أخرى",
     },
     switchLang: "English",
+    designedBy: "تصميم وتطوير",
   },
   en: {
     title: "Arirang Bakery",
@@ -30,6 +33,8 @@ const translations = {
     password: "Password",
     submit: "Sign In",
     loading: "Verifying...",
+    showPassword: "Show password",
+    hidePassword: "Hide password",
     error: {
       empty: "Please enter your email and password",
       invalid: "Invalid credentials",
@@ -37,6 +42,7 @@ const translations = {
       network: "Connection error, please try again",
     },
     switchLang: "عربي",
+    designedBy: "Designed & developed by",
   },
 } as const;
 
@@ -50,16 +56,15 @@ export default function LoginPage() {
   const t = translations[lang];
   const isRTL = lang === "ar";
 
-  const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
-  const [error, setError] = useState("");
-  const [loading, setLoading] = useState(false);
-  const [logoError, setLogoError] = useState(false);
+  const [email,      setEmail]      = useState("");
+  const [password,   setPassword]   = useState("");
+  const [showPwd,    setShowPwd]    = useState(false);
+  const [error,      setError]      = useState("");
+  const [loading,    setLoading]    = useState(false);
+  const [logoError,  setLogoError]  = useState(false);
 
   React.useEffect(() => {
-    if (isAuthenticated) {
-      router.replace("/");
-    }
+    if (isAuthenticated) router.replace("/");
   }, [isAuthenticated, router]);
 
   const handleSubmit = async (e: FormEvent) => {
@@ -75,23 +80,20 @@ export default function LoginPage() {
       router.replace("/");
     } catch (err: any) {
       const msg: string = err?.message ?? "";
-      if (msg.includes("inactive")) {
-        setError(t.error.inactive);
-      } else if (msg.includes("Invalid") || msg.includes("credentials")) {
-        setError(t.error.invalid);
-      } else {
-        setError(t.error.network);
-      }
+      if (msg.includes("inactive"))                         setError(t.error.inactive);
+      else if (msg.includes("Invalid") || msg.includes("credentials")) setError(t.error.invalid);
+      else                                                  setError(t.error.network);
     } finally {
       setLoading(false);
     }
   };
 
-  const inputBase = "w-full h-11 rounded-xl border border-[color:var(--ink-200)] bg-white text-sm text-[color:var(--ink-900)] transition-all focus:outline-none focus:border-[color:var(--brand-500)] focus:ring-2 focus:ring-[color:var(--brand-500)]/20";
+  const inputBase =
+    "w-full h-11 rounded-xl border border-[color:var(--ink-200)] bg-white text-sm text-[color:var(--ink-900)] transition-all focus:outline-none focus:border-[color:var(--brand-500)] focus:ring-2 focus:ring-[color:var(--brand-500)]/20";
 
   return (
     <div
-      className="min-h-screen flex items-center justify-center"
+      className="min-h-screen flex flex-col items-center justify-center gap-4 px-4"
       style={{ background: "linear-gradient(135deg, var(--brand-50) 0%, #ffffff 60%, var(--brand-100) 100%)" }}
       dir={isRTL ? "rtl" : "ltr"}
     >
@@ -103,7 +105,8 @@ export default function LoginPage() {
         {t.switchLang}
       </button>
 
-      <div className="w-full max-w-sm mx-4">
+      {/* Card */}
+      <div className="w-full max-w-sm">
         <div className="surface-card rounded-2xl shadow-lg p-8 space-y-6">
 
           {/* Logo / Brand */}
@@ -113,18 +116,18 @@ export default function LoginPage() {
                 <Image
                   src="/logo.png"
                   alt="Arirang Bakery"
-                  width={80}
-                  height={80}
+                  width={90}
+                  height={90}
                   className="rounded-2xl object-contain shadow-md"
                   onError={() => setLogoError(true)}
                 />
               </div>
             ) : (
               <div
-                className="h-16 w-16 rounded-2xl flex items-center justify-center mx-auto shadow-md"
+                className="h-[72px] w-[72px] rounded-2xl flex items-center justify-center mx-auto shadow-md"
                 style={{ background: "linear-gradient(135deg, var(--brand-700), var(--brand-500))" }}
               >
-                <span className="text-white text-2xl font-bold">A</span>
+                <span className="text-white text-3xl font-bold select-none">A</span>
               </div>
             )}
             <h1 className="text-2xl font-bold text-[color:var(--ink-900)] tracking-tight">{t.title}</h1>
@@ -160,7 +163,7 @@ export default function LoginPage() {
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
                   className={`${inputBase} ${isRTL ? "pr-10 pl-4" : "pl-10 pr-4"}`}
-                  placeholder="admin@demo.local"
+                  placeholder={lang === "ar" ? "أدخل بريدك الإلكتروني" : "Enter your email"}
                   disabled={loading}
                 />
               </div>
@@ -174,14 +177,26 @@ export default function LoginPage() {
               <div className="relative">
                 <Lock className={`absolute top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400 pointer-events-none z-10 ${isRTL ? "right-3" : "left-3"}`} />
                 <input
-                  type="password"
+                  type={showPwd ? "text" : "password"}
                   autoComplete="current-password"
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
-                  className={`${inputBase} ${isRTL ? "pr-10 pl-4" : "pl-10 pr-4"}`}
+                  className={`${inputBase} ${isRTL ? "pr-10 pl-10" : "pl-10 pr-10"}`}
                   placeholder="••••••••"
                   disabled={loading}
                 />
+                {/* Show / Hide password toggle */}
+                <button
+                  type="button"
+                  tabIndex={-1}
+                  onClick={() => setShowPwd((v) => !v)}
+                  aria-label={showPwd ? t.hidePassword : t.showPassword}
+                  className={`absolute top-1/2 -translate-y-1/2 h-7 w-7 flex items-center justify-center rounded-lg text-[color:var(--ink-400)] hover:text-[color:var(--ink-700)] hover:bg-[color:var(--ink-100)] transition-colors z-10 ${isRTL ? "left-2" : "right-2"}`}
+                >
+                  {showPwd
+                    ? <EyeOff className="h-4 w-4" />
+                    : <Eye    className="h-4 w-4" />}
+                </button>
               </div>
             </div>
 
@@ -189,21 +204,21 @@ export default function LoginPage() {
             <button
               type="submit"
               disabled={loading}
-              className="btn-primary h-11 w-full rounded-xl text-sm font-semibold disabled:opacity-60 transition-opacity inline-flex items-center justify-center gap-2"
+              className="btn-primary h-11 w-full rounded-xl text-sm font-semibold disabled:opacity-60 transition-opacity inline-flex items-center justify-center gap-2 mt-2"
             >
               {loading ? (
-                <>
-                  <Loader2 className="h-4 w-4 animate-spin" />
-                  {t.loading}
-                </>
-              ) : (
-                t.submit
-              )}
+                <><Loader2 className="h-4 w-4 animate-spin" />{t.loading}</>
+              ) : t.submit}
             </button>
           </form>
-
         </div>
       </div>
+
+      {/* Designed by */}
+      <p className="text-[11px] text-[color:var(--ink-400)] text-center select-none">
+        {t.designedBy}{" "}
+        <span className="font-semibold text-[color:var(--brand-700)]">Mohamed Kamal</span>
+      </p>
     </div>
   );
 }
