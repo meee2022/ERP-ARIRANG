@@ -74,25 +74,26 @@ function VehicleBlock({ v: veh, isRTL, idx }: { v: any; isRTL: boolean; idx: num
         <div className="overflow-x-auto">
           <table className="w-full text-sm border-collapse">
             <thead>
-              <tr style={{ background: "var(--ink-50)", borderBottom: "1px solid var(--ink-100)" }}>
+              <tr style={{ background: "#6b1523" }}>
                 {["#", isRTL ? "رقم الفاتورة" : "Invoice", isRTL ? "العميل" : "Customer",
                   isRTL ? "النوع" : "Type", isRTL ? "المبلغ" : "Amount",
                   isRTL ? "تحصيل نقدي" : "Cash", isRTL ? "آجل" : "Credit",
                   isRTL ? "الحالة" : "Status", isRTL ? "توقيع الاستلام" : "Signature"].map((h, i) => (
-                  <th key={i} className="px-4 py-2.5 text-[10px] font-bold uppercase tracking-wider text-start"
-                    style={{ color: "var(--ink-500)" }}>{h}</th>
+                  <th key={i} className="px-[14px] py-[10px] text-[11px] font-bold uppercase tracking-wider text-start whitespace-nowrap"
+                    style={{ color: "rgba(255,255,255,0.85)" }}>{h}</th>
                 ))}
               </tr>
             </thead>
             <tbody>
               {veh.invoices.map((inv: any, i: number) => (
                 <tr key={inv._id}
+                  className="hover:bg-[#fdf2f4] transition-colors"
                   style={{
-                    background: i % 2 === 0 ? "white" : "var(--ink-50)",
-                    borderBottom: "1px solid var(--ink-100)",
+                    background: i % 2 === 0 ? "white" : "#fafafa",
+                    borderBottom: "1px solid #f1f5f9",
                   }}>
-                  <td className="px-4 py-3 text-[11px]" style={{ color: "var(--ink-500)" }}>{i + 1}</td>
-                  <td className="px-4 py-3">
+                  <td className="px-[14px] py-[8px] text-[12.5px] whitespace-nowrap" style={{ color: "var(--ink-500)" }}>{i + 1}</td>
+                  <td className="px-[14px] py-[8px] whitespace-nowrap">
                     <span className="font-mono text-[12px] font-bold px-2 py-0.5 rounded"
                       style={{ background: "var(--ink-100)", color: "var(--ink-700)" }}>
                       {inv.invoiceNumber}
@@ -103,12 +104,12 @@ function VehicleBlock({ v: veh, isRTL, idx }: { v: any; isRTL: boolean; idx: num
                       </div>
                     )}
                   </td>
-                  <td className="px-4 py-3">
-                    <span className="text-[13px] font-semibold" style={{ color: "var(--ink-900)" }}>
+                  <td className="px-[14px] py-[8px]" style={{ maxWidth: "200px", overflow: "hidden", textOverflow: "ellipsis" }}>
+                    <span className="text-[12.5px] font-semibold whitespace-nowrap" style={{ color: "#1e293b" }}>
                       {inv.customerName}
                     </span>
                   </td>
-                  <td className="px-4 py-3">
+                  <td className="px-[14px] py-[8px] whitespace-nowrap">
                     <span className="inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-full"
                       style={{
                         background: `${typeColor(inv.invoiceType)}15`,
@@ -121,16 +122,16 @@ function VehicleBlock({ v: veh, isRTL, idx }: { v: any; isRTL: boolean; idx: num
                         : (isRTL ? "مختلط" : "Mixed")}
                     </span>
                   </td>
-                  <td className="px-4 py-3 tabular-nums text-[13px] font-bold" style={{ color: "var(--ink-900)" }}>
+                  <td className="px-[14px] py-[8px] tabular-nums text-[12.5px] font-bold text-end whitespace-nowrap" style={{ color: "#1e293b" }}>
                     {moneyFmt(inv.totalAmount)}
                   </td>
-                  <td className="px-4 py-3 tabular-nums text-[12px]" style={{ color: "#059669" }}>
+                  <td className="px-[14px] py-[8px] tabular-nums text-[12.5px] text-end whitespace-nowrap" style={{ color: "#059669" }}>
                     {inv.cashReceived > 0 ? moneyFmt(inv.cashReceived) : "—"}
                   </td>
-                  <td className="px-4 py-3 tabular-nums text-[12px]" style={{ color: "#d97706" }}>
+                  <td className="px-[14px] py-[8px] tabular-nums text-[12.5px] text-end whitespace-nowrap" style={{ color: "#d97706" }}>
                     {inv.creditAmount > 0 ? moneyFmt(inv.creditAmount) : "—"}
                   </td>
-                  <td className="px-4 py-3">
+                  <td className="px-[14px] py-[8px] whitespace-nowrap">
                     <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
                       inv.postingStatus === "posted"
                         ? "bg-green-50 text-green-700"
@@ -142,7 +143,7 @@ function VehicleBlock({ v: veh, isRTL, idx }: { v: any; isRTL: boolean; idx: num
                     </span>
                   </td>
                   {/* Signature box for print */}
-                  <td className="px-4 py-3">
+                  <td className="px-[14px] py-[8px]">
                     <div className="h-8 w-24 rounded border" style={{ borderColor: "var(--ink-300)" }} />
                   </td>
                 </tr>

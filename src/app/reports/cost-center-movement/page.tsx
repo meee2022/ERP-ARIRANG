@@ -223,26 +223,26 @@ export default function CostCenterMovementPage() {
           <div className="overflow-x-auto">
             <table className="w-full text-sm border-collapse">
               <thead>
-                <tr className="bg-[color:var(--ink-50)] border-b border-[color:var(--ink-100)]">
-                  <th className="px-4 py-3 text-start text-xs font-semibold text-[color:var(--ink-500)] uppercase tracking-wider whitespace-nowrap">
+                <tr style={{ background: "#6b1523" }}>
+                  <th className="px-[14px] py-[10px] text-start text-[11px] font-bold uppercase tracking-wider whitespace-nowrap" style={{ color: "rgba(255,255,255,0.85)" }}>
                     {t("date")}
                   </th>
-                  <th className="px-4 py-3 text-start text-xs font-semibold text-[color:var(--ink-500)] uppercase tracking-wider whitespace-nowrap">
+                  <th className="px-[14px] py-[10px] text-start text-[11px] font-bold uppercase tracking-wider whitespace-nowrap" style={{ color: "rgba(255,255,255,0.85)" }}>
                     {t("entryNo")}
                   </th>
-                  <th className="px-4 py-3 text-start text-xs font-semibold text-[color:var(--ink-500)] uppercase tracking-wider">
+                  <th className="px-[14px] py-[10px] text-start text-[11px] font-bold uppercase tracking-wider" style={{ color: "rgba(255,255,255,0.85)" }}>
                     {t("description")}
                   </th>
-                  <th className="px-4 py-3 text-start text-xs font-semibold text-[color:var(--ink-500)] uppercase tracking-wider">
+                  <th className="px-[14px] py-[10px] text-start text-[11px] font-bold uppercase tracking-wider" style={{ color: "rgba(255,255,255,0.85)" }}>
                     {t("account")}
                   </th>
-                  <th className="px-4 py-3 text-start text-xs font-semibold text-[color:var(--ink-500)] uppercase tracking-wider">
+                  <th className="px-[14px] py-[10px] text-start text-[11px] font-bold uppercase tracking-wider" style={{ color: "rgba(255,255,255,0.85)" }}>
                     {t("costCenter")}
                   </th>
-                  <th className="px-4 py-3 text-end text-xs font-semibold text-[color:var(--ink-500)] uppercase tracking-wider whitespace-nowrap">
+                  <th className="px-[14px] py-[10px] text-end text-[11px] font-bold uppercase tracking-wider whitespace-nowrap" style={{ color: "rgba(255,255,255,0.85)" }}>
                     {t("debit")}
                   </th>
-                  <th className="px-4 py-3 text-end text-xs font-semibold text-[color:var(--ink-500)] uppercase tracking-wider whitespace-nowrap">
+                  <th className="px-[14px] py-[10px] text-end text-[11px] font-bold uppercase tracking-wider whitespace-nowrap" style={{ color: "rgba(255,255,255,0.85)" }}>
                     {t("credit")}
                   </th>
                 </tr>
@@ -252,25 +252,26 @@ export default function CostCenterMovementPage() {
                 {rows.map((row: any, i: number) => (
                   <tr
                     key={row._id ?? i}
-                    className="border-b border-[color:var(--ink-100)] hover:bg-[color:var(--ink-50)] transition-colors"
+                    className="hover:bg-[#fdf2f4] transition-colors"
+                    style={{ background: i % 2 === 0 ? "white" : "#fafafa", borderBottom: "1px solid #f1f5f9" }}
                   >
                     {/* Date */}
-                    <td className="px-4 py-2.5 text-[color:var(--ink-500)] tabular-nums whitespace-nowrap text-xs">
+                    <td className="px-[14px] py-[8px] text-[12.5px] tabular-nums whitespace-nowrap" style={{ color: "#1e293b" }}>
                       {row.date ? formatDate(row.date) : "—"}
                     </td>
 
                     {/* Entry No */}
-                    <td className="px-4 py-2.5 text-[color:var(--ink-700)] font-mono text-xs whitespace-nowrap">
+                    <td className="px-[14px] py-[8px] text-[12.5px] font-mono whitespace-nowrap" style={{ color: "#1e293b" }}>
                       {row.entryNumber ?? row.entryNo ?? row.number ?? "—"}
                     </td>
 
                     {/* Description */}
-                    <td className="px-4 py-2.5 text-[color:var(--ink-900)] max-w-[260px] truncate">
+                    <td className="px-[14px] py-[8px] text-[12.5px]" style={{ maxWidth: "200px", overflow: "hidden", textOverflow: "ellipsis", color: "#1e293b" }}>
                       {row.description ?? row.notes ?? "—"}
                     </td>
 
                     {/* Account */}
-                    <td className="px-4 py-2.5 text-[color:var(--ink-700)] text-xs">
+                    <td className="px-[14px] py-[8px] text-[12.5px] whitespace-nowrap" style={{ color: "#1e293b" }}>
                       {row.accountId
                         ? accountLabel(row.accountId)
                         : row.accountCode
@@ -283,7 +284,7 @@ export default function CostCenterMovementPage() {
                     </td>
 
                     {/* Cost Center */}
-                    <td className="px-4 py-2.5 text-[color:var(--ink-700)] text-xs">
+                    <td className="px-[14px] py-[8px] text-[12.5px] whitespace-nowrap" style={{ color: "#1e293b" }}>
                       {row.costCenterId
                         ? ccLabel(row.costCenterId)
                         : row.costCenterCode
@@ -296,14 +297,14 @@ export default function CostCenterMovementPage() {
                     </td>
 
                     {/* Debit */}
-                    <td className="px-4 py-2.5 text-end tabular-nums font-medium text-green-700 whitespace-nowrap">
+                    <td className="px-[14px] py-[8px] text-[12.5px] text-end tabular-nums font-medium whitespace-nowrap text-green-700">
                       {(row.debit ?? 0) > 0
                         ? formatCurrency(row.debit)
                         : <span className="text-[color:var(--ink-300)]">—</span>}
                     </td>
 
                     {/* Credit */}
-                    <td className="px-4 py-2.5 text-end tabular-nums font-medium text-red-600 whitespace-nowrap">
+                    <td className="px-[14px] py-[8px] text-[12.5px] text-end tabular-nums font-medium whitespace-nowrap text-red-600">
                       {(row.credit ?? 0) > 0
                         ? formatCurrency(row.credit)
                         : <span className="text-[color:var(--ink-300)]">—</span>}

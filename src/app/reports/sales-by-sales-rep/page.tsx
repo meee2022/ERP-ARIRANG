@@ -11,6 +11,7 @@ import { PageHeader } from "@/components/ui/page-header";
 import { FilterPanel, FilterField } from "@/components/ui/filter-panel";
 import { SummaryStrip } from "@/components/ui/data-display";
 import { EmptyState } from "@/components/ui/empty-state";
+import { SearchableSelect } from "@/components/ui/searchable-select";
 import Link from "next/link";
 
 function todayISO() { return new Date().toISOString().split("T")[0]; }
@@ -147,8 +148,14 @@ export default function SalesBySalesRepPage() {
   const [fromDate, setFromDate] = useState(startOfMonthISO());
   const [toDate, setToDate] = useState(todayISO());
   const [expandedRepId, setExpandedRepId] = useState<string | null>(null);
+  const [selectedRepFilter, setSelectedRepFilter] = useState<string>("");
   const selectedBranch = useAppStore((s) => s.selectedBranch);
   const branchArg = selectedBranch !== "all" ? selectedBranch : undefined;
+
+  // Load companies for sales rep list
+  const companies = useQuery(api.seed.getCompanies, {}) ?? [];
+  const companyId = companies[0]?._id;
+  const allSalesReps = useQuery(api.salesMasters.listSalesReps, companyId ? { companyId } : "skip") ?? [];
 
   const report = useQuery(api.reports.getSalesBySalesRep, {
     fromDate,
@@ -156,8 +163,28 @@ export default function SalesBySalesRepPage() {
     branchId: branchArg as any,
   });
 
-  const rows = report?.rows ?? [];
-  const totals = report?.totals ?? { invoiceCount: 0, totalSales: 0, cashSales: 0, creditSales: 0 };
+  // Filter rows client-side by selected rep
+  const allRows = report?.rows ?? [];
+  const rows = selectedRepFilter
+    ? allRows.filter((r: any) => r.salesRepId === selectedRepFilter)
+    : allRows;
+
+  // Recompute totals for filtered rows
+  const totals = rows.length > 0 ? {
+    invoiceCount: rows.reduce((s: number, r: any) => s + r.invoiceCount, 0),
+    totalSales:   rows.reduce((s: number, r: any) => s + r.totalSales, 0),
+    cashSales:    rows.reduce((s: number, r: any) => s + r.cashSales, 0),
+    creditSales:  rows.reduce((s: number, r: any) => s + r.creditSales, 0),
+  } : (report?.totals ?? { invoiceCount: 0, totalSales: 0, cashSales: 0, creditSales: 0 });
+
+  // Sales rep dropdown options
+  const repOptions = [
+    { value: "", label: isRTL ? "كل المندوبين" : "All Sales Reps" },
+    ...allSalesReps.map((r: any) => ({
+      value: r._id,
+      label: `${r.code ? r.code + " — " : ""}${isRTL ? r.nameAr : (r.nameEn || r.nameAr)}`,
+    })),
+  ];
 
   return (
     <div dir={isRTL ? "rtl" : "ltr"} className="space-y-5">
@@ -178,6 +205,19 @@ export default function SalesBySalesRepPage() {
         </FilterField>
         <FilterField label={t("toDate")}>
           <input type="date" value={toDate} onChange={(e) => { setToDate(e.target.value); setExpandedRepId(null); }} className="input-field h-8 w-auto text-sm" />
+        </FilterField>
+        <FilterField label={isRTL ? "المندوب" : "Sales Rep"}>
+          <SearchableSelect
+            options={repOptions}
+            value={selectedRepFilter}
+            onChange={(v) => {
+              setSelectedRepFilter(v);
+              // Auto-expand if a specific rep is selected
+              setExpandedRepId(v || null);
+            }}
+            placeholder={isRTL ? "كل المندوبين" : "All Sales Reps"}
+            className="w-52"
+          />
         </FilterField>
       </FilterPanel>
 

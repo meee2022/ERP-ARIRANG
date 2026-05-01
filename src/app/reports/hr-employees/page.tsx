@@ -44,28 +44,29 @@ export default function HrEmployeesReportPage() {
       <div className="surface-card rounded-xl overflow-hidden">
         <table className="w-full text-sm" dir={isRTL ? "rtl" : "ltr"}>
           <thead>
-            <tr className="bg-gray-50 border-b">
-              <th className="px-4 py-3 text-start font-semibold">{t("employeeCode")}</th>
-              <th className="px-4 py-3 text-start font-semibold">{t("employeeName")}</th>
-              <th className="px-4 py-3 text-start font-semibold">{t("department")}</th>
-              <th className="px-4 py-3 text-start font-semibold">{t("designation")}</th>
-              <th className="px-4 py-3 text-start font-semibold">{t("hireDate")}</th>
-              <th className="px-4 py-3 text-start font-semibold">{t("employmentType")}</th>
-              <th className="px-4 py-3 text-start font-semibold">{t("basicSalary")}</th>
-              <th className="px-4 py-3 text-start font-semibold">{t("employeeStatus")}</th>
+            <tr style={{ background: "#6b1523" }}>
+              <th className="px-[14px] py-[10px] text-start text-[11px] font-bold uppercase tracking-wider whitespace-nowrap" style={{ color: "rgba(255,255,255,0.85)" }}>{t("employeeCode")}</th>
+              <th className="px-[14px] py-[10px] text-start text-[11px] font-bold uppercase tracking-wider whitespace-nowrap" style={{ color: "rgba(255,255,255,0.85)" }}>{t("employeeName")}</th>
+              <th className="px-[14px] py-[10px] text-start text-[11px] font-bold uppercase tracking-wider whitespace-nowrap" style={{ color: "rgba(255,255,255,0.85)" }}>{t("department")}</th>
+              <th className="px-[14px] py-[10px] text-start text-[11px] font-bold uppercase tracking-wider whitespace-nowrap" style={{ color: "rgba(255,255,255,0.85)" }}>{t("designation")}</th>
+              <th className="px-[14px] py-[10px] text-start text-[11px] font-bold uppercase tracking-wider whitespace-nowrap" style={{ color: "rgba(255,255,255,0.85)" }}>{t("hireDate")}</th>
+              <th className="px-[14px] py-[10px] text-start text-[11px] font-bold uppercase tracking-wider whitespace-nowrap" style={{ color: "rgba(255,255,255,0.85)" }}>{t("employmentType")}</th>
+              <th className="px-[14px] py-[10px] text-end text-[11px] font-bold uppercase tracking-wider whitespace-nowrap" style={{ color: "rgba(255,255,255,0.85)" }}>{t("basicSalary")}</th>
+              <th className="px-[14px] py-[10px] text-start text-[11px] font-bold uppercase tracking-wider whitespace-nowrap" style={{ color: "rgba(255,255,255,0.85)" }}>{t("employeeStatus")}</th>
             </tr>
           </thead>
           <tbody>
-            {employees.map((emp: any) => (
-              <tr key={emp._id} className="border-b hover:bg-gray-50/50">
-                <td className="px-4 py-3 font-mono text-xs">{emp.employeeCode}</td>
-                <td className="px-4 py-3 font-medium">{isRTL ? emp.nameAr : (emp.nameEn || emp.nameAr)}</td>
-                <td className="px-4 py-3 text-gray-600">{emp.department ? (isRTL ? emp.department.nameAr : (emp.department.nameEn || emp.department.nameAr)) : "—"}</td>
-                <td className="px-4 py-3 text-gray-600">{emp.designation ? (isRTL ? emp.designation.nameAr : (emp.designation.nameEn || emp.designation.nameAr)) : "—"}</td>
-                <td className="px-4 py-3 text-gray-600">{emp.hireDate}</td>
-                <td className="px-4 py-3 text-gray-600">{emp.employmentType}</td>
-                <td className="px-4 py-3 font-medium">{formatCurrency(emp.basicSalary, lang)}</td>
-                <td className="px-4 py-3">{statusBadge(emp.status)}</td>
+            {employees.map((emp: any, i: number) => (
+              <tr key={emp._id} className="hover:bg-[#fdf2f4] transition-colors"
+                style={{ background: i % 2 === 0 ? "white" : "#fafafa", borderBottom: "1px solid #f1f5f9" }}>
+                <td className="px-[14px] py-[8px] font-mono text-[11px] whitespace-nowrap" style={{ color: "#1e293b" }}>{emp.employeeCode}</td>
+                <td className="px-[14px] py-[8px] text-[12.5px] font-medium whitespace-nowrap" style={{ maxWidth: "200px", overflow: "hidden", textOverflow: "ellipsis", color: "#1e293b" }}>{isRTL ? emp.nameAr : (emp.nameEn || emp.nameAr)}</td>
+                <td className="px-[14px] py-[8px] text-[12.5px] whitespace-nowrap" style={{ color: "#1e293b" }}>{emp.department ? (isRTL ? emp.department.nameAr : (emp.department.nameEn || emp.department.nameAr)) : "—"}</td>
+                <td className="px-[14px] py-[8px] text-[12.5px] whitespace-nowrap" style={{ color: "#1e293b" }}>{emp.designation ? (isRTL ? emp.designation.nameAr : (emp.designation.nameEn || emp.designation.nameAr)) : "—"}</td>
+                <td className="px-[14px] py-[8px] text-[12.5px] whitespace-nowrap" style={{ color: "#1e293b" }}>{emp.hireDate}</td>
+                <td className="px-[14px] py-[8px] text-[12.5px] whitespace-nowrap" style={{ color: "#1e293b" }}>{emp.employmentType}</td>
+                <td className="px-[14px] py-[8px] text-[12.5px] font-medium tabular-nums text-end whitespace-nowrap" style={{ color: "#1e293b" }}>{formatCurrency(emp.basicSalary, lang)}</td>
+                <td className="px-[14px] py-[8px] whitespace-nowrap">{statusBadge(emp.status)}</td>
               </tr>
             ))}
             {employees.length === 0 && (

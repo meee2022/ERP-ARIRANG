@@ -173,7 +173,7 @@ export default function InventoryAgingPage() {
             <div className="desktop-table overflow-x-auto">
               <table className="w-full text-sm border-collapse">
                 <thead>
-                  <tr style={{ background: "var(--ink-50)", borderBottom: "1px solid var(--ink-200)" }}>
+                  <tr style={{ background: "#6b1523" }}>
                     {[
                       isRTL ? "الكود" : "Code",
                       isRTL ? "اسم الصنف" : "Item",
@@ -185,8 +185,8 @@ export default function InventoryAgingPage() {
                       isRTL ? "عمر المخزون" : "Aging",
                       isRTL ? "الفئة" : "Bucket",
                     ].map((h, i) => (
-                      <th key={i} className="px-4 py-3 text-[10px] font-bold uppercase tracking-wider text-start"
-                        style={{ color: "var(--ink-500)" }}>{h}</th>
+                      <th key={i} className="px-[14px] py-[10px] text-[11px] font-bold uppercase tracking-wider text-start whitespace-nowrap"
+                        style={{ color: "rgba(255,255,255,0.85)" }}>{h}</th>
                     ))}
                   </tr>
                 </thead>
@@ -200,49 +200,50 @@ export default function InventoryAgingPage() {
                     </tr>
                   ) : rows.map((r: any, i: number) => (
                     <tr key={`${r.itemId}-${r.warehouseId}`}
+                      className="hover:bg-[#fdf2f4] transition-colors"
                       style={{
-                        background: i % 2 === 0 ? "white" : "var(--ink-50)",
-                        borderBottom: "1px solid var(--ink-100)",
+                        background: i % 2 === 0 ? "white" : "#fafafa",
+                        borderBottom: "1px solid #f1f5f9",
                       }}>
-                      <td className="px-4 py-3">
+                      <td className="px-[14px] py-[8px] whitespace-nowrap">
                         <span className="font-mono text-[11px] font-bold px-2 py-0.5 rounded"
                           style={{ background: "var(--ink-100)", color: "var(--ink-600)" }}>
                           {r.code}
                         </span>
                       </td>
-                      <td className="px-4 py-3">
-                        <p className="text-[13px] font-semibold" style={{ color: "var(--ink-900)" }}>
+                      <td className="px-[14px] py-[8px] whitespace-nowrap" style={{ maxWidth: "200px", overflow: "hidden", textOverflow: "ellipsis" }}>
+                        <p className="text-[12.5px] font-semibold" style={{ color: "#1e293b" }}>
                           {isRTL ? r.nameAr : r.nameEn}
                         </p>
                       </td>
-                      <td className="px-4 py-3 text-[12px]" style={{ color: "var(--ink-600)" }}>
+                      <td className="px-[14px] py-[8px] text-[12.5px] whitespace-nowrap" style={{ color: "var(--ink-600)" }}>
                         <span className="flex items-center gap-1">
                           <Warehouse className="h-3.5 w-3.5 opacity-60" />
                           {r.warehouseName}
                         </span>
                       </td>
-                      <td className="px-4 py-3 tabular-nums text-[13px] font-bold" style={{ color: "var(--ink-900)" }}>
+                      <td className="px-[14px] py-[8px] tabular-nums text-[12.5px] font-bold text-end whitespace-nowrap" style={{ color: "#1e293b" }}>
                         {r.totalQty.toFixed(2)}
                       </td>
-                      <td className="px-4 py-3 tabular-nums text-[12px]" style={{ color: "var(--ink-600)" }}>
+                      <td className="px-[14px] py-[8px] tabular-nums text-[12.5px] text-end whitespace-nowrap" style={{ color: "var(--ink-600)" }}>
                         {fmt(r.avgCost)}
                       </td>
-                      <td className="px-4 py-3 tabular-nums text-[13px] font-bold" style={{ color: "var(--ink-900)" }}>
+                      <td className="px-[14px] py-[8px] tabular-nums text-[12.5px] font-bold text-end whitespace-nowrap" style={{ color: "#1e293b" }}>
                         {fmt(r.stockValue)}
                       </td>
-                      <td className="px-4 py-3 text-[12px]" style={{ color: "var(--ink-500)" }}>
+                      <td className="px-[14px] py-[8px] text-[12.5px] whitespace-nowrap" style={{ color: "var(--ink-500)" }}>
                         {r.lastReceiptDate ?? "—"}
                       </td>
-                      <td className="px-4 py-3">
+                      <td className="px-[14px] py-[8px] whitespace-nowrap">
                         <div className="flex items-center gap-1">
                           {r.agingDays >= 30 && <AlertTriangle className="h-3.5 w-3.5 text-red-500" />}
-                          <span className="text-[12px] font-bold tabular-nums"
+                          <span className="text-[12.5px] font-bold tabular-nums"
                             style={{ color: r.agingDays >= 60 ? "#7c3aed" : r.agingDays >= 30 ? "#ef4444" : "var(--ink-700)" }}>
                             {r.agingDays} {isRTL ? "يوم" : "d"}
                           </span>
                         </div>
                       </td>
-                      <td className="px-4 py-3">
+                      <td className="px-[14px] py-[8px] whitespace-nowrap">
                         <AgingBadge bucket={r.agingBucket} />
                       </td>
                     </tr>

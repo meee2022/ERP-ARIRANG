@@ -252,41 +252,53 @@ select.input-field {
 /* ─── Data Table (unified table style) ────────────────────────── */
 .data-table {
   width: 100%;
-  font-size: 0.875rem;
+  font-size: 0.78rem;
   border-collapse: collapse;
 }
 .data-table thead th {
-  padding: 0.7rem 1rem;
+  padding: 0.65rem 0.875rem;
   text-align: start;
-  font-size: 0.7rem;
+  font-size: 0.68rem;
   font-weight: 700;
   text-transform: uppercase;
-  letter-spacing: 0.05em;
-  color: var(--ink-500);
-  background: var(--ink-50);
-  border-bottom: 1.5px solid var(--ink-200);
+  letter-spacing: 0.06em;
+  color: rgba(255,255,255,0.85);
+  background: #6b1523;
   white-space: nowrap;
 }
 .data-table thead th.text-end { text-align: end; }
 .data-table thead th.text-center { text-align: center; }
 .data-table tbody td {
-  padding: 0.625rem 1rem;
+  padding: 0.5rem 0.875rem;
   border-bottom: 1px solid var(--ink-100);
   color: var(--ink-800);
   vertical-align: middle;
+  font-size: 0.78rem;
+  white-space: nowrap;
 }
+.data-table tbody td.wrap { white-space: normal; }
+.data-table tbody tr:nth-child(even) { background: #fafafa; }
 .data-table tbody tr:last-child td { border-bottom: none; }
-.data-table tbody tr:hover { background: color-mix(in srgb, var(--brand-50) 40%, white); }
+.data-table tbody tr:hover { background: color-mix(in srgb, var(--brand-50) 60%, white); }
 .data-table tbody tr.row-total {
   background: var(--ink-50);
-  border-top: 2px solid var(--ink-300);
+  border-top: 2px solid var(--ink-200);
   font-weight: 700;
+}
+.data-table tfoot td {
+  padding: 0.55rem 0.875rem;
+  border-top: 2px solid var(--ink-200);
+  background: var(--ink-50);
+  font-weight: 700;
+  font-size: 0.8rem;
+  white-space: nowrap;
 }
 .data-table td.text-end { text-align: end; }
 .data-table td.text-center { text-align: center; }
 .data-table td.numeric { font-variant-numeric: tabular-nums; font-weight: 500; }
-.data-table td.muted { color: var(--ink-400); font-size: 0.8rem; }
-.data-table td.code { font-family: 'JetBrains Mono', 'Fira Code', monospace; font-size: 0.78rem; color: var(--brand-700); }
+.data-table td.muted { color: var(--ink-400); font-size: 0.75rem; }
+.data-table td.code { font-family: 'JetBrains Mono', 'Fira Code', monospace; font-size: 0.75rem; color: var(--brand-700); font-weight: 700; }
+.data-table td.truncate-cell { max-width: 180px; overflow: hidden; text-overflow: ellipsis; }
 
 /* ─── Page layout helpers ──────────────────────────────────────── */
 .page-section { @apply space-y-5; }
@@ -334,9 +346,7 @@ html[dir="rtl"] .rtl-flip { transform: scaleX(-1); }
   aside, nav, header,
   .sidebar, .no-print,
   .action-buttons,
-  button.no-print,
-  [class*="FilterPanel"], [class*="filter-panel"],
-  .surface-card > .p-4:has(input[type="text"]) { display: none !important; }
+  button.no-print { display: none !important; }
 
   /* ── App shell flex layout reset ───────────────────────── */
   body > div, #__next, [data-nextjs-scroll-focus-boundary],
@@ -435,41 +445,39 @@ html[dir="rtl"] .rtl-flip { transform: scaleX(-1); }
     vertical-align: middle;
   }
 
-  /* Headers — subtle gray band, bold, uppercase */
+  /* ── ALL table headers — brand color by default ─────────── */
   th {
-    background: #f3f4f6 !important;
+    background: #6b1523;
     font-weight: 700;
     font-size: 8pt;
     text-transform: uppercase;
     letter-spacing: 0.03em;
-    color: #374151 !important;
-    border-bottom: 1.5pt solid #9ca3af !important;
+    color: rgba(255,255,255,0.9);
+    border-bottom: none;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
   }
 
-  /* Body cells — thin bottom borders */
+  /* Body cells */
   td {
-    border-bottom: 0.5pt solid #e5e7eb !important;
-    color: #1f2937 !important;
+    border-bottom: 0.5pt solid #e5e7eb;
+    color: #1f2937;
   }
 
-  /* data-table specifics in print */
-  .data-table thead tr {
-    background: #f3f4f6 !important;
-  }
+  /* Zebra stripes for all tables */
+  tbody tr:nth-child(even) { background: #fafbfc; }
+  tbody tr:hover { background: transparent !important; }
+
+  /* Footer/totals rows */
+  tfoot tr { background: #f0f1f3; border-top: 1.5pt solid #6b7280; }
+  tfoot td { font-weight: 700; font-size: 9pt; border-bottom: none; }
+
+  /* data-table — same brand color, re-confirm */
   .data-table thead th {
-    background: #f3f4f6 !important;
-    border-bottom: 1.5pt solid #9ca3af !important;
+    background: #6b1523 !important;
+    color: rgba(255,255,255,0.9) !important;
     padding: 5pt 7pt !important;
-  }
-  .data-table tbody tr:nth-child(even) {
-    background: #fafbfc !important;
-  }
-  .data-table tbody tr:hover {
-    background: transparent !important;
-  }
-  .data-table tfoot tr {
-    background: #f0f1f3 !important;
-    border-top: 1.5pt solid #6b7280 !important;
+    border-bottom: none !important;
   }
   .data-table tfoot td {
     font-weight: 700;

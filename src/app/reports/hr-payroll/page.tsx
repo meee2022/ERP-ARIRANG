@@ -54,34 +54,35 @@ export default function HrPayrollReportPage() {
       <div className="surface-card rounded-xl overflow-hidden">
         <table className="w-full text-sm">
           <thead>
-            <tr className="bg-gray-50 border-b">
-              <th className="px-4 py-3 text-start font-semibold">{t("payrollPeriod")}</th>
-              <th className="px-4 py-3 text-center font-semibold">{t("employeeCount")}</th>
-              <th className="px-4 py-3 text-end font-semibold">{isRTL ? "إجمالي الأساسي" : "Total Basic"}</th>
-              <th className="px-4 py-3 text-end font-semibold">{t("totalAllowancesHr")}</th>
-              <th className="px-4 py-3 text-end font-semibold">{t("totalDeductionsHr")}</th>
-              <th className="px-4 py-3 text-end font-semibold">{t("totalNetPay")}</th>
-              <th className="px-4 py-3 text-center font-semibold">{t("payrollStatus")}</th>
+            <tr style={{ background: "#6b1523" }}>
+              <th className="px-[14px] py-[10px] text-start text-[11px] font-bold uppercase tracking-wider whitespace-nowrap" style={{ color: "rgba(255,255,255,0.85)" }}>{t("payrollPeriod")}</th>
+              <th className="px-[14px] py-[10px] text-center text-[11px] font-bold uppercase tracking-wider whitespace-nowrap" style={{ color: "rgba(255,255,255,0.85)" }}>{t("employeeCount")}</th>
+              <th className="px-[14px] py-[10px] text-end text-[11px] font-bold uppercase tracking-wider whitespace-nowrap" style={{ color: "rgba(255,255,255,0.85)" }}>{isRTL ? "إجمالي الأساسي" : "Total Basic"}</th>
+              <th className="px-[14px] py-[10px] text-end text-[11px] font-bold uppercase tracking-wider whitespace-nowrap" style={{ color: "rgba(255,255,255,0.85)" }}>{t("totalAllowancesHr")}</th>
+              <th className="px-[14px] py-[10px] text-end text-[11px] font-bold uppercase tracking-wider whitespace-nowrap" style={{ color: "rgba(255,255,255,0.85)" }}>{t("totalDeductionsHr")}</th>
+              <th className="px-[14px] py-[10px] text-end text-[11px] font-bold uppercase tracking-wider whitespace-nowrap" style={{ color: "rgba(255,255,255,0.85)" }}>{t("totalNetPay")}</th>
+              <th className="px-[14px] py-[10px] text-center text-[11px] font-bold uppercase tracking-wider whitespace-nowrap" style={{ color: "rgba(255,255,255,0.85)" }}>{t("payrollStatus")}</th>
             </tr>
           </thead>
           <tbody>
-            {runs.map((r: any) => (
-              <tr key={r._id} className="border-b hover:bg-gray-50/50">
-                <td className="px-4 py-3 font-medium">
+            {runs.map((r: any, i: number) => (
+              <tr key={r._id} className="hover:bg-[#fdf2f4] transition-colors"
+                style={{ background: i % 2 === 0 ? "white" : "#fafafa", borderBottom: "1px solid #f1f5f9" }}>
+                <td className="px-[14px] py-[8px] text-[12.5px] font-medium whitespace-nowrap" style={{ color: "#1e293b" }}>
                   {isRTL ? MONTH_NAMES_AR[r.periodMonth - 1] : MONTH_NAMES_EN[r.periodMonth - 1]} {r.periodYear}
                 </td>
-                <td className="px-4 py-3 text-center">{r.employeeCount}</td>
-                <td className="px-4 py-3 text-end">{formatCurrency(r.totalBasic, lang)}</td>
-                <td className="px-4 py-3 text-end">{formatCurrency(r.totalAllowances, lang)}</td>
-                <td className="px-4 py-3 text-end text-red-600">{formatCurrency(r.totalDeductions, lang)}</td>
-                <td className="px-4 py-3 text-end font-bold text-green-700">{formatCurrency(r.totalNetPay, lang)}</td>
-                <td className="px-4 py-3 text-center">{statusBadge(r.status)}</td>
+                <td className="px-[14px] py-[8px] text-[12.5px] text-center tabular-nums whitespace-nowrap" style={{ color: "#1e293b" }}>{r.employeeCount}</td>
+                <td className="px-[14px] py-[8px] text-[12.5px] text-end tabular-nums whitespace-nowrap" style={{ color: "#1e293b" }}>{formatCurrency(r.totalBasic, lang)}</td>
+                <td className="px-[14px] py-[8px] text-[12.5px] text-end tabular-nums whitespace-nowrap" style={{ color: "#1e293b" }}>{formatCurrency(r.totalAllowances, lang)}</td>
+                <td className="px-[14px] py-[8px] text-[12.5px] text-end tabular-nums whitespace-nowrap text-red-600">{formatCurrency(r.totalDeductions, lang)}</td>
+                <td className="px-[14px] py-[8px] text-[12.5px] text-end tabular-nums font-bold whitespace-nowrap text-green-700">{formatCurrency(r.totalNetPay, lang)}</td>
+                <td className="px-[14px] py-[8px] text-[12.5px] text-center whitespace-nowrap">{statusBadge(r.status)}</td>
               </tr>
             ))}
             {runs.length > 0 && (
-              <tr className="bg-gray-50 font-bold border-t-2">
-                <td className="px-4 py-3" colSpan={5}>{isRTL ? "الإجمالي" : "Total"}</td>
-                <td className="px-4 py-3 text-end text-green-700">{formatCurrency(totalNet, lang)}</td>
+              <tr className="bg-[#fafafa] font-bold border-t-2">
+                <td className="px-[14px] py-[8px] text-[12.5px]" colSpan={5}>{isRTL ? "الإجمالي" : "Total"}</td>
+                <td className="px-[14px] py-[8px] text-[12.5px] text-end tabular-nums text-green-700">{formatCurrency(totalNet, lang)}</td>
                 <td />
               </tr>
             )}

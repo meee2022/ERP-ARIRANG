@@ -34,24 +34,25 @@ export default function HrLeaveReportPage() {
       <div className="surface-card rounded-xl overflow-hidden">
         <table className="w-full text-sm">
           <thead>
-            <tr className="bg-gray-50 border-b">
-              <th className="px-4 py-3 text-start font-semibold">{t("employeeName")}</th>
-              <th className="px-4 py-3 text-start font-semibold">{t("leaveType")}</th>
-              <th className="px-4 py-3 text-start font-semibold">{t("leaveStartDate")}</th>
-              <th className="px-4 py-3 text-start font-semibold">{t("leaveEndDate")}</th>
-              <th className="px-4 py-3 text-center font-semibold">{t("totalDays")}</th>
-              <th className="px-4 py-3 text-center font-semibold">{isRTL ? "الحالة" : "Status"}</th>
+            <tr style={{ background: "#6b1523" }}>
+              <th className="px-[14px] py-[10px] text-start text-[11px] font-bold uppercase tracking-wider whitespace-nowrap" style={{ color: "rgba(255,255,255,0.85)" }}>{t("employeeName")}</th>
+              <th className="px-[14px] py-[10px] text-start text-[11px] font-bold uppercase tracking-wider whitespace-nowrap" style={{ color: "rgba(255,255,255,0.85)" }}>{t("leaveType")}</th>
+              <th className="px-[14px] py-[10px] text-start text-[11px] font-bold uppercase tracking-wider whitespace-nowrap" style={{ color: "rgba(255,255,255,0.85)" }}>{t("leaveStartDate")}</th>
+              <th className="px-[14px] py-[10px] text-start text-[11px] font-bold uppercase tracking-wider whitespace-nowrap" style={{ color: "rgba(255,255,255,0.85)" }}>{t("leaveEndDate")}</th>
+              <th className="px-[14px] py-[10px] text-center text-[11px] font-bold uppercase tracking-wider whitespace-nowrap" style={{ color: "rgba(255,255,255,0.85)" }}>{t("totalDays")}</th>
+              <th className="px-[14px] py-[10px] text-center text-[11px] font-bold uppercase tracking-wider whitespace-nowrap" style={{ color: "rgba(255,255,255,0.85)" }}>{isRTL ? "الحالة" : "Status"}</th>
             </tr>
           </thead>
           <tbody>
-            {rows.map((r: any) => (
-              <tr key={r._id} className="border-b hover:bg-gray-50/50">
-                <td className="px-4 py-3 font-medium">{r.employee ? (isRTL ? r.employee.nameAr : (r.employee.nameEn || r.employee.nameAr)) : "—"}</td>
-                <td className="px-4 py-3 text-gray-600">{r.leaveType ? (isRTL ? r.leaveType.nameAr : (r.leaveType.nameEn || r.leaveType.nameAr)) : "—"}</td>
-                <td className="px-4 py-3 text-gray-600">{r.startDate}</td>
-                <td className="px-4 py-3 text-gray-600">{r.endDate}</td>
-                <td className="px-4 py-3 text-center font-semibold">{r.totalDays}</td>
-                <td className="px-4 py-3 text-center">{statusBadge(r.status)}</td>
+            {rows.map((r: any, i: number) => (
+              <tr key={r._id} className="hover:bg-[#fdf2f4] transition-colors"
+                style={{ background: i % 2 === 0 ? "white" : "#fafafa", borderBottom: "1px solid #f1f5f9" }}>
+                <td className="px-[14px] py-[8px] text-[12.5px] font-medium whitespace-nowrap" style={{ maxWidth: "200px", overflow: "hidden", textOverflow: "ellipsis", color: "#1e293b" }}>{r.employee ? (isRTL ? r.employee.nameAr : (r.employee.nameEn || r.employee.nameAr)) : "—"}</td>
+                <td className="px-[14px] py-[8px] text-[12.5px] whitespace-nowrap" style={{ color: "#1e293b" }}>{r.leaveType ? (isRTL ? r.leaveType.nameAr : (r.leaveType.nameEn || r.leaveType.nameAr)) : "—"}</td>
+                <td className="px-[14px] py-[8px] text-[12.5px] whitespace-nowrap" style={{ color: "#1e293b" }}>{r.startDate}</td>
+                <td className="px-[14px] py-[8px] text-[12.5px] whitespace-nowrap" style={{ color: "#1e293b" }}>{r.endDate}</td>
+                <td className="px-[14px] py-[8px] text-[12.5px] text-center tabular-nums font-semibold whitespace-nowrap" style={{ color: "#1e293b" }}>{r.totalDays}</td>
+                <td className="px-[14px] py-[8px] text-[12.5px] text-center whitespace-nowrap">{statusBadge(r.status)}</td>
               </tr>
             ))}
             {rows.length === 0 && (

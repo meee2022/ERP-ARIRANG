@@ -71,7 +71,7 @@ export default function ProductionCostReportPage() {
     { label: isRTL ? "أوامر مكتملة"      : "Completed Orders",  value: kpis.completed, suffix: isRTL ? "أمر" : "orders",              icon: CheckCircle2, color: "#15803d" },
   ];
 
-  const TH = "px-4 py-3 text-start font-semibold text-white/80 text-[11px] uppercase tracking-wide";
+  const TH = "px-[14px] py-[10px] text-start font-bold text-[11px] uppercase tracking-wider whitespace-nowrap text-white/85";
 
   return (
     <div className="space-y-5" dir={isRTL ? "rtl" : "ltr"}>
@@ -152,23 +152,23 @@ export default function ProductionCostReportPage() {
               <tbody>
                 {(recipes ?? []).filter((r) => r.isActive).map((r, i) => (
                   <tr key={r._id}
-                    className={`border-b border-[color:var(--ink-50)] hover:bg-[color:var(--brand-50)] transition-colors ${i % 2 === 0 ? "" : "bg-[#fafafa]"}`}>
-                    <td className="px-4 py-2.5">
+                    className={`border-b border-[color:var(--ink-50)] hover:bg-[#fdf2f4] transition-colors ${i % 2 === 0 ? "" : "bg-[#fafafa]"}`}>
+                    <td className="px-[14px] py-[8px] whitespace-nowrap">
                       <span className="font-mono text-[11px] px-2 py-0.5 rounded border text-[color:var(--ink-500)]"
                         style={{ background: "var(--brand-50)", borderColor: "var(--brand-100)" }}>{r.code}</span>
                     </td>
-                    <td className="px-4 py-2.5 font-medium text-[color:var(--ink-900)]">
+                    <td className="px-[14px] py-[8px] font-medium text-[12.5px] text-[color:var(--ink-900)]" style={{ maxWidth: "200px", overflow: "hidden", textOverflow: "ellipsis" }}>
                       {isRTL ? r.nameAr : (r.nameEn || r.nameAr)}
                     </td>
-                    <td className="px-4 py-2.5 text-[color:var(--ink-500)]">{r.outputItem?.nameAr ?? "—"}</td>
-                    <td className="px-4 py-2.5 tabular-nums text-[color:var(--ink-900)]">
+                    <td className="px-[14px] py-[8px] text-[12.5px] text-[color:var(--ink-500)] whitespace-nowrap">{r.outputItem?.nameAr ?? "—"}</td>
+                    <td className="px-[14px] py-[8px] tabular-nums text-[12.5px] text-end whitespace-nowrap text-[color:var(--ink-900)]">
                       {r.yieldQuantity} {r.yieldUom?.nameAr ?? ""}
                     </td>
-                    <td className="px-4 py-2.5 text-center text-[color:var(--ink-700)]">{r.lineCount}</td>
-                    <td className="px-4 py-2.5 tabular-nums font-semibold" style={{ color: "var(--brand-700)" }}>
+                    <td className="px-[14px] py-[8px] tabular-nums text-[12.5px] text-end whitespace-nowrap text-[color:var(--ink-700)]">{r.lineCount}</td>
+                    <td className="px-[14px] py-[8px] tabular-nums text-[12.5px] font-semibold text-end whitespace-nowrap" style={{ color: "var(--brand-700)" }}>
                       {formatCurrency(r.totalCost)}
                     </td>
-                    <td className="px-4 py-2.5 tabular-nums text-[color:var(--ink-700)]">
+                    <td className="px-[14px] py-[8px] tabular-nums text-[12.5px] text-end whitespace-nowrap text-[color:var(--ink-700)]">
                       {formatCurrency(r.costPerUnit)}
                     </td>
                   </tr>
@@ -217,22 +217,22 @@ export default function ProductionCostReportPage() {
                     const lbl = STATUS_LABEL[o.status];
                     return (
                       <tr key={o._id}
-                        className={`border-b border-[color:var(--ink-50)] hover:bg-[color:var(--brand-50)] transition-colors ${i % 2 === 0 ? "" : "bg-[#fafafa]"}`}>
-                        <td className="px-4 py-2.5">
+                        className={`border-b border-[color:var(--ink-50)] hover:bg-[#fdf2f4] transition-colors ${i % 2 === 0 ? "" : "bg-[#fafafa]"}`}>
+                        <td className="px-[14px] py-[8px] whitespace-nowrap">
                           <span className="font-mono text-[11px] font-bold px-2 py-0.5 rounded border"
                             style={{ background: "var(--brand-50)", color: "var(--brand-700)", borderColor: "var(--brand-100)" }}>
                             {o.orderNumber}
                           </span>
                         </td>
-                        <td className="px-4 py-2.5 text-[color:var(--ink-500)]">{isRTL ? o.recipe?.nameAr : (o.recipe?.nameEn || o.recipe?.nameAr) ?? "—"}</td>
-                        <td className="px-4 py-2.5 font-medium text-[color:var(--ink-900)]">{isRTL ? o.outputItem?.nameAr : (o.outputItem?.nameEn || o.outputItem?.nameAr) ?? "—"}</td>
-                        <td className="px-4 py-2.5 tabular-nums text-[color:var(--ink-700)]">{o.plannedQty} {o.uom?.nameAr ?? ""}</td>
-                        <td className="px-4 py-2.5 tabular-nums text-[color:var(--ink-700)]">{o.actualQty != null ? o.actualQty : "—"}</td>
-                        <td className="px-4 py-2.5 text-[color:var(--ink-500)]">{o.plannedDate}</td>
-                        <td className="px-4 py-2.5 tabular-nums font-semibold" style={{ color: "var(--brand-700)" }}>
+                        <td className="px-[14px] py-[8px] text-[12.5px] whitespace-nowrap text-[color:var(--ink-500)]">{isRTL ? o.recipe?.nameAr : (o.recipe?.nameEn || o.recipe?.nameAr) ?? "—"}</td>
+                        <td className="px-[14px] py-[8px] text-[12.5px] font-medium whitespace-nowrap text-[color:var(--ink-900)]">{isRTL ? o.outputItem?.nameAr : (o.outputItem?.nameEn || o.outputItem?.nameAr) ?? "—"}</td>
+                        <td className="px-[14px] py-[8px] tabular-nums text-[12.5px] text-end whitespace-nowrap text-[color:var(--ink-700)]">{o.plannedQty} {o.uom?.nameAr ?? ""}</td>
+                        <td className="px-[14px] py-[8px] tabular-nums text-[12.5px] text-end whitespace-nowrap text-[color:var(--ink-700)]">{o.actualQty != null ? o.actualQty : "—"}</td>
+                        <td className="px-[14px] py-[8px] text-[12.5px] whitespace-nowrap text-[color:var(--ink-500)]">{o.plannedDate}</td>
+                        <td className="px-[14px] py-[8px] tabular-nums text-[12.5px] font-semibold text-end whitespace-nowrap" style={{ color: "var(--brand-700)" }}>
                           {formatCurrency(o.materialCost ?? 0)}
                         </td>
-                        <td className="px-4 py-2.5">
+                        <td className="px-[14px] py-[8px] whitespace-nowrap">
                           <span className="px-2 py-0.5 rounded-full text-[10.5px] font-semibold border"
                             style={{ color: cfg.color, background: cfg.bg, borderColor: cfg.border }}>
                             {isRTL ? lbl?.ar : lbl?.en ?? o.status}
@@ -299,13 +299,13 @@ export default function ProductionCostReportPage() {
                         const lbl = STATUS_LABEL[o.status];
                         return (
                           <tr key={o._id}
-                            className={`border-b border-[color:var(--ink-50)] hover:bg-[color:var(--brand-50)] transition-colors ${i % 2 === 0 ? "" : "bg-[#fafafa]"}`}>
-                            <td className="px-4 py-2 font-mono text-[10.5px]" style={{ color: "var(--brand-700)" }}>{o.orderNumber}</td>
-                            <td className="px-4 py-2 text-[color:var(--ink-500)]">{o.plannedDate}</td>
-                            <td className="px-4 py-2 tabular-nums text-[color:var(--ink-700)]">{o.plannedQty}</td>
-                            <td className="px-4 py-2 tabular-nums text-[color:var(--ink-700)]">{o.actualQty ?? "—"}</td>
-                            <td className="px-4 py-2 tabular-nums font-semibold" style={{ color: "var(--brand-700)" }}>{formatCurrency(o.materialCost ?? 0)}</td>
-                            <td className="px-4 py-2">
+                            className={`border-b border-[color:var(--ink-50)] hover:bg-[#fdf2f4] transition-colors ${i % 2 === 0 ? "" : "bg-[#fafafa]"}`}>
+                            <td className="px-[14px] py-[8px] font-mono text-[11px] whitespace-nowrap" style={{ color: "var(--brand-700)" }}>{o.orderNumber}</td>
+                            <td className="px-[14px] py-[8px] text-[12.5px] whitespace-nowrap text-[color:var(--ink-500)]">{o.plannedDate}</td>
+                            <td className="px-[14px] py-[8px] tabular-nums text-[12.5px] text-end whitespace-nowrap text-[color:var(--ink-700)]">{o.plannedQty}</td>
+                            <td className="px-[14px] py-[8px] tabular-nums text-[12.5px] text-end whitespace-nowrap text-[color:var(--ink-700)]">{o.actualQty ?? "—"}</td>
+                            <td className="px-[14px] py-[8px] tabular-nums text-[12.5px] font-semibold text-end whitespace-nowrap" style={{ color: "var(--brand-700)" }}>{formatCurrency(o.materialCost ?? 0)}</td>
+                            <td className="px-[14px] py-[8px] whitespace-nowrap">
                               <span className="px-1.5 py-0.5 rounded-full text-[10px] font-semibold border"
                                 style={{ color: cfg.color, background: cfg.bg, borderColor: cfg.border }}>
                                 {isRTL ? lbl?.ar : lbl?.en ?? o.status}

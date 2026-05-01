@@ -28,7 +28,7 @@ export function FilterPanel({
   const { t } = useI18n();
   return (
     <div
-      className={`rounded-xl border border-[color:var(--ink-200)] bg-white px-4 py-3 ${className}`}
+      className={`no-print rounded-xl border border-[color:var(--ink-200)] bg-white px-4 py-3 ${className}`}
       style={{
         boxShadow: "var(--shadow-soft)",
         borderInlineStart: "3px solid var(--brand-600)",
