@@ -230,36 +230,77 @@ export const getCustomerStatement = query({
     const customer = await ctx.db.get(args.customerId);
     if (!customer) return null;
 
-    // All invoices (include unposted, exclude reversed/cancelled)
-    const invoices = await ctx.db
-      .query("salesInvoices")
-      .withIndex("by_customer", (q) => q.eq("customerId", args.customerId))
-      .filter((q) => q.neq(q.field("postingStatus"), "reversed"))
-      .collect();
+    // If this is a group parent, collect all member customer IDs
+    let customerIds: string[] = [args.customerId];
+    if ((customer as any).isGroupParent && (customer as any).customerGroupNorm) {
+      const groupMembers = await ctx.db
+        .query("customers")
+        .withIndex("by_company_group", (q) =>
+          q.eq("companyId", (customer as any).companyId).eq("customerGroupNorm", (customer as any).customerGroupNorm)
+        )
+        .collect();
+      customerIds = groupMembers.map((m: any) => m._id);
+      if (!customerIds.includes(args.customerId)) customerIds.push(args.customerId);
+    }
 
-    // Sales returns for this customer
-    const returns = await ctx.db
-      .query("salesReturns")
-      .withIndex("by_customer", (q) => q.eq("customerId", args.customerId))
-      .filter((q) => q.neq(q.field("postingStatus"), "reversed"))
-      .collect();
+    // All invoices for all customer IDs (exclude reversed/cancelled)
+    const invoicesArr = await Promise.all(
+      customerIds.map((cid) =>
+        ctx.db
+          .query("salesInvoices")
+          .withIndex("by_customer", (q) => q.eq("customerId", cid as any))
+          .filter((q) => q.neq(q.field("postingStatus"), "reversed"))
+          .collect()
+      )
+    );
+    const invoices = invoicesArr.flat();
+
+    // Sales returns
+    const returnsArr = await Promise.all(
+      customerIds.map((cid) =>
+        ctx.db
+          .query("salesReturns")
+          .withIndex("by_customer", (q) => q.eq("customerId", cid as any))
+          .filter((q) => q.neq(q.field("postingStatus"), "reversed"))
+          .collect()
+      )
+    );
+    const returns = returnsArr.flat();
 
     // Cash receipts
-    const receipts = await ctx.db
-      .query("cashReceiptVouchers")
-      .withIndex("by_customer", (q) => q.eq("customerId", args.customerId))
-      .filter((q) => q.neq(q.field("postingStatus"), "reversed"))
-      .collect();
+    const receiptsArr = await Promise.all(
+      customerIds.map((cid) =>
+        ctx.db
+          .query("cashReceiptVouchers")
+          .withIndex("by_customer", (q) => q.eq("customerId", cid as any))
+          .filter((q) => q.neq(q.field("postingStatus"), "reversed"))
+          .collect()
+      )
+    );
+    const receipts = receiptsArr.flat();
 
-    // Outlet name cache
-    const outletCache: Record<string, string> = {};
+    // Name cache (outlets + sub-customers)
+    const nameCache: Record<string, string> = {};
     const getOutletName = async (outletId: string | undefined) => {
       if (!outletId) return "";
-      if (outletCache[outletId]) return outletCache[outletId];
+      if (nameCache[outletId]) return nameCache[outletId];
       const outlet = await ctx.db.get(outletId as any);
       const name = outlet ? (outlet.nameEn || outlet.nameAr || "") : "";
-      outletCache[outletId] = name;
+      nameCache[outletId] = name;
       return name;
+    };
+    const getSubAccountName = async (customerOutletId: string | undefined, invoiceCustomerId: string | undefined) => {
+      const outletName = await getOutletName(customerOutletId);
+      if (outletName) return outletName;
+      // For group statements: show the sub-customer name as the sub-account
+      if (invoiceCustomerId && invoiceCustomerId !== args.customerId) {
+        if (nameCache[invoiceCustomerId]) return nameCache[invoiceCustomerId];
+        const subCust = await ctx.db.get(invoiceCustomerId as any);
+        const name = subCust ? ((subCust as any).nameAr || (subCust as any).nameEn || "") : "";
+        nameCache[invoiceCustomerId] = name;
+        return name;
+      }
+      return "";
     };
 
     // Period filters
@@ -287,14 +328,14 @@ export const getCustomerStatement = query({
       .reduce((s, r) => s + r.amount, 0);
     const openingBalance = openingInvoiceTotal - openingReturnTotal - openingReceiptTotal;
 
-    // Build transaction rows with outlet names
+    // Build transaction rows with outlet/sub-customer names
     const invoiceRows = await Promise.all(periodInvoices.map(async (i) => ({
       date: i.invoiceDate,
       type: "invoice" as const,
       journal: "Sales voucher",
       documentNo: i.externalInvoiceNumber || i.invoiceNumber,
       refNumber: i.invoiceNumber,
-      subAccount: await getOutletName(i.customerOutletId as any),
+      subAccount: await getSubAccountName(i.customerOutletId as any, i.customerId as any),
       debit: i.totalAmount ?? 0,
       credit: 0,
       postingStatus: i.postingStatus,
@@ -307,7 +348,7 @@ export const getCustomerStatement = query({
       journal: "Sales returned voucher",
       documentNo: r.returnNumber,
       refNumber: r.returnNumber,
-      subAccount: await getOutletName(r.customerOutletId as any),
+      subAccount: await getSubAccountName(r.customerOutletId as any, r.customerId as any),
       debit: 0,
       credit: r.totalAmount ?? 0,
       postingStatus: r.postingStatus,

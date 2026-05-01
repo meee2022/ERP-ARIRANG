@@ -936,14 +936,27 @@ export const quickPostSalesInvoice = mutation({
 
     if (lines.length === 0) throw new Error("لا توجد أصناف في الفاتورة");
 
-    // Resolve revenue account by code 4101
-    const revenueAccount = await ctx.db
-      .query("accounts")
-      .withIndex("by_company_code", (q) =>
-        q.eq("companyId", invoice.companyId).eq("code", "4101")
-      )
+    // Resolve revenue account: posting rules → account type → common codes
+    const postingRules = await ctx.db
+      .query("postingRules")
+      .withIndex("by_company", (q) => q.eq("companyId", invoice.companyId))
       .first();
-    if (!revenueAccount) throw new Error("لم يُعثر على حساب إيرادات المبيعات (كود 4101). أضفه في دليل الحسابات.");
+
+    let revenueAccount: any = postingRules?.defaultRevenueAccountId
+      ? await ctx.db.get(postingRules.defaultRevenueAccountId)
+      : null;
+
+    if (!revenueAccount) {
+      revenueAccount = await ctx.db
+        .query("accounts")
+        .withIndex("by_company_type", (q) =>
+          q.eq("companyId", invoice.companyId).eq("accountType", "income")
+        )
+        .filter((q) => q.and(q.eq(q.field("isPostable"), true), q.eq(q.field("isActive"), true)))
+        .first();
+    }
+
+    if (!revenueAccount) throw new Error("لم يُعثر على حساب إيرادات المبيعات. يرجى ضبط قواعد الترحيل من إعدادات الترحيل.");
 
     // Resolve AR or Cash account from customer
     let debitAccountId: Id<"accounts">;
@@ -973,26 +986,20 @@ export const quickPostSalesInvoice = mutation({
         cashAccountId = cashAccount?._id;
       }
 
-      // 3) Fallback: find by common cash account codes (1101, 1100, 1001)
-      if (!cashAccountId) {
-        for (const code of ["1101", "1100", "1001", "1010"]) {
-          const acc = await ctx.db
-            .query("accounts")
-            .withIndex("by_company_code", (q) =>
-              q.eq("companyId", invoice.companyId).eq("code", code)
-            )
-            .first();
-          if (acc?.isPostable && acc?.isActive) { cashAccountId = acc._id; break; }
-        }
-      }
-
-      if (!cashAccountId) throw new Error("لم يُعثر على حساب الصندوق/البنك. يرجى ضبط قواعد الترحيل أو إضافة حساب من نوع صندوق/بنك في دليل الحسابات.");
+      if (!cashAccountId) throw new Error("لم يُعثر على حساب الصندوق/البنك. يرجى ضبط قواعد الترحيل من إعدادات الترحيل.");
       debitAccountId = cashAccountId;
     } else {
-      // Credit sale: use customer's linked account
+      // Credit sale: use customer's linked account, fall back to AR from posting rules
       const customer = await ctx.db.get(invoice.customerId);
       if (!customer) throw new Error("العميل غير موجود");
-      debitAccountId = customer.accountId;
+      const customerAcct = customer.accountId ? await ctx.db.get(customer.accountId) : null;
+      if (customerAcct?.isActive) {
+        debitAccountId = customer.accountId;
+      } else {
+        const arAccountId = postingRules?.arAccountId;
+        if (!arAccountId) throw new Error(`حساب ذمم العميل "${customer.nameAr ?? customer.nameEn}" غير موجود في دليل الحسابات. يرجى تحديث بيانات العميل أو ضبط حساب الذمم في قواعد الترحيل.`);
+        debitAccountId = arAccountId;
+      }
     }
 
     // Update stock for each line

@@ -36,7 +36,6 @@ import type {
 
 export const DEFAULT_CURRENCY = "QAR";
 
-export const VAT_RATE = 0.15;
 
 export const PAGINATION_PAGE_SIZE = 50;
 
@@ -514,9 +513,6 @@ export const ACCOUNT_SUBTYPE_LABELS: Record<string, { ar: string; en: string }> 
 
   accounts_payable: { ar: "ذمم دائنة", en: "Accounts Payable" },
 
-  vat_payable: { ar: "ضريبة مستحقة", en: "VAT Payable" },
-
-  vat_receivable: { ar: "ضريبة قابلة للاسترداد", en: "VAT Receivable" },
 
   long_term_liability: { ar: "خصوم طويلة الأمد", en: "Long-term Liabilities" },
 

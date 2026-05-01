@@ -327,7 +327,6 @@ export default function CostCenterMovementPage() {
                   <td className="px-4 py-3 text-end tabular-nums text-red-600 text-sm">
                     {formatCurrency(totalCredit)}
                   </td>
-                  <td className="px-4 py-3"></td>
                 </tr>
               </tfoot>
             </table>

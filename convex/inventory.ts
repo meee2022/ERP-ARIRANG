@@ -633,36 +633,53 @@ export const createStockAdjustmentImmediate = mutation({
       adjustmentNumber = await generateDocumentNumber(ctx, args.branchId, fiscalYear._id, "ADJ");
     }
 
-    // Look up inventory account (1401) and adjustment contra account (5201 fallback)
-    const inventoryAccount = await ctx.db
-      .query("accounts")
-      .withIndex("by_company_code", (q) =>
-        q.eq("companyId", args.companyId).eq("code", "1401")
-      )
+    // Resolve inventory account: posting rules → asset subtype → common codes
+    const adjPostingRules = await ctx.db
+      .query("postingRules")
+      .withIndex("by_company", (q) => q.eq("companyId", args.companyId))
       .first();
+
+    let inventoryAccount: any = adjPostingRules?.inventoryAccountId
+      ? await ctx.db.get(adjPostingRules.inventoryAccountId)
+      : null;
 
     if (!inventoryAccount) {
-      throw new Error("لا يوجد حساب مخزون برمز 1401. تحقق من دليل الحسابات.");
+      inventoryAccount = await ctx.db
+        .query("accounts")
+        .withIndex("by_company_type", (q) =>
+          q.eq("companyId", args.companyId).eq("accountType", "asset")
+        )
+        .filter((q) =>
+          q.and(
+            q.eq(q.field("accountSubType"), "inventory"),
+            q.eq(q.field("isPostable"), true),
+            q.eq(q.field("isActive"), true)
+          )
+        )
+        .first();
     }
 
-    const adjAccount = await ctx.db
-      .query("accounts")
-      .withIndex("by_company_code", (q) =>
-        q.eq("companyId", args.companyId).eq("code", "5201")
-      )
-      .first();
+    if (!inventoryAccount) {
+      throw new Error("لم يُعثر على حساب المخزون. يرجى ضبط قواعد الترحيل من إعدادات الترحيل.");
+    }
 
-    // If 5201 not found, look for any expense account
-    const contraAccount = adjAccount ?? (await ctx.db
-      .query("accounts")
-      .withIndex("by_company_type", (q) =>
-        q.eq("companyId", args.companyId).eq("accountType", "expense")
-      )
-      .filter((q) => q.eq(q.field("isPostable"), true))
-      .first());
+    // Resolve adjustment contra account: posting rules → expense type
+    let contraAccount: any = adjPostingRules?.cogsAccountId
+      ? await ctx.db.get(adjPostingRules.cogsAccountId)
+      : null;
 
     if (!contraAccount) {
-      throw new Error("لا يوجد حساب تسوية مخزون. تحقق من دليل الحسابات.");
+      contraAccount = await ctx.db
+        .query("accounts")
+        .withIndex("by_company_type", (q) =>
+          q.eq("companyId", args.companyId).eq("accountType", "expense")
+        )
+        .filter((q) => q.eq(q.field("isPostable"), true))
+        .first();
+    }
+
+    if (!contraAccount) {
+      throw new Error("لم يُعثر على حساب تسوية المخزون. يرجى ضبط قواعد الترحيل من إعدادات الترحيل.");
     }
 
     // Build journal lines
@@ -907,6 +924,30 @@ export const getInventoryMovements = query({
     );
 
     return enriched;
+  },
+});
+
+// ─── MOVEMENT LINES DETAIL ───────────────────────────────────────────────────
+
+export const getMovementLines = query({
+  args: { movementId: v.id("inventoryMovements") },
+  handler: async (ctx, args) => {
+    const lines = await ctx.db
+      .query("inventoryMovementLines")
+      .withIndex("by_movement", (q) => q.eq("movementId", args.movementId))
+      .collect();
+
+    return Promise.all(
+      lines.map(async (line) => {
+        const item = await ctx.db.get(line.itemId);
+        return {
+          ...line,
+          itemCode:  item?.code   ?? null,
+          itemNameAr: item?.nameAr ?? null,
+          itemNameEn: item?.nameEn ?? null,
+        };
+      })
+    );
   },
 });
 

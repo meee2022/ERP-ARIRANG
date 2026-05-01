@@ -845,7 +845,6 @@ export const translations = {
   lowStockAlerts:      { ar: "تنبيهات المخزون",        en: "Low Stock Alerts" },
   wastage:             { ar: "الهدر والتالف",           en: "Wastage & Spoilage" },
   recipeCosts:         { ar: "تكاليف الوصفات",         en: "Recipe Costs" },
-  vatReport:           { ar: "تقرير الضريبة",           en: "VAT Report" },
   supplierComparison:  { ar: "مقارنة أسعار الموردين",   en: "Supplier Comparison" },
   monthEndClose:       { ar: "إغلاق نهاية الشهر",       en: "Month-End Close" },
   barcodeScanner:      { ar: "مسح الباركود",            en: "Barcode Scanner" },

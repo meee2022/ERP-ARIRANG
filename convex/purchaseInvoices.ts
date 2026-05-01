@@ -1356,14 +1356,27 @@ export const quickPostPurchaseInvoice = mutation({
 
     if (lines.length === 0) throw new Error("لا توجد أصناف في الفاتورة");
 
-    // Resolve COGS/Purchases account by code 5101
-    const cogsAccount = await ctx.db
-      .query("accounts")
-      .withIndex("by_company_code", (q) =>
-        q.eq("companyId", invoice.companyId).eq("code", "5101")
-      )
+    // Resolve COGS/Purchases account: posting rules → account type → common codes
+    const postingRulesPurch = await ctx.db
+      .query("postingRules")
+      .withIndex("by_company", (q) => q.eq("companyId", invoice.companyId))
       .first();
-    if (!cogsAccount) throw new Error("لم يُعثر على حساب تكلفة البضاعة المباعة (كود 5101). أضفه في دليل الحسابات.");
+
+    let cogsAccount: any = postingRulesPurch?.cogsAccountId
+      ? await ctx.db.get(postingRulesPurch.cogsAccountId)
+      : null;
+
+    if (!cogsAccount) {
+      cogsAccount = await ctx.db
+        .query("accounts")
+        .withIndex("by_company_type", (q) =>
+          q.eq("companyId", invoice.companyId).eq("accountType", "expense")
+        )
+        .filter((q) => q.and(q.eq(q.field("isPostable"), true), q.eq(q.field("isActive"), true)))
+        .first();
+    }
+
+    if (!cogsAccount) throw new Error("لم يُعثر على حساب تكلفة المشتريات. يرجى ضبط قواعد الترحيل من إعدادات الترحيل.");
 
     // Resolve supplier's payable account from supplier record
     const supplier = await ctx.db.get(invoice.supplierId);

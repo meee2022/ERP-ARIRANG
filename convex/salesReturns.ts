@@ -195,16 +195,27 @@ export const postSalesReturn = mutation({
 
     if (lines.length === 0) throw new Error("لا توجد أصناف في المرتجع");
 
-    // Resolve Sales Revenue account (4101)
-    const revenueAccount = await ctx.db
-      .query("accounts")
-      .withIndex("by_company_code", (q) =>
-        q.eq("companyId", ret.companyId).eq("code", "4101")
-      )
+    // Resolve Sales Revenue account: posting rules → account type → common codes
+    const postingRulesRet = await ctx.db
+      .query("postingRules")
+      .withIndex("by_company", (q) => q.eq("companyId", ret.companyId))
       .first();
+
+    let revenueAccount: any = postingRulesRet?.defaultRevenueAccountId
+      ? await ctx.db.get(postingRulesRet.defaultRevenueAccountId)
+      : null;
+
     if (!revenueAccount) {
-      throw new Error("لم يُعثر على حساب إيرادات المبيعات (كود 4101). أضفه في دليل الحسابات.");
+      revenueAccount = await ctx.db
+        .query("accounts")
+        .withIndex("by_company_type", (q) =>
+          q.eq("companyId", ret.companyId).eq("accountType", "income")
+        )
+        .filter((q) => q.and(q.eq(q.field("isPostable"), true), q.eq(q.field("isActive"), true)))
+        .first();
     }
+
+    if (!revenueAccount) throw new Error("لم يُعثر على حساب إيرادات المبيعات. يرجى ضبط قواعد الترحيل من إعدادات الترحيل.");
 
     // Resolve Customer account
     const customer = await ctx.db.get(ret.customerId!);
@@ -251,22 +262,13 @@ export const postSalesReturn = mutation({
       if (costAmount > 0) {
         const item = await ctx.db.get(line.itemId);
 
-        // Resolve COGS account: original line → item → fallback 5101
+        // Resolve COGS account: original line → item
         let cogsAccountId: any = null;
         if (line.originalLineId) {
           const origLine = await ctx.db.get(line.originalLineId as any);
           cogsAccountId = (origLine as any)?.cogsAccountId ?? null;
         }
         if (!cogsAccountId) cogsAccountId = (item as any)?.cogsAccountId ?? null;
-        if (!cogsAccountId) {
-          const cogsAcc = await ctx.db
-            .query("accounts")
-            .withIndex("by_company_code", (q: any) =>
-              q.eq("companyId", ret.companyId).eq("code", "5101")
-            )
-            .first();
-          cogsAccountId = cogsAcc?._id ?? null;
-        }
 
         const inventoryAccountId = (item as any)?.inventoryAccountId ?? null;
 

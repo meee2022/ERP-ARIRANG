@@ -24,21 +24,11 @@ export const metadata: Metadata = {
     url: "https://erp-arirang.vercel.app",
     type: "website",
     locale: "ar_QA",
-    images: [
-      {
-        url: "https://erp-arirang.vercel.app/logo.png",
-        width: 800,
-        height: 800,
-        alt: "Arirang Bakery ERP",
-        type: "image/png",
-      },
-    ],
   },
   twitter: {
-    card: "summary",
+    card: "summary_large_image",
     title: "Arirang Bakery ERP",
     description: "Arirang Bakery \u2014 Accounting & Distribution ERP",
-    images: ["https://erp-arirang.vercel.app/logo.png"],
   },
   robots: { index: false, follow: false },
   metadataBase: new URL("https://erp-arirang.vercel.app"),

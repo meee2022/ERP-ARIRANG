@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useRef, useMemo, useCallback } from "react";
+import { createPortal } from "react-dom";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import {
@@ -128,7 +129,6 @@ const SECTIONS: NavSection[] = [
     id: "reports", titleKey: "navReports", labelAr: "التقارير", labelEn: "Reports",
     icon: BarChart2, color: "#fbbf24",
     items: [
-      { href: "/reports/vat-report",            icon: Receipt,      key: "vatReport"           },
       { href: "/reports/trial-balance",         icon: Scale,        key: "trialBalance"        },
       { href: "/reports/income-statement",      icon: TrendingUp,   key: "incomeStatement"     },
       { href: "/reports/balance-sheet",         icon: PieChart,     key: "balanceSheet"        },
@@ -419,6 +419,9 @@ export function Sidebar() {
   const { company, logoUrl }      = useCompanySettings();
 
   const [openSection, setOpenSection] = useState<string | null>(null);
+  const [mounted,     setMounted]     = useState(false);
+
+  useEffect(() => setMounted(true), []);
 
   const isActive = useCallback(
     (href: string) =>
@@ -621,14 +624,15 @@ export function Sidebar() {
         </div>
       </aside>
 
-      {/* ── Floating Panel ─────────────────────────────────────────────── */}
-      {openSection && openSectionData && (
+      {/* ── Floating Panel — rendered via portal to escape stacking context ── */}
+      {mounted && openSection && openSectionData && createPortal(
         <FloatingPanel
           section={openSectionData}
           isRTL={isRTL}
           onClose={() => setOpenSection(null)}
           isActive={isActive}
-        />
+        />,
+        document.body
       )}
     </>
   );

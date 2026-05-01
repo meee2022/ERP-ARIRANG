@@ -161,16 +161,27 @@ export const postPurchaseReturn = mutation({
 
     if (lines.length === 0) throw new Error("لا توجد أصناف في المرتجع");
 
-    // Resolve COGS/Purchases account (5101)
-    const cogsAccount = await ctx.db
-      .query("accounts")
-      .withIndex("by_company_code", (q) =>
-        q.eq("companyId", ret.companyId).eq("code", "5101")
-      )
+    // Resolve COGS/Purchases account: posting rules → account type → common codes
+    const postingRulesPurchRet = await ctx.db
+      .query("postingRules")
+      .withIndex("by_company", (q) => q.eq("companyId", ret.companyId))
       .first();
+
+    let cogsAccount: any = postingRulesPurchRet?.cogsAccountId
+      ? await ctx.db.get(postingRulesPurchRet.cogsAccountId)
+      : null;
+
     if (!cogsAccount) {
-      throw new Error("لم يُعثر على حساب المشتريات/التكلفة (كود 5101). أضفه في دليل الحسابات.");
+      cogsAccount = await ctx.db
+        .query("accounts")
+        .withIndex("by_company_type", (q) =>
+          q.eq("companyId", ret.companyId).eq("accountType", "expense")
+        )
+        .filter((q) => q.and(q.eq(q.field("isPostable"), true), q.eq(q.field("isActive"), true)))
+        .first();
     }
+
+    if (!cogsAccount) throw new Error("لم يُعثر على حساب المشتريات/التكلفة. يرجى ضبط قواعد الترحيل من إعدادات الترحيل.");
 
     // Resolve Supplier account
     const supplier = await ctx.db.get(ret.supplierId);

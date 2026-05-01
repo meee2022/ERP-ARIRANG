@@ -173,7 +173,6 @@ export const postWastageEntry = mutation({
     await ctx.db.patch(args.entryId, {
       postingStatus:  "posted",
       journalEntryId,
-      updatedAt:      Date.now(),
     });
 
     return { success: true, journalEntryId };

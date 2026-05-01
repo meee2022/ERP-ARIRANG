@@ -439,7 +439,7 @@ export default function PostingRulesPage() {
           <p className="text-[11.5px]" style={{ color: "var(--muted-foreground)" }}>
             {isRTL
               ? "بعد الحفظ، عند تسجيل فاتورة مبيعات أو مشتريات أو سند قبض — يقرأ النظام هذه القواعد تلقائياً ويُنشئ القيد المحاسبي الصحيح دون تدخل منك. مثال: فاتورة مبيعات نقدية → قيد: دائن إيراد + دائن ضريبة + مدين صندوق + مدين COGS + دائن مخزون."
-              : "After saving, whenever a sales invoice, purchase invoice, or cash receipt is posted — the system reads these rules and auto-creates the correct journal entry. Example: cash sale → Dr Cash, Dr COGS, Cr Revenue, Cr VAT Payable, Cr Inventory."}
+              : "After saving, whenever a sales invoice, purchase invoice, or cash receipt is posted — the system reads these rules and auto-creates the correct journal entry. Example: cash sale → Dr Cash, Dr COGS, Cr Revenue, Cr Inventory."}
           </p>
         </div>
       </div>

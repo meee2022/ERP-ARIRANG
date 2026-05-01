@@ -61,7 +61,6 @@ export default function LoginPage() {
   const [showPwd,    setShowPwd]    = useState(false);
   const [error,      setError]      = useState("");
   const [loading,    setLoading]    = useState(false);
-  const [logoError,  setLogoError]  = useState(false);
 
   React.useEffect(() => {
     if (isAuthenticated) router.replace("/");
@@ -111,25 +110,17 @@ export default function LoginPage() {
 
           {/* Logo / Brand */}
           <div className="text-center space-y-3">
-            {!logoError ? (
-              <div className="flex justify-center">
-                <Image
-                  src="/logo.png"
-                  alt="Arirang Bakery"
-                  width={90}
-                  height={90}
-                  className="rounded-2xl object-contain shadow-md"
-                  onError={() => setLogoError(true)}
-                />
-              </div>
-            ) : (
-              <div
-                className="h-[72px] w-[72px] rounded-2xl flex items-center justify-center mx-auto shadow-md"
-                style={{ background: "linear-gradient(135deg, var(--brand-700), var(--brand-500))" }}
-              >
-                <span className="text-white text-3xl font-bold select-none">A</span>
-              </div>
-            )}
+            <div className="flex justify-center">
+              <Image
+                src="/logo.png"
+                alt="Arirang Bakery"
+                width={90}
+                height={90}
+                priority
+                unoptimized
+                className="rounded-2xl object-contain shadow-md"
+              />
+            </div>
             <h1 className="text-2xl font-bold text-[color:var(--ink-900)] tracking-tight">{t.title}</h1>
             <p className="text-sm font-medium text-[color:var(--ink-500)]">{t.subtitle}</p>
           </div>

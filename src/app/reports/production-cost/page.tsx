@@ -4,21 +4,24 @@
 import { useState } from "react";
 import { useQuery } from "convex/react";
 import { api } from "../../../../convex/_generated/api";
-import {
-  ChefHat, TrendingUp, Package, CheckCircle2, BarChart2,
-} from "lucide-react";
+import { ChefHat, TrendingUp, Package, CheckCircle2, BarChart2 } from "lucide-react";
 import { useI18n } from "@/hooks/useI18n";
-import { useAppStore } from "@/store/useAppStore";
 import { PageHeader } from "@/components/ui/page-header";
 import { LoadingState } from "@/components/ui/data-display";
+import { FilterPanel, FilterField } from "@/components/ui/filter-panel";
 
-const ACCENT = "#22d3ee";
+const STATUS_CFG: Record<string, { color: string; bg: string; border: string }> = {
+  planned:     { color: "#1d4ed8", bg: "#eff6ff",  border: "#bfdbfe" },
+  in_progress: { color: "#b45309", bg: "#fffbeb",  border: "#fde68a" },
+  completed:   { color: "#15803d", bg: "#f0fdf4",  border: "#bbf7d0" },
+  cancelled:   { color: "#dc2626", bg: "#fef2f2",  border: "#fecaca" },
+};
 
-const STATUS_CFG: Record<string, { color: string; bg: string }> = {
-  planned:     { color: "#60a5fa", bg: "#60a5fa20" },
-  in_progress: { color: "#fbbf24", bg: "#fbbf2420" },
-  completed:   { color: "#34d399", bg: "#34d39920" },
-  cancelled:   { color: "#f87171", bg: "#f8717120" },
+const STATUS_LABEL: Record<string, { ar: string; en: string }> = {
+  planned:     { ar: "مخطط",    en: "Planned"     },
+  in_progress: { ar: "جارٍ",   en: "In Progress"  },
+  completed:   { ar: "مكتمل",  en: "Completed"    },
+  cancelled:   { ar: "ملغى",   en: "Cancelled"    },
 };
 
 export default function ProductionCostReportPage() {
@@ -45,14 +48,16 @@ export default function ProductionCostReportPage() {
 
   if (!companyId || summary === undefined || recipes === undefined) return <LoadingState />;
 
-  const { orders = [], kpis } = summary ?? { orders: [], kpis: { totalProduced: 0, totalMaterialCost: 0, avgCostPerUnit: 0, completed: 0 } };
+  const { orders = [], kpis } = summary ?? {
+    orders: [],
+    kpis: { totalProduced: 0, totalMaterialCost: 0, avgCostPerUnit: 0, completed: 0 },
+  };
 
-  // Group orders by recipe for recipe view
-  const recipeMap: Record<string, { nameAr: string; orders: any[]; totalCost: number; totalQty: number }> = {};
+  const recipeMap: Record<string, { nameAr: string; nameEn: string; orders: any[]; totalCost: number; totalQty: number }> = {};
   orders.forEach((o) => {
     const key = o.recipeId as string;
     if (!recipeMap[key]) {
-      recipeMap[key] = { nameAr: o.recipe?.nameAr ?? "—", orders: [], totalCost: 0, totalQty: 0 };
+      recipeMap[key] = { nameAr: o.recipe?.nameAr ?? "—", nameEn: o.recipe?.nameEn ?? "—", orders: [], totalCost: 0, totalQty: 0 };
     }
     recipeMap[key].orders.push(o);
     recipeMap[key].totalCost += o.materialCost ?? 0;
@@ -60,165 +65,110 @@ export default function ProductionCostReportPage() {
   });
 
   const kpiCards = [
-    {
-      label: t("kpiTotalProduced"),
-      value: kpis.totalProduced.toFixed(1),
-      suffix: isRTL ? "وحدة" : "units",
-      icon: Package,
-      color: "#a78bfa",
-    },
-    {
-      label: t("kpiTotalMaterialCost"),
-      value: formatCurrency(kpis.totalMaterialCost),
-      icon: TrendingUp,
-      color: ACCENT,
-    },
-    {
-      label: t("kpiAvgCostPerUnit"),
-      value: formatCurrency(kpis.avgCostPerUnit),
-      icon: BarChart2,
-      color: "#fbbf24",
-    },
-    {
-      label: t("kpiOrdersCompleted"),
-      value: kpis.completed,
-      suffix: t("ordersCount"),
-      icon: CheckCircle2,
-      color: "#34d399",
-    },
+    { label: isRTL ? "إجمالي الإنتاج"    : "Total Produced",    value: kpis.totalProduced.toFixed(1), suffix: isRTL ? "وحدة" : "units", icon: Package,      color: "#7c3aed" },
+    { label: isRTL ? "إجمالي تكلفة المواد" : "Total Material Cost", value: formatCurrency(kpis.totalMaterialCost), icon: TrendingUp,   color: "var(--brand-700)" },
+    { label: isRTL ? "متوسط تكلفة الوحدة" : "Avg Cost / Unit",   value: formatCurrency(kpis.avgCostPerUnit),     icon: BarChart2,    color: "#b45309" },
+    { label: isRTL ? "أوامر مكتملة"      : "Completed Orders",  value: kpis.completed, suffix: isRTL ? "أمر" : "orders",              icon: CheckCircle2, color: "#15803d" },
   ];
 
+  const TH = "px-4 py-3 text-start font-semibold text-white/80 text-[11px] uppercase tracking-wide";
+
   return (
-    <div className="p-6 space-y-6">
+    <div className="space-y-5" dir={isRTL ? "rtl" : "ltr"}>
       <PageHeader
-        title={t("productionCostTitle")}
-        subtitle={t("productionCostSubtitle")}
+        title={isRTL ? "تقرير تكلفة الإنتاج" : "Production Cost Report"}
+        subtitle={isRTL ? "تحليل تكاليف أوامر الإنتاج والوصفات" : "Analyze production order and recipe costs"}
         icon={ChefHat}
-        iconColor={ACCENT}
       />
 
-      {/* Date filters */}
-      <div
-        className="rounded-xl border border-white/8 p-4 flex flex-wrap items-center gap-4"
-        style={{ background: "var(--card)" }}
-      >
-        <div className="flex items-center gap-2">
-          <label className="text-[12px]" style={{ color: "var(--muted-foreground)" }}>{t("fromDate")}</label>
-          <input
-            type="date"
-            value={fromDate}
-            onChange={(e) => setFromDate(e.target.value)}
-            className="rounded-lg px-3 py-1.5 text-[12.5px] bg-[var(--background)] border border-white/10 focus:outline-none focus:border-[#22d3ee]/50"
-            style={{ color: "var(--foreground)" }}
-          />
-        </div>
-        <div className="flex items-center gap-2">
-          <label className="text-[12px]" style={{ color: "var(--muted-foreground)" }}>{t("toDate")}</label>
-          <input
-            type="date"
-            value={toDate}
-            onChange={(e) => setToDate(e.target.value)}
-            className="rounded-lg px-3 py-1.5 text-[12.5px] bg-[var(--background)] border border-white/10 focus:outline-none focus:border-[#22d3ee]/50"
-            style={{ color: "var(--foreground)" }}
-          />
-        </div>
-
-        {/* View toggle */}
-        <div className="ms-auto flex rounded-lg overflow-hidden border border-white/10">
-          {(["orders", "recipes"] as const).map((v) => (
-            <button
-              key={v}
-              onClick={() => setView(v)}
-              className="px-3 py-1.5 text-[12px] font-medium transition-colors"
-              style={{
-                background: view === v ? ACCENT : "transparent",
-                color: view === v ? "#0f172a" : "var(--muted-foreground)",
-              }}
-            >
-              {v === "orders" ? (isRTL ? "الأوامر" : "Orders") : (isRTL ? "الوصفات" : "Recipes")}
-            </button>
-          ))}
-        </div>
-      </div>
+      {/* Filters */}
+      <FilterPanel>
+        <FilterField label={isRTL ? "من" : "From"}>
+          <input type="date" value={fromDate} onChange={(e) => setFromDate(e.target.value)} className="input-field h-9 w-auto" />
+        </FilterField>
+        <FilterField label={isRTL ? "إلى" : "To"}>
+          <input type="date" value={toDate} onChange={(e) => setToDate(e.target.value)} className="input-field h-9 w-auto" />
+        </FilterField>
+        <FilterField label={isRTL ? "العرض" : "View"}>
+          <div className="flex rounded-lg overflow-hidden border border-[color:var(--ink-200)]">
+            {(["orders", "recipes"] as const).map((v) => (
+              <button key={v} onClick={() => setView(v)}
+                className="px-3 py-1.5 text-[12px] font-medium transition-colors"
+                style={{
+                  background: view === v ? "var(--brand-700)" : "white",
+                  color:      view === v ? "white" : "var(--ink-600)",
+                }}>
+                {v === "orders" ? (isRTL ? "الأوامر" : "Orders") : (isRTL ? "الوصفات" : "Recipes")}
+              </button>
+            ))}
+          </div>
+        </FilterField>
+      </FilterPanel>
 
       {/* KPI cards */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
         {kpiCards.map((k) => (
-          <div
-            key={k.label}
-            className="rounded-xl p-4 border border-white/8"
-            style={{ background: "var(--card)" }}
-          >
-            <div className="flex items-center gap-3 mb-3">
-              <span
-                className="h-9 w-9 rounded-lg flex items-center justify-center"
-                style={{ background: `${k.color}20`, border: `1px solid ${k.color}30` }}
-              >
-                <k.icon className="h-4 w-4" style={{ color: k.color }} />
-              </span>
-              <span className="text-[12px]" style={{ color: "var(--muted-foreground)" }}>{k.label}</span>
-            </div>
-            <p className="text-2xl font-bold" style={{ color: "var(--foreground)" }}>
-              {k.value}
-              {k.suffix && (
-                <span className="text-[13px] font-normal ms-1" style={{ color: "var(--muted-foreground)" }}>
-                  {k.suffix}
+          <div key={k.label} className="bg-white rounded-2xl border border-[color:var(--ink-100)] overflow-hidden shadow-sm">
+            <div className="h-1" style={{ background: k.color }} />
+            <div className="p-4">
+              <div className="flex items-center gap-2 mb-3">
+                <span className="h-8 w-8 rounded-lg flex items-center justify-center" style={{ background: `${k.color}15` }}>
+                  <k.icon className="h-4 w-4" style={{ color: k.color }} />
                 </span>
-              )}
-            </p>
+                <span className="text-[11px] text-[color:var(--ink-500)]">{k.label}</span>
+              </div>
+              <p className="text-[22px] font-bold text-[color:var(--ink-900)] leading-none tabular-nums">
+                {k.value}
+                {k.suffix && <span className="text-[12px] font-normal text-[color:var(--ink-400)] ms-1">{k.suffix}</span>}
+              </p>
+            </div>
           </div>
         ))}
       </div>
 
-      {/* Recipe cost breakdown (always shown) */}
+      {/* Recipe cost breakdown */}
       {(recipes ?? []).length > 0 && (
-        <div className="rounded-xl border border-white/8 overflow-hidden" style={{ background: "var(--card)" }}>
-          <div className="px-5 py-3 border-b border-white/8">
-            <h3 className="font-semibold text-[13px]" style={{ color: "var(--foreground)" }}>
+        <div className="bg-white rounded-2xl border border-[color:var(--ink-100)] overflow-hidden shadow-sm">
+          <div className="px-5 py-3 border-b border-[color:var(--ink-100)]" style={{ background: "var(--brand-50)" }}>
+            <h3 className="font-semibold text-[13px]" style={{ color: "var(--brand-800)" }}>
               {isRTL ? "تكلفة الوصفات الإنتاجية" : "Recipe Cost Breakdown"}
             </h3>
           </div>
           <div className="overflow-x-auto">
             <table className="w-full text-[12.5px]">
               <thead>
-                <tr style={{ borderBottom: "1px solid rgba(255,255,255,0.06)", background: "rgba(255,255,255,0.02)" }}>
+                <tr style={{ background: "#6b1523" }}>
                   {[
-                    t("recipeCode"),
-                    t("recipeName"),
-                    t("outputItem"),
-                    t("yieldQuantity"),
-                    t("ingredients"),
-                    t("totalRecipeCost"),
-                    t("costPerUnit"),
-                  ].map((h) => (
-                    <th
-                      key={h}
-                      className={`px-4 py-3 font-semibold text-${isRTL ? "right" : "left"}`}
-                      style={{ color: "var(--muted-foreground)" }}
-                    >
-                      {h}
-                    </th>
-                  ))}
+                    isRTL ? "الكود"     : "Code",
+                    isRTL ? "الوصفة"   : "Recipe",
+                    isRTL ? "المنتج"   : "Output Item",
+                    isRTL ? "الكمية"   : "Yield Qty",
+                    isRTL ? "المكونات" : "Ingredients",
+                    isRTL ? "التكلفة الكلية" : "Total Cost",
+                    isRTL ? "تكلفة الوحدة"  : "Cost/Unit",
+                  ].map((h) => <th key={h} className={TH}>{h}</th>)}
                 </tr>
               </thead>
               <tbody>
-                {(recipes ?? []).filter((r) => r.isActive).map((r) => (
-                  <tr
-                    key={r._id}
-                    className="hover:bg-white/4 transition-colors"
-                    style={{ borderBottom: "1px solid rgba(255,255,255,0.04)" }}
-                  >
-                    <td className="px-4 py-2.5 font-mono text-[11px]" style={{ color: "var(--muted-foreground)" }}>{r.code}</td>
-                    <td className="px-4 py-2.5 font-medium" style={{ color: "var(--foreground)" }}>{r.nameAr}</td>
-                    <td className="px-4 py-2.5" style={{ color: "var(--muted-foreground)" }}>{r.outputItem?.nameAr ?? "—"}</td>
-                    <td className="px-4 py-2.5 tabular-nums" style={{ color: "var(--foreground)" }}>
+                {(recipes ?? []).filter((r) => r.isActive).map((r, i) => (
+                  <tr key={r._id}
+                    className={`border-b border-[color:var(--ink-50)] hover:bg-[color:var(--brand-50)] transition-colors ${i % 2 === 0 ? "" : "bg-[#fafafa]"}`}>
+                    <td className="px-4 py-2.5">
+                      <span className="font-mono text-[11px] px-2 py-0.5 rounded border text-[color:var(--ink-500)]"
+                        style={{ background: "var(--brand-50)", borderColor: "var(--brand-100)" }}>{r.code}</span>
+                    </td>
+                    <td className="px-4 py-2.5 font-medium text-[color:var(--ink-900)]">
+                      {isRTL ? r.nameAr : (r.nameEn || r.nameAr)}
+                    </td>
+                    <td className="px-4 py-2.5 text-[color:var(--ink-500)]">{r.outputItem?.nameAr ?? "—"}</td>
+                    <td className="px-4 py-2.5 tabular-nums text-[color:var(--ink-900)]">
                       {r.yieldQuantity} {r.yieldUom?.nameAr ?? ""}
                     </td>
-                    <td className="px-4 py-2.5 text-center" style={{ color: "var(--foreground)" }}>{r.lineCount}</td>
-                    <td className="px-4 py-2.5 tabular-nums font-semibold" style={{ color: ACCENT }}>
+                    <td className="px-4 py-2.5 text-center text-[color:var(--ink-700)]">{r.lineCount}</td>
+                    <td className="px-4 py-2.5 tabular-nums font-semibold" style={{ color: "var(--brand-700)" }}>
                       {formatCurrency(r.totalCost)}
                     </td>
-                    <td className="px-4 py-2.5 tabular-nums" style={{ color: "var(--foreground)" }}>
+                    <td className="px-4 py-2.5 tabular-nums text-[color:var(--ink-700)]">
                       {formatCurrency(r.costPerUnit)}
                     </td>
                   </tr>
@@ -231,72 +181,61 @@ export default function ProductionCostReportPage() {
 
       {/* Orders / Recipe grouped view */}
       {view === "orders" ? (
-        <div className="rounded-xl border border-white/8 overflow-hidden" style={{ background: "var(--card)" }}>
-          <div className="px-5 py-3 border-b border-white/8 flex items-center justify-between">
-            <h3 className="font-semibold text-[13px]" style={{ color: "var(--foreground)" }}>
+        <div className="bg-white rounded-2xl border border-[color:var(--ink-100)] overflow-hidden shadow-sm">
+          <div className="px-5 py-3 border-b border-[color:var(--ink-100)] flex items-center justify-between" style={{ background: "var(--brand-50)" }}>
+            <h3 className="font-semibold text-[13px]" style={{ color: "var(--brand-800)" }}>
               {isRTL ? "تكاليف أوامر الإنتاج" : "Production Order Costs"}
             </h3>
-            <span className="text-[11px]" style={{ color: "var(--muted-foreground)" }}>
-              {orders.length} {t("ordersCount")}
+            <span className="text-[11px] text-[color:var(--ink-400)]">
+              {orders.length} {isRTL ? "أمر" : "orders"}
             </span>
           </div>
           {orders.length === 0 ? (
-            <p className="px-5 py-8 text-center text-[12px]" style={{ color: "var(--muted-foreground)" }}>
+            <p className="px-5 py-8 text-center text-[12px] text-[color:var(--ink-400)]">
               {isRTL ? "لا توجد أوامر في هذه الفترة" : "No orders in this period"}
             </p>
           ) : (
             <div className="overflow-x-auto">
               <table className="w-full text-[12.5px]">
                 <thead>
-                  <tr style={{ borderBottom: "1px solid rgba(255,255,255,0.06)", background: "rgba(255,255,255,0.02)" }}>
+                  <tr style={{ background: "#6b1523" }}>
                     {[
-                      t("orderNumber"),
-                      t("recipe"),
-                      t("outputItem"),
-                      t("plannedQty"),
-                      t("actualQty"),
-                      t("plannedDate"),
-                      t("materialCost"),
-                      t("orderStatus"),
-                    ].map((h) => (
-                      <th
-                        key={h}
-                        className={`px-4 py-3 font-semibold text-${isRTL ? "right" : "left"}`}
-                        style={{ color: "var(--muted-foreground)" }}
-                      >
-                        {h}
-                      </th>
-                    ))}
+                      isRTL ? "رقم الأمر"  : "Order No",
+                      isRTL ? "الوصفة"    : "Recipe",
+                      isRTL ? "المنتج"    : "Output Item",
+                      isRTL ? "الكمية المخططة" : "Planned Qty",
+                      isRTL ? "الكمية الفعلية" : "Actual Qty",
+                      isRTL ? "التاريخ"   : "Date",
+                      isRTL ? "تكلفة المواد" : "Material Cost",
+                      isRTL ? "الحالة"    : "Status",
+                    ].map((h) => <th key={h} className={TH}>{h}</th>)}
                   </tr>
                 </thead>
                 <tbody>
-                  {orders.map((o) => {
+                  {orders.map((o, i) => {
                     const cfg = STATUS_CFG[o.status] ?? STATUS_CFG.planned;
+                    const lbl = STATUS_LABEL[o.status];
                     return (
-                      <tr
-                        key={o._id}
-                        className="hover:bg-white/4 transition-colors"
-                        style={{ borderBottom: "1px solid rgba(255,255,255,0.04)" }}
-                      >
-                        <td className="px-4 py-2.5 font-mono text-[11px]" style={{ color: ACCENT }}>{o.orderNumber}</td>
-                        <td className="px-4 py-2.5" style={{ color: "var(--muted-foreground)" }}>{o.recipe?.nameAr ?? "—"}</td>
-                        <td className="px-4 py-2.5 font-medium" style={{ color: "var(--foreground)" }}>{o.outputItem?.nameAr ?? "—"}</td>
-                        <td className="px-4 py-2.5 tabular-nums" style={{ color: "var(--foreground)" }}>
-                          {o.plannedQty} {o.uom?.nameAr ?? ""}
+                      <tr key={o._id}
+                        className={`border-b border-[color:var(--ink-50)] hover:bg-[color:var(--brand-50)] transition-colors ${i % 2 === 0 ? "" : "bg-[#fafafa]"}`}>
+                        <td className="px-4 py-2.5">
+                          <span className="font-mono text-[11px] font-bold px-2 py-0.5 rounded border"
+                            style={{ background: "var(--brand-50)", color: "var(--brand-700)", borderColor: "var(--brand-100)" }}>
+                            {o.orderNumber}
+                          </span>
                         </td>
-                        <td className="px-4 py-2.5 tabular-nums" style={{ color: "var(--foreground)" }}>
-                          {o.actualQty != null ? o.actualQty : "—"}
-                        </td>
-                        <td className="px-4 py-2.5" style={{ color: "var(--muted-foreground)" }}>{o.plannedDate}</td>
-                        <td className="px-4 py-2.5 tabular-nums font-semibold" style={{ color: ACCENT }}>
+                        <td className="px-4 py-2.5 text-[color:var(--ink-500)]">{isRTL ? o.recipe?.nameAr : (o.recipe?.nameEn || o.recipe?.nameAr) ?? "—"}</td>
+                        <td className="px-4 py-2.5 font-medium text-[color:var(--ink-900)]">{isRTL ? o.outputItem?.nameAr : (o.outputItem?.nameEn || o.outputItem?.nameAr) ?? "—"}</td>
+                        <td className="px-4 py-2.5 tabular-nums text-[color:var(--ink-700)]">{o.plannedQty} {o.uom?.nameAr ?? ""}</td>
+                        <td className="px-4 py-2.5 tabular-nums text-[color:var(--ink-700)]">{o.actualQty != null ? o.actualQty : "—"}</td>
+                        <td className="px-4 py-2.5 text-[color:var(--ink-500)]">{o.plannedDate}</td>
+                        <td className="px-4 py-2.5 tabular-nums font-semibold" style={{ color: "var(--brand-700)" }}>
                           {formatCurrency(o.materialCost ?? 0)}
                         </td>
                         <td className="px-4 py-2.5">
-                          <span
-                            className="px-2 py-0.5 rounded-full text-[10.5px] font-semibold"
-                            style={{ color: cfg.color, background: cfg.bg }}
-                          >
-                            {t(`status${o.status.charAt(0).toUpperCase() + o.status.replace("_", "").slice(1).replace(/^./, (c) => c.toUpperCase())}` as any) ?? o.status}
+                          <span className="px-2 py-0.5 rounded-full text-[10.5px] font-semibold border"
+                            style={{ color: cfg.color, background: cfg.bg, borderColor: cfg.border }}>
+                            {isRTL ? lbl?.ar : lbl?.en ?? o.status}
                           </span>
                         </td>
                       </tr>
@@ -304,11 +243,11 @@ export default function ProductionCostReportPage() {
                   })}
                 </tbody>
                 <tfoot>
-                  <tr style={{ borderTop: "1px solid rgba(255,255,255,0.08)", background: "rgba(255,255,255,0.03)" }}>
-                    <td colSpan={6} className="px-4 py-3 text-[12px] font-semibold" style={{ color: "var(--muted-foreground)" }}>
+                  <tr className="border-t-2 border-[color:var(--ink-200)] bg-[color:var(--ink-50)] font-bold">
+                    <td colSpan={6} className="px-4 py-3 text-[12px] text-[color:var(--ink-700)]">
                       {isRTL ? "الإجمالي" : "Total"}
                     </td>
-                    <td className="px-4 py-3 tabular-nums font-bold text-[13px]" style={{ color: ACCENT }}>
+                    <td className="px-4 py-3 tabular-nums text-[13px]" style={{ color: "var(--brand-700)" }}>
                       {formatCurrency(orders.reduce((s, o) => s + (o.materialCost ?? 0), 0))}
                     </td>
                     <td />
@@ -319,52 +258,57 @@ export default function ProductionCostReportPage() {
           )}
         </div>
       ) : (
-        /* Recipe grouped view */
         <div className="space-y-4">
           {Object.entries(recipeMap).length === 0 ? (
-            <p className="text-center text-[12px] py-8" style={{ color: "var(--muted-foreground)" }}>
+            <p className="text-center text-[12px] py-8 text-[color:var(--ink-400)]">
               {isRTL ? "لا توجد أوامر في هذه الفترة" : "No orders in this period"}
             </p>
           ) : (
             Object.entries(recipeMap).map(([key, data]) => (
-              <div
-                key={key}
-                className="rounded-xl border border-white/8 overflow-hidden"
-                style={{ background: "var(--card)" }}
-              >
-                <div className="px-5 py-3 border-b border-white/8 flex items-center justify-between">
+              <div key={key} className="bg-white rounded-2xl border border-[color:var(--ink-100)] overflow-hidden shadow-sm">
+                <div className="px-5 py-3 border-b border-[color:var(--ink-100)] flex items-center justify-between" style={{ background: "var(--brand-50)" }}>
                   <div>
-                    <h3 className="font-semibold text-[13px]" style={{ color: "var(--foreground)" }}>{data.nameAr}</h3>
-                    <p className="text-[11px] mt-0.5" style={{ color: "var(--muted-foreground)" }}>
-                      {data.orders.length} {t("ordersCount")} — {isRTL ? "الكمية المنتجة:" : "Qty produced:"} {data.totalQty.toFixed(1)}
+                    <h3 className="font-semibold text-[13px]" style={{ color: "var(--brand-800)" }}>
+                      {isRTL ? data.nameAr : data.nameEn}
+                    </h3>
+                    <p className="text-[11px] mt-0.5 text-[color:var(--ink-400)]">
+                      {data.orders.length} {isRTL ? "أمر" : "orders"} — {isRTL ? "الكمية المنتجة:" : "Qty produced:"} {data.totalQty.toFixed(1)}
                     </p>
                   </div>
-                  <span className="text-[14px] font-bold" style={{ color: ACCENT }}>
+                  <span className="text-[14px] font-bold" style={{ color: "var(--brand-700)" }}>
                     {formatCurrency(data.totalCost)}
                   </span>
                 </div>
                 <div className="overflow-x-auto">
                   <table className="w-full text-[12px]">
                     <thead>
-                      <tr style={{ borderBottom: "1px solid rgba(255,255,255,0.05)", background: "rgba(255,255,255,0.015)" }}>
-                        {[t("orderNumber"), t("plannedDate"), t("plannedQty"), t("actualQty"), t("materialCost"), t("orderStatus")].map((h) => (
-                          <th key={h} className={`px-4 py-2 font-semibold text-${isRTL ? "right" : "left"}`} style={{ color: "var(--muted-foreground)" }}>{h}</th>
-                        ))}
+                      <tr style={{ background: "#6b1523" }}>
+                        {[
+                          isRTL ? "رقم الأمر"  : "Order No",
+                          isRTL ? "التاريخ"   : "Date",
+                          isRTL ? "الكمية المخططة" : "Planned Qty",
+                          isRTL ? "الكمية الفعلية" : "Actual Qty",
+                          isRTL ? "تكلفة المواد"   : "Material Cost",
+                          isRTL ? "الحالة"    : "Status",
+                        ].map((h) => <th key={h} className={TH}>{h}</th>)}
                       </tr>
                     </thead>
                     <tbody>
-                      {data.orders.map((o) => {
+                      {data.orders.map((o, i) => {
                         const cfg = STATUS_CFG[o.status] ?? STATUS_CFG.planned;
+                        const lbl = STATUS_LABEL[o.status];
                         return (
-                          <tr key={o._id} style={{ borderBottom: "1px solid rgba(255,255,255,0.03)" }} className="hover:bg-white/4 transition-colors">
-                            <td className="px-4 py-2 font-mono text-[10.5px]" style={{ color: ACCENT }}>{o.orderNumber}</td>
-                            <td className="px-4 py-2" style={{ color: "var(--muted-foreground)" }}>{o.plannedDate}</td>
-                            <td className="px-4 py-2 tabular-nums" style={{ color: "var(--foreground)" }}>{o.plannedQty}</td>
-                            <td className="px-4 py-2 tabular-nums" style={{ color: "var(--foreground)" }}>{o.actualQty ?? "—"}</td>
-                            <td className="px-4 py-2 tabular-nums font-semibold" style={{ color: ACCENT }}>{formatCurrency(o.materialCost ?? 0)}</td>
+                          <tr key={o._id}
+                            className={`border-b border-[color:var(--ink-50)] hover:bg-[color:var(--brand-50)] transition-colors ${i % 2 === 0 ? "" : "bg-[#fafafa]"}`}>
+                            <td className="px-4 py-2 font-mono text-[10.5px]" style={{ color: "var(--brand-700)" }}>{o.orderNumber}</td>
+                            <td className="px-4 py-2 text-[color:var(--ink-500)]">{o.plannedDate}</td>
+                            <td className="px-4 py-2 tabular-nums text-[color:var(--ink-700)]">{o.plannedQty}</td>
+                            <td className="px-4 py-2 tabular-nums text-[color:var(--ink-700)]">{o.actualQty ?? "—"}</td>
+                            <td className="px-4 py-2 tabular-nums font-semibold" style={{ color: "var(--brand-700)" }}>{formatCurrency(o.materialCost ?? 0)}</td>
                             <td className="px-4 py-2">
-                              <span className="px-1.5 py-0.5 rounded-full text-[10px] font-semibold" style={{ color: cfg.color, background: cfg.bg }}>
-                                {o.status}
+                              <span className="px-1.5 py-0.5 rounded-full text-[10px] font-semibold border"
+                                style={{ color: cfg.color, background: cfg.bg, borderColor: cfg.border }}>
+                                {isRTL ? lbl?.ar : lbl?.en ?? o.status}
                               </span>
                             </td>
                           </tr>

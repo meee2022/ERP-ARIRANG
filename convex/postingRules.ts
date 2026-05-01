@@ -111,30 +111,30 @@ export const autoDetectPostingRules = mutation({
 
     const rules = {
       // Sales
-      cashSalesAccountId:               findAccount(["11010010000","1101","1010001","1010","1001"], ["cash in hand","صندوق نقدي","كاش","cash box"]),
-      cardSalesAccountId:               findAccount(["11010020000","1103","1010002","1020"], ["pos","card","بطاقة"]),
-      arAccountId:                      findAccount(["11030000000","1201","1100","1110"], ["local customer","credit sales","ذمم مدينة","ذمم عملاء","accounts receivable"]),
-      defaultRevenueAccountId:          findAccount(["41000000000","43000000000","4101","4100","4000"], ["products sales","total sales","إيرادات مبيعات","sales revenue"]),
-      cogsAccountId:                    findAccount(["51000000000","5101","5100","5000"], ["cost of product sold","تكلفة البضاعة","cogs","cost of goods"]),
-      inventoryAccountId:               findAccount(["11070030000","1301","1300","1200"], ["finished products","مخزون","inventory","stock"]),
-      vatPayableAccountId:              findAccount(["2201","2200","2210"], ["vat payable","ضريبة مستحقة","output vat"]),
+      cashSalesAccountId:               findAccount(["11010010000"], ["cash in hand","صندوق نقدي","كاش","cash box"]),
+      cardSalesAccountId:               findAccount(["11010020000"], ["pos","card","بطاقة"]),
+      arAccountId:                      findAccount(["11030000000"], ["local customer","credit sales","ذمم مدينة","ذمم عملاء","accounts receivable"]),
+      defaultRevenueAccountId:          findAccount(["41000000000","43000000000"], ["products sales","total sales","إيرادات مبيعات","sales revenue"]),
+      cogsAccountId:                    findAccount(["51000000000"], ["cost of product sold","تكلفة البضاعة","cogs","cost of goods"]),
+      inventoryAccountId:               findAccount(["11070030000"], ["finished products","مخزون","inventory","stock"]),
+      vatPayableAccountId:              findAccount([], ["vat payable","ضريبة مستحقة","output vat"]),
       // Purchases
-      apAccountId:                      findAccount(["21040000000","2101","2100","2001"], ["suppliers","ذمم دائنة","ذمم موردين","accounts payable"]),
-      vatReceivableAccountId:           findAccount(["2202","1400","1410"], ["input vat","vat receivable","ضريبة المدخلات"]),
-      purchaseAccountId:                findAccount(["53000000000","5200","5210"], ["purchases","مشتريات"]),
+      apAccountId:                      findAccount(["21040000000"], ["suppliers","ذمم دائنة","ذمم موردين","accounts payable"]),
+      vatReceivableAccountId:           findAccount([], ["input vat","vat receivable","ضريبة المدخلات"]),
+      purchaseAccountId:                findAccount(["53000000000"], ["purchases","مشتريات"]),
       // Treasury
-      mainCashAccountId:                findAccount(["11010010000","1101","1010","1001"], ["cash in hand","صندوق نقدي","صندوق رئيسي","main cash"]),
-      bankAccountId:                    findAccount(["11010020000","1102","1020","1021"], ["banks","بنك","bank"]),
+      mainCashAccountId:                findAccount(["11010010000"], ["cash in hand","صندوق نقدي","صندوق رئيسي","main cash"]),
+      bankAccountId:                    findAccount(["11010020000"], ["banks","بنك","bank"]),
       // Payroll
-      salaryExpenseAccountId:           findAccount(["61010020000","5201","5300","5400"], ["salaries - transfer","salaries","رواتب","payroll"]),
-      salaryPayableAccountId:           findAccount(["21060000000","2301","2150"], ["salaries payable","رواتب مستحقة","salary payable"]),
+      salaryExpenseAccountId:           findAccount(["61010020000"], ["salaries - transfer","salaries","رواتب","payroll"]),
+      salaryPayableAccountId:           findAccount(["21060000000"], ["salaries payable","رواتب مستحقة","salary payable"]),
       // Fixed Assets
-      depreciationExpenseAccountId:     findAccount(["66010010000","66010020000","66010030000","5301","5500"], ["depreciation of","مصروف الإهلاك","depreciation expense"]),
-      accumulatedDepreciationAccountId: findAccount(["12020020000","12030020000","12040020000","1401","1600"], ["depreciation for","depreciation of building","مجمع الإهلاك","accumulated depreciation"]),
+      depreciationExpenseAccountId:     findAccount(["66010010000","66010020000","66010030000"], ["depreciation of","مصروف الإهلاك","depreciation expense"]),
+      accumulatedDepreciationAccountId: findAccount(["12020020000","12030020000","12040020000"], ["depreciation for","depreciation of building","مجمع الإهلاك","accumulated depreciation"]),
       // Production
-      wipAccountId:                     findAccount(["13010000000","11070020000","1350","1360"], ["work in progress","product under manufacturing","تحت التشغيل","wip"]),
+      wipAccountId:                     findAccount(["13010000000","11070020000"], ["work in progress","product under manufacturing","تحت التشغيل","wip"]),
       // Wastage
-      wastageExpenseAccountId:          findAccount(["67020000000","5700","5710"], ["damage items","هدر","تالف","wastage","spoilage"]),
+      wastageExpenseAccountId:          findAccount(["67020000000"], ["damage items","هدر","تالف","wastage","spoilage"]),
     };
 
     const existing = await ctx.db

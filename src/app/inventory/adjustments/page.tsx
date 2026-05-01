@@ -6,7 +6,7 @@ import { useQuery, useMutation } from "convex/react";
 import { api } from "../../../../convex/_generated/api";
 import { formatDateShort } from "@/lib/utils";
 import { StatusBadge } from "@/components/ui/status-badge";
-import { SlidersHorizontal, Search, Plus, X, Check, Trash2 } from "lucide-react";
+import { SlidersHorizontal, Search, Plus, X, Check, Trash2, Calendar, Filter } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
 import { usePermissions } from "@/hooks/usePermissions";
 import { useAppStore } from "@/store/useAppStore";
@@ -14,13 +14,13 @@ import { PageHeader } from "@/components/ui/page-header";
 import { FilterPanel, FilterField } from "@/components/ui/filter-panel";
 import { LoadingState } from "@/components/ui/data-display";
 import { EmptyState } from "@/components/ui/empty-state";
-import { Calendar, Filter } from "lucide-react";
+
 
 function AdjustmentStatCard({ title, value }: any) {
   return (
-    <div className="bg-white rounded-lg p-3 border border-green-600 flex-1">
-      <div className="text-[10px] font-bold text-green-700 uppercase mb-1">{title}</div>
-      <div className="text-lg font-bold text-gray-900 tabular-nums">{value}</div>
+    <div className="bg-white rounded-xl p-3 border border-[color:var(--ink-100)] flex-1">
+      <div className="text-[10px] font-semibold text-[color:var(--ink-500)] uppercase mb-1">{title}</div>
+      <div className="text-lg font-bold text-[color:var(--ink-900)] tabular-nums">{value}</div>
     </div>
   );
 }
@@ -352,49 +352,28 @@ export default function StockAdjustmentsPage() {
       {/* Inline Form */}
       {showForm && <NewAdjustmentForm onClose={() => setShowForm(false)} />}
 
-      {/* Modern Filter Strip - Box Design */}
-      <div className="bg-white rounded-lg border border-gray-200 p-3 flex flex-wrap items-end gap-3 w-full">
-        <button className="h-10 px-3 border border-gray-200 rounded-md flex items-center gap-2 text-sm font-medium text-gray-700 hover:bg-gray-50 transition-colors">
-          <Filter className="h-4 w-4" /> {t("filters")}
-        </button>
-
-        <div className="flex flex-col gap-1">
-          <label className="text-[10px] font-bold text-gray-500 uppercase">{t("fromDate")}</label>
+      <FilterPanel>
+        <FilterField label={t("fromDate")}>
+          <input type="date" value={fromDate} onChange={(e) => setFromDate(e.target.value)} className="input-field h-9 w-auto" />
+        </FilterField>
+        <FilterField label={t("toDate")}>
+          <input type="date" value={toDate} onChange={(e) => setToDate(e.target.value)} className="input-field h-9 w-auto" />
+        </FilterField>
+        <FilterField label={t("search")}>
           <div className="relative">
-            <Calendar className={`absolute top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400 ${isRTL ? "right-3" : "left-3"}`} />
-            <input type="date" value={fromDate} onChange={(e) => setFromDate(e.target.value)}
-              className={`h-10 ${isRTL ? "pr-9 pl-3" : "pl-9 pr-3"} border border-gray-200 rounded-md text-sm text-gray-700 focus:outline-none focus:border-gray-400 w-[160px]`} />
-          </div>
-        </div>
-        
-        <div className="flex flex-col gap-1">
-          <label className="text-[10px] font-bold text-gray-500 uppercase">{t("toDate")}</label>
-          <div className="relative">
-            <Calendar className={`absolute top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400 ${isRTL ? "right-3" : "left-3"}`} />
-            <input type="date" value={toDate} onChange={(e) => setToDate(e.target.value)}
-              className={`h-10 ${isRTL ? "pr-9 pl-3" : "pl-9 pr-3"} border border-gray-200 rounded-md text-sm text-gray-700 focus:outline-none focus:border-gray-400 w-[160px]`} />
-          </div>
-        </div>
-
-        <div className={`flex-1 min-w-[200px] ${isRTL ? "mr-auto" : "ml-auto"}`}>
-          <div className="relative">
-            <Search className={`absolute top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400 ${isRTL ? "right-3" : "left-3"}`} />
-            <input 
-              type="text" 
-              value={search} 
-              onChange={(e) => setSearch(e.target.value)}
+            <Search className={`absolute top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-[color:var(--ink-400)] ${isRTL ? "right-3" : "left-3"}`} />
+            <input type="text" value={search} onChange={(e) => setSearch(e.target.value)}
               placeholder={t("searchPlaceholder")}
-              className={`w-full h-10 ${isRTL ? "pr-9 pl-3" : "pl-9 pr-3"} border border-gray-200 rounded-md text-sm text-gray-700 focus:outline-none focus:border-gray-400`} 
-            />
+              className={`input-field h-9 ${isRTL ? "pr-9" : "pl-9"}`} />
           </div>
-        </div>
-      </div>
+        </FilterField>
+      </FilterPanel>
 
-      {/* Premium KPI Cards - Grouped Design */}
-      <div className="bg-white border border-gray-200 rounded-lg p-3 flex flex-col md:flex-row gap-4 w-full">
+      {/* KPI Cards */}
+      <div className="grid grid-cols-3 gap-3">
         <AdjustmentStatCard title={t("adjustmentCount")} value={filtered.length} />
         <AdjustmentStatCard title={t("totalValue")} value={formatCurrency(totalPosted)} />
-        <AdjustmentStatCard title={t("posted")} value={filtered.filter(a => a.postingStatus === "posted").length} />
+        <AdjustmentStatCard title={t("posted")} value={filtered.filter((a: any) => a.postingStatus === "posted").length} />
       </div>
 
       <div className="bg-white rounded-2xl shadow-[0_2px_10px_rgba(0,0,0,0.04)] border border-[color:var(--ink-100)] overflow-hidden">
@@ -432,30 +411,26 @@ export default function StockAdjustmentsPage() {
           <div className="desktop-table overflow-x-auto">
             <table className="w-full text-sm text-left border-collapse" dir={isRTL ? "rtl" : "ltr"}>
               <thead>
-                <tr className="bg-gray-50/50 border-b border-gray-100">
-                  <th className="px-6 py-4 text-[10px] font-bold text-gray-400 uppercase tracking-widest">{t("adjustmentNumber")}</th>
-                  <th className="px-6 py-4 text-[10px] font-bold text-gray-400 uppercase tracking-widest">{t("adjustmentDate")}</th>
-                  <th className="px-6 py-4 text-[10px] font-bold text-gray-400 uppercase tracking-widest">{t("warehouse")}</th>
-                  <th className="px-6 py-4 text-[10px] font-bold text-gray-400 uppercase tracking-widest">{t("reason")}</th>
-                  <th className="px-6 py-4 text-[10px] font-bold text-gray-400 uppercase tracking-widest text-end">{t("quantity")}</th>
-                  <th className="px-6 py-4 text-[10px] font-bold text-gray-400 uppercase tracking-widest text-end">{t("totalCost")}</th>
-                  <th className="px-6 py-4 text-[10px] font-bold text-gray-400 uppercase tracking-widest text-center">{t("postingStatus")}</th>
+                <tr style={{ background: "#6b1523" }}>
+                  {[t("adjustmentNumber"), t("adjustmentDate"), t("warehouse"), t("reason"), t("quantity"), t("totalCost"), t("postingStatus")].map((h) => (
+                    <th key={h} className="px-6 py-3 text-start text-[11px] font-semibold text-white/80 uppercase tracking-wide">{h}</th>
+                  ))}
                 </tr>
               </thead>
-              <tbody className="divide-y divide-gray-50">
+              <tbody className="divide-y divide-[color:var(--ink-50)]">
                 {filtered.map((a: any) => (
-                  <tr key={a._id} className="group hover:bg-gray-50/80 transition-all duration-200">
-                    <td className="px-6 py-4">
-                      <span className="inline-flex items-center px-2 py-0.5 rounded text-[11px] font-bold bg-gray-100 text-gray-600 border border-gray-200">
+                  <tr key={a._id} className="hover:bg-[color:var(--ink-50)] transition-colors">
+                    <td className="px-6 py-3.5">
+                      <span className="inline-flex items-center px-2 py-0.5 rounded text-[11px] font-bold bg-[color:var(--ink-100)] text-[color:var(--brand-700)]">
                         {a.adjustmentNumber}
                       </span>
                     </td>
-                    <td className="px-6 py-4 text-xs text-gray-500 font-medium">{formatDateShort(a.adjustmentDate)}</td>
-                    <td className="px-6 py-4 font-bold text-gray-900 text-sm">{a.warehouseName}</td>
-                    <td className="px-6 py-4 text-xs text-gray-500 font-medium">{a.reason || "—"}</td>
-                    <td className="px-6 py-4 text-end text-xs text-gray-500 font-medium">{a.lineCount}</td>
-                    <td className="px-6 py-4 text-end tabular-nums font-bold text-gray-900 text-sm">{formatCurrency(a.totalValue)}</td>
-                    <td className="px-6 py-4 text-center">
+                    <td className="px-6 py-3.5 text-xs text-[color:var(--ink-500)]">{formatDateShort(a.adjustmentDate)}</td>
+                    <td className="px-6 py-3.5 font-semibold text-[color:var(--ink-900)] text-sm">{a.warehouseName}</td>
+                    <td className="px-6 py-3.5 text-xs text-[color:var(--ink-500)]">{a.reason || "—"}</td>
+                    <td className="px-6 py-3.5 text-end text-xs text-[color:var(--ink-500)]">{a.lineCount}</td>
+                    <td className="px-6 py-3.5 text-end tabular-nums font-bold text-[color:var(--ink-900)] text-sm">{formatCurrency(a.totalValue)}</td>
+                    <td className="px-6 py-3.5 text-center">
                       <StatusBadge status={a.postingStatus} type="posting" />
                     </td>
                   </tr>

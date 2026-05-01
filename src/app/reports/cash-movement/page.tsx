@@ -236,8 +236,8 @@ export default function CashMovementReportPage() {
                           </span>
                         ) : <span className="text-[color:var(--ink-300)]">—</span>}
                       </td>
-                      <td className={`numeric text-end font-medium ${row.net >= 0 ? "text-green-700" : "text-red-600"}`}>
-                        {row.net >= 0 ? "+" : ""}{fmt(row.net)}
+                      <td className={`numeric text-end font-medium ${((row.debit ?? 0) - (row.credit ?? 0)) >= 0 ? "text-green-700" : "text-red-600"}`}>
+                        {(() => { const net = (row.debit ?? 0) - (row.credit ?? 0); return (net >= 0 ? "+" : "") + fmt(net); })()}
                       </td>
                       <td className="numeric text-end font-semibold">
                         {fmt(row.balance)}
