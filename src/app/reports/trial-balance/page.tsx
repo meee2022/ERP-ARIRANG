@@ -4,7 +4,7 @@ import React, { useState, useMemo } from "react";
 import { useI18n } from "@/hooks/useI18n";
 import { useQuery } from "convex/react";
 import { api } from "../../../../convex/_generated/api";
-import { Scale, Download, ChevronDown } from "lucide-react";
+import { Scale, Download, ChevronDown, AlertTriangle, CheckCircle2 } from "lucide-react";
 import { useAppStore } from "@/store/useAppStore";
 import { FilterPanel, FilterField } from "@/components/ui/filter-panel";
 import { SummaryStrip } from "@/components/ui/data-display";
@@ -231,6 +231,53 @@ export default function TrialBalancePage() {
       filters={filtersNode}
       summary={summaryNode}
     >
+      {/* ── Balance status banner ─────────────────────────────────────────── */}
+      {!loading && rows.length > 0 && (
+        isBalanced ? (
+          <div className="flex items-center gap-3 px-4 py-3 rounded-xl mb-4"
+            style={{ background: "#f0fdf4", border: "1.5px solid #bbf7d0" }}>
+            <CheckCircle2 className="h-5 w-5 shrink-0" style={{ color: "#15803d" }} />
+            <span className="text-sm font-semibold" style={{ color: "#15803d" }}>
+              {isRTL ? "✅ الميزان متوازن — إجمالي المدين يساوي إجمالي الدائن" : "✅ Trial balance is balanced — Total Debit equals Total Credit"}
+            </span>
+          </div>
+        ) : (
+          <div className="rounded-xl mb-4 overflow-hidden"
+            style={{ border: "1.5px solid #fca5a5", background: "#fff5f5" }}>
+            {/* Header strip */}
+            <div className="flex items-center gap-3 px-4 py-3" style={{ background: "#dc2626" }}>
+              <AlertTriangle className="h-5 w-5 shrink-0 text-white" />
+              <span className="text-sm font-black text-white">
+                {isRTL ? "⚠️ تحذير: الميزان غير متوازن" : "⚠️ Warning: Trial Balance is Out of Balance"}
+              </span>
+              <span className="ms-auto text-white font-black text-sm tabular-nums">
+                {isRTL ? "الفرق: " : "Difference: "}{formatCurrency(Math.abs(totals.totalDebit - totals.totalCredit))}
+              </span>
+            </div>
+            {/* Details */}
+            <div className="px-4 py-3">
+              <p className="text-sm font-medium mb-2" style={{ color: "#991b1b" }}>
+                {isRTL
+                  ? "إجمالي المدين لا يساوي إجمالي الدائن. الأسباب المحتملة:"
+                  : "Total Debit does not equal Total Credit. Possible causes:"}
+              </p>
+              <ul className="text-xs space-y-1 list-none" style={{ color: "#b91c1c" }}>
+                {[
+                  isRTL ? "قيود محاسبية غير مكتملة (طرف واحد فقط)" : "Incomplete journal entries (one-sided postings)",
+                  isRTL ? "قيود في حالة مسودة لم تُرحَّل بعد"        : "Draft journal entries not yet posted",
+                  isRTL ? "خطأ في إدخال البيانات"                     : "Data entry errors",
+                ].map((item, i) => (
+                  <li key={i} className="flex items-start gap-1.5">
+                    <span className="mt-0.5 shrink-0">•</span>
+                    {item}
+                  </li>
+                ))}
+              </ul>
+            </div>
+          </div>
+        )
+      )}
+
       {/* Table */}
       {loading ? (
         <div className="loading-spinner py-16">
