@@ -882,7 +882,9 @@ export const getTopSalesReport = query({
     const customerMap = new Map<string, any>();
     const itemMap = new Map<string, any>();
     const salesRepMap = new Map<string, any>();
+    const vehicleMap = new Map<string, any>();
 
+    // ── Aggregate sales from invoices ──────────────────────────────────────
     for (const invoice of invoices) {
       if (invoice.customerId) {
         const customer = await ctx.db.get(invoice.customerId);
@@ -895,6 +897,8 @@ export const getTopSalesReport = query({
             nameEn: customer?.nameEn ?? null,
             invoiceCount: 0,
             totalSales: 0,
+            returnCount: 0,
+            totalReturns: 0,
           });
         }
         const row = customerMap.get(key);
@@ -913,9 +917,31 @@ export const getTopSalesReport = query({
             nameEn: salesRep?.nameEn ?? null,
             invoiceCount: 0,
             totalSales: 0,
+            returnCount: 0,
+            totalReturns: 0,
           });
         }
         const row = salesRepMap.get(key);
+        row.invoiceCount += 1;
+        row.totalSales += invoice.totalAmount ?? 0;
+      }
+
+      if (invoice.vehicleId || invoice.vehicleCode) {
+        const vehicle = invoice.vehicleId ? await ctx.db.get(invoice.vehicleId) : null;
+        const key = String(invoice.vehicleId ?? invoice.vehicleCode);
+        if (!vehicleMap.has(key)) {
+          vehicleMap.set(key, {
+            id: invoice.vehicleId ?? null,
+            code: vehicle?.plateNumber ?? invoice.vehicleCode ?? "—",
+            nameAr: vehicle?.descriptionAr ?? vehicle?.plateNumber ?? invoice.vehicleCode ?? "—",
+            nameEn: vehicle?.descriptionEn ?? vehicle?.plateNumber ?? invoice.vehicleCode ?? "—",
+            invoiceCount: 0,
+            totalSales: 0,
+            returnCount: 0,
+            totalReturns: 0,
+          });
+        }
+        const row = vehicleMap.get(key);
         row.invoiceCount += 1;
         row.totalSales += invoice.totalAmount ?? 0;
       }
@@ -936,6 +962,8 @@ export const getTopSalesReport = query({
             nameEn: item?.nameEn ?? null,
             quantitySold: 0,
             totalSales: 0,
+            quantityReturned: 0,
+            totalReturns: 0,
           });
         }
         const row = itemMap.get(key);
@@ -944,15 +972,149 @@ export const getTopSalesReport = query({
       }
     }
 
+    // ── Aggregate returns ──────────────────────────────────────────────────
+    let returns = await ctx.db.query("salesReturns").collect();
+    returns = returns.filter(
+      (r) =>
+        r.returnDate >= args.fromDate &&
+        r.returnDate <= args.toDate &&
+        (!args.branchId || r.branchId === args.branchId) &&
+        r.documentStatus !== "cancelled"
+    );
+
+    let totalReturnsAmount = 0;
+
+    for (const ret of returns) {
+      totalReturnsAmount += ret.totalAmount ?? 0;
+
+      // Customer-level returns
+      if (ret.customerId) {
+        const key = String(ret.customerId);
+        if (!customerMap.has(key)) {
+          const customer = await ctx.db.get(ret.customerId);
+          customerMap.set(key, {
+            id: ret.customerId,
+            code: customer?.code ?? "—",
+            nameAr: customer?.nameAr ?? "—",
+            nameEn: customer?.nameEn ?? null,
+            invoiceCount: 0, totalSales: 0,
+            returnCount: 0, totalReturns: 0,
+          });
+        }
+        const row = customerMap.get(key);
+        row.returnCount += 1;
+        row.totalReturns += ret.totalAmount ?? 0;
+      }
+
+      // Sales rep + vehicle level — derive from original invoice
+      let originalInvoice: any = null;
+      if (ret.originalInvoiceId) {
+        originalInvoice = await ctx.db.get(ret.originalInvoiceId);
+      }
+
+      if (originalInvoice) {
+        if (originalInvoice.salesRepId || originalInvoice.salesRepName) {
+          const key = String(originalInvoice.salesRepId ?? originalInvoice.salesRepName);
+          if (!salesRepMap.has(key)) {
+            const salesRep = originalInvoice.salesRepId ? await ctx.db.get(originalInvoice.salesRepId) : null;
+            salesRepMap.set(key, {
+              id: originalInvoice.salesRepId ?? null,
+              code: salesRep?.code ?? null,
+              nameAr: salesRep?.nameAr ?? originalInvoice.salesRepName ?? "—",
+              nameEn: salesRep?.nameEn ?? null,
+              invoiceCount: 0, totalSales: 0,
+              returnCount: 0, totalReturns: 0,
+            });
+          }
+          const row = salesRepMap.get(key);
+          row.returnCount += 1;
+          row.totalReturns += ret.totalAmount ?? 0;
+        }
+
+        if (originalInvoice.vehicleId || originalInvoice.vehicleCode) {
+          const key = String(originalInvoice.vehicleId ?? originalInvoice.vehicleCode);
+          if (!vehicleMap.has(key)) {
+            const vehicle = originalInvoice.vehicleId ? await ctx.db.get(originalInvoice.vehicleId) : null;
+            vehicleMap.set(key, {
+              id: originalInvoice.vehicleId ?? null,
+              code: vehicle?.plateNumber ?? originalInvoice.vehicleCode ?? "—",
+              nameAr: vehicle?.descriptionAr ?? vehicle?.plateNumber ?? originalInvoice.vehicleCode ?? "—",
+              nameEn: vehicle?.descriptionEn ?? vehicle?.plateNumber ?? originalInvoice.vehicleCode ?? "—",
+              invoiceCount: 0, totalSales: 0,
+              returnCount: 0, totalReturns: 0,
+            });
+          }
+          const row = vehicleMap.get(key);
+          row.returnCount += 1;
+          row.totalReturns += ret.totalAmount ?? 0;
+        }
+      }
+
+      // Item-level returns
+      const retLines = await ctx.db
+        .query("salesReturnLines")
+        .withIndex("by_return", (q) => q.eq("returnId", ret._id))
+        .collect();
+
+      for (const line of retLines) {
+        const key = String(line.itemId);
+        if (!itemMap.has(key)) {
+          const item = await ctx.db.get(line.itemId);
+          itemMap.set(key, {
+            id: line.itemId,
+            code: item?.code ?? "—",
+            nameAr: item?.nameAr ?? "—",
+            nameEn: item?.nameEn ?? null,
+            quantitySold: 0, totalSales: 0,
+            quantityReturned: 0, totalReturns: 0,
+          });
+        }
+        const row = itemMap.get(key);
+        row.quantityReturned += line.quantity ?? 0;
+        row.totalReturns += line.lineTotal ?? 0;
+      }
+    }
+
+    // ── Compute net amounts for each map ───────────────────────────────────
+    const finalize = (m: Map<string, any>, qtyKey: string | null) => {
+      return Array.from(m.values()).map((r: any) => ({
+        ...r,
+        netSales: (r.totalSales ?? 0) - (r.totalReturns ?? 0),
+        ...(qtyKey ? { netQty: (r[qtyKey] ?? 0) - (r.quantityReturned ?? 0) } : {}),
+        returnPct: r.totalSales > 0 ? Math.round(((r.totalReturns ?? 0) / r.totalSales) * 100) : 0,
+      }));
+    };
+
+    const customers = finalize(customerMap, null).sort((a, b) => b.netSales - a.netSales);
+    const items     = finalize(itemMap, "quantitySold").sort((a, b) => b.netSales - a.netSales);
+    const salesReps = finalize(salesRepMap, null).sort((a, b) => b.netSales - a.netSales);
+    const vehicles  = finalize(vehicleMap, null).sort((a, b) => b.netSales - a.netSales);
+
+    // Top by returns (sorted by totalReturns desc — only those with returns)
+    const topReturnReps     = salesReps.filter((r: any) => r.totalReturns > 0).sort((a, b) => b.totalReturns - a.totalReturns).slice(0, 10);
+    const topReturnVehicles = vehicles.filter((v: any) => v.totalReturns > 0).sort((a, b) => b.totalReturns - a.totalReturns).slice(0, 10);
+    const topReturnItems    = items.filter((i: any) => i.totalReturns > 0).sort((a, b) => b.totalReturns - a.totalReturns).slice(0, 10);
+
+    const totalSalesAmount = invoices.reduce((sum, invoice) => sum + (invoice.totalAmount ?? 0), 0);
+
     return {
-      topCustomers: Array.from(customerMap.values()).sort((a, b) => b.totalSales - a.totalSales).slice(0, 10),
-      topItems: Array.from(itemMap.values()).sort((a, b) => b.totalSales - a.totalSales).slice(0, 10),
-      topSalesReps: Array.from(salesRepMap.values()).sort((a, b) => b.totalSales - a.totalSales).slice(0, 10),
+      topCustomers: customers.slice(0, 10),
+      topItems:     items.slice(0, 10),
+      topSalesReps: salesReps.slice(0, 10),
+      topVehicles:  vehicles.slice(0, 10),
+      // Returns leaderboards
+      topReturnReps,
+      topReturnVehicles,
+      topReturnItems,
       totals: {
         customerCount: customerMap.size,
         itemCount: itemMap.size,
         salesRepCount: salesRepMap.size,
-        totalSales: invoices.reduce((sum, invoice) => sum + (invoice.totalAmount ?? 0), 0),
+        vehicleCount: vehicleMap.size,
+        totalSales: totalSalesAmount,
+        totalReturns: totalReturnsAmount,
+        netSales: totalSalesAmount - totalReturnsAmount,
+        returnsCount: returns.length,
       },
     };
   },
@@ -1725,88 +1887,133 @@ export const getPurchaseReport = query({
         i.invoiceDate <= args.toDate
     );
 
-    const totalPurchases = invoices.reduce((s, i) => s + i.totalAmount, 0);
+    // ── Aggregate header KPIs ────────────────────────────────────────────
+    const totalPurchases = invoices.reduce((s, i) => s + (i.totalAmount ?? 0), 0);
+    const subtotal       = invoices.reduce((s, i) => s + (i.subtotal ?? 0), 0);
+    const vatAmount      = invoices.reduce((s, i) => s + (i.vatAmount ?? 0), 0);
 
-    if (args.groupBy === "day") {
-      const byDay: Map<string, { date: string; total: number; count: number }> = new Map();
-      for (const inv of invoices) {
-        if (!byDay.has(inv.invoiceDate)) {
-          byDay.set(inv.invoiceDate, { date: inv.invoiceDate, total: 0, count: 0 });
-        }
-        const d = byDay.get(inv.invoiceDate)!;
-        d.total += inv.totalAmount;
-        d.count += 1;
+    const paidCount      = invoices.filter((i: any) => i.paymentStatus === "paid").length;
+    const unpaidCount    = invoices.filter((i: any) => i.paymentStatus === "unpaid").length;
+    const partialCount   = invoices.filter((i: any) => i.paymentStatus === "partial").length;
+
+    // ── Aggregate purchase RETURNS in same period ────────────────────────
+    let returns = await ctx.db.query("purchaseReturns").collect();
+    returns = returns.filter(
+      (r) =>
+        r.returnDate >= args.fromDate &&
+        r.returnDate <= args.toDate &&
+        r.documentStatus !== "cancelled" &&
+        (!args.branchId || r.branchId === args.branchId)
+    );
+    const totalReturns = returns.reduce((s, r) => s + (r.totalAmount ?? 0), 0);
+    const netPurchases = totalPurchases - totalReturns;
+
+    // ── Always compute per-supplier (for header + supplier groupBy) ──────
+    const bySupplier = new Map<string, any>();
+    for (const inv of invoices) {
+      if (!bySupplier.has(inv.supplierId)) {
+        const supplier = await ctx.db.get(inv.supplierId);
+        bySupplier.set(inv.supplierId, {
+          supplierId: inv.supplierId,
+          supplierName: supplier?.nameAr ?? "—",
+          supplierNameEn: (supplier as any)?.nameEn ?? null,
+          total: 0,
+          count: 0,
+          returnsTotal: 0,
+        });
       }
-      return {
-        groupBy: "day",
-        data: Array.from(byDay.values()).sort((a, b) => a.date.localeCompare(b.date)),
-        totalPurchases,
-        invoiceCount: invoices.length,
-      };
+      const s = bySupplier.get(inv.supplierId)!;
+      s.total += inv.totalAmount ?? 0;
+      s.count += 1;
     }
-
-    if (args.groupBy === "item") {
-      const allLines = [];
-      for (const inv of invoices) {
-        const lines = await ctx.db
-          .query("purchaseInvoiceLines")
-          .withIndex("by_invoice", (q) => q.eq("invoiceId", inv._id))
-          .collect();
-        allLines.push(...lines);
+    // Add returns to supplier rows
+    for (const ret of returns) {
+      if (!ret.supplierId) continue;
+      if (!bySupplier.has(ret.supplierId)) {
+        const supplier = await ctx.db.get(ret.supplierId);
+        bySupplier.set(ret.supplierId, {
+          supplierId: ret.supplierId,
+          supplierName: supplier?.nameAr ?? "—",
+          supplierNameEn: (supplier as any)?.nameEn ?? null,
+          total: 0, count: 0, returnsTotal: 0,
+        });
       }
-      const byItem: Map<string, { itemId: string; itemName: string; qty: number; total: number }> =
-        new Map();
-      for (const line of allLines) {
-        if (!line.itemId) continue; // skip non-stock lines
+      bySupplier.get(ret.supplierId)!.returnsTotal += ret.totalAmount ?? 0;
+    }
+    const supplierRows = Array.from(bySupplier.values())
+      .map((s: any) => ({ ...s, netTotal: s.total - s.returnsTotal }))
+      .sort((a: any, b: any) => b.netTotal - a.netTotal);
+
+    // ── Always compute per-item (for header + item groupBy) ──────────────
+    const byItem = new Map<string, any>();
+    for (const inv of invoices) {
+      const lines = await ctx.db
+        .query("purchaseInvoiceLines")
+        .withIndex("by_invoice", (q) => q.eq("invoiceId", inv._id))
+        .collect();
+      for (const line of lines) {
+        if (!line.itemId) continue;
         const key = line.itemId as string;
         if (!byItem.has(key)) {
           const item = await ctx.db.get(line.itemId);
-          const itemName = (item as any)?.nameAr ?? "—";
-          byItem.set(key, { itemId: key, itemName, qty: 0, total: 0 });
-        }
-        const b = byItem.get(key)!;
-        b.qty += line.quantity;
-        b.total += line.lineTotal;
-      }
-      return {
-        groupBy: "item",
-        data: Array.from(byItem.values()).sort((a, b) => b.total - a.total),
-        totalPurchases,
-        invoiceCount: invoices.length,
-      };
-    }
-
-    if (args.groupBy === "supplier") {
-      const bySupplier: Map<string, { supplierId: string; supplierName: string; total: number; count: number }> =
-        new Map();
-      for (const inv of invoices) {
-        if (!bySupplier.has(inv.supplierId)) {
-          const supplier = await ctx.db.get(inv.supplierId);
-          bySupplier.set(inv.supplierId, {
-            supplierId: inv.supplierId,
-            supplierName: supplier?.nameAr ?? "—",
-            total: 0,
-            count: 0,
+          byItem.set(key, {
+            itemId: key,
+            itemCode: (item as any)?.code ?? "—",
+            itemName: (item as any)?.nameAr ?? "—",
+            itemNameEn: (item as any)?.nameEn ?? null,
+            qty: 0, total: 0,
           });
         }
-        const s = bySupplier.get(inv.supplierId)!;
-        s.total += inv.totalAmount;
-        s.count += 1;
+        const b = byItem.get(key)!;
+        b.qty   += line.quantity;
+        b.total += line.lineTotal;
       }
-      return {
-        groupBy: "supplier",
-        data: Array.from(bySupplier.values()).sort((a, b) => b.total - a.total),
-        totalPurchases,
-        invoiceCount: invoices.length,
-      };
     }
+    const itemRows = Array.from(byItem.values()).sort((a: any, b: any) => b.total - a.total);
 
-    // Exhaustive: all groupBy values handled above
+    // ── Per-day breakdown (always present) ───────────────────────────────
+    const byDay = new Map<string, any>();
+    for (const inv of invoices) {
+      if (!byDay.has(inv.invoiceDate)) {
+        byDay.set(inv.invoiceDate, { date: inv.invoiceDate, total: 0, count: 0 });
+      }
+      const d = byDay.get(inv.invoiceDate)!;
+      d.total += inv.totalAmount ?? 0;
+      d.count += 1;
+    }
+    const dayRows = Array.from(byDay.values()).sort((a: any, b: any) => a.date.localeCompare(b.date));
+
+    // ── Pick the main "data" rows based on groupBy ───────────────────────
+    let data: any[] = [];
+    if (args.groupBy === "day")      data = dayRows;
+    else if (args.groupBy === "supplier") data = supplierRows;
+    else if (args.groupBy === "item")     data = itemRows;
+
+    // ── Day count for averages ───────────────────────────────────────────
+    const fromMs = new Date(args.fromDate).getTime();
+    const toMs   = new Date(args.toDate).getTime();
+    const daysInPeriod = Math.max(1, Math.floor((toMs - fromMs) / 86_400_000) + 1);
+
     return {
       groupBy: args.groupBy,
-      data: [],
+      data,
+      // Header KPIs
       totalPurchases,
+      subtotal,
+      vatAmount,
+      totalReturns,
+      netPurchases,
       invoiceCount: invoices.length,
+      returnsCount: returns.length,
+      supplierCount: bySupplier.size,
+      itemCount: byItem.size,
+      paidCount, unpaidCount, partialCount,
+      averageInvoice: invoices.length > 0 ? Math.round((totalPurchases / invoices.length) * 100) / 100 : 0,
+      averagePerDay:  Math.round((totalPurchases / daysInPeriod) * 100) / 100,
+      daysInPeriod,
+      // Side cards
+      topSuppliers: supplierRows.slice(0, 5),
+      topItems:     itemRows.slice(0, 5),
     };
   },
 });

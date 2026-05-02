@@ -16,7 +16,8 @@ const TX_TYPES = [
 ] as const;
 type TxType = typeof TX_TYPES[number]["value"];
 import { FilterPanel, FilterField } from "@/components/ui/filter-panel";
-import { SummaryStrip } from "@/components/ui/data-display";
+import { ColorKPIGrid } from "@/components/ui/data-display";
+import { Wallet, Hash } from "lucide-react";
 import { EmptyState } from "@/components/ui/empty-state";
 import { useCompanySettings } from "@/hooks/useCompanySettings";
 import { PrintableReportPage } from "@/components/ui/printable-report";
@@ -78,11 +79,16 @@ export default function SalesByVehiclePage() {
         </div>
       }
       summary={
-        <SummaryStrip items={[
-          { label: t("invoiceCount"), value: String(totals.invoiceCount), borderColor: "var(--brand-600)", accent: "var(--ink-900)" },
-          { label: t("totalSales"), value: formatCurrency(totals.totalSales), borderColor: "var(--gold-400)", accent: "var(--ink-900)" },
-          { label: t("cashSales"), value: formatCurrency(totals.cashSales), borderColor: "#16a34a", accent: "#16a34a" },
-          { label: t("creditSales"), value: formatCurrency(totals.creditSales), borderColor: "#2563eb", accent: "#2563eb" },
+        <ColorKPIGrid cols={4} items={[
+          { label: t("totalSales"), value: formatCurrency(totals.totalSales),
+            color: "#6b1523", bg: "#fdf2f4", border: "#6b152330", icon: Wallet, big: true,
+            hint: `${totals.invoiceCount} ${t("invoiceCount").toLowerCase()}` },
+          { label: t("cashSales"), value: formatCurrency(totals.cashSales),
+            color: "#16a34a", bg: "#f0fdf4", border: "#bbf7d0", icon: Banknote },
+          { label: t("creditSales"), value: formatCurrency(totals.creditSales),
+            color: "#2563eb", bg: "#eff6ff", border: "#bfdbfe", icon: CreditCard },
+          { label: t("invoiceCount"), value: String(totals.invoiceCount),
+            color: "#7c3aed", bg: "#faf5ff", border: "#ddd6fe", icon: Hash },
         ]} />
       }
     >

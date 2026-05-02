@@ -67,18 +67,108 @@ export default function GRNDetailPage() {
   const grn = useQuery(api.purchaseInvoices.getGRNById, grnId ? { grnId: grnId as any } : "skip");
   const allAccounts = useQuery(api.accounts.getAll, company?._id ? { companyId: company._id } : "skip");
   const postGRN = useMutation(api.purchaseInvoices.postGRN);
+  const autoClassify = useMutation(api.accounts.autoClassifyOperationalTypes);
   const [posting, setPosting] = useState(false);
   const [postError, setPostError] = useState("");
+  const [showAutoFix, setShowAutoFix] = useState(false);
+  const [autoFixing, setAutoFixing] = useState(false);
+
+  // ── Smart account picker (works EVEN WITHOUT operationalType set) ──
+  // Strategy:
+  //   1. Try the explicit operationalType tag (postable & active first)
+  //   2. Fall back to name-pattern search across all accounts
+  //   3. Score candidates and pick the best
+  const smartPickAccount = (target: "inventory" | "payable") => {
+    if (!allAccounts) return null;
+
+    const opType = target === "inventory" ? "inventory_asset" : "trade_payable";
+    const accountType = target === "inventory" ? "asset" : "liability";
+
+    // Step 1: explicit operationalType + postable + active
+    const tagged = allAccounts.find((a: any) => a.operationalType === opType && a.isPostable && a.isActive);
+    if (tagged) return tagged;
+
+    // Step 2: name-pattern + score
+    const lower = (s: string) => (s || "").toLowerCase();
+
+    const STRONG: Record<string, string[]> = {
+      inventory: ["raw material", "raw materials", "خامات", "مواد خام", "finished products", "finished goods", "منتجات تامة"],
+      payable:   ["suppliers", "supplier", "موردين", "موردون", "الموردون", "vendors"],
+    };
+    const GENERIC: Record<string, string[]> = {
+      inventory: ["inventory", "stock", "merchandise", "supplies", "goods", "مخزون", "بضاعة", "بضائع", "مخازن"],
+      payable:   ["payable", "accounts payable", "ap", "creditor", "ذمم دائنة", "دائنون"],
+    };
+
+    const score = (acc: any): number => {
+      if (acc.accountType !== accountType) return -999;
+      if (!acc.isActive) return -999;
+      let s = 0;
+      const text = `${lower(acc.nameAr)} ${lower(acc.nameEn)}`;
+      if (acc.isPostable) s += 15; else s -= 5;
+      if (STRONG[target].some((p) => text.includes(lower(p))))  s += 25;
+      if (GENERIC[target].some((p) => text.includes(lower(p)))) s += 8;
+      return s;
+    };
+
+    const candidates = allAccounts
+      .map((a: any) => ({ acc: a, s: score(a) }))
+      .filter((x) => x.s > 8) // must have at least one keyword match
+      .sort((a, b) => b.s - a.s);
+
+    return candidates[0]?.acc ?? null;
+  };
 
   const handlePostGRN = async () => {
     if (!currentUser?._id || !allAccounts) return;
-    const inventoryAcc = allAccounts.find((a: any) => a.operationalType === "inventory_asset");
-    const apAcc        = allAccounts.find((a: any) => a.operationalType === "trade_payable");
-    if (!inventoryAcc || !apAcc) { setPostError(t("errMissingInventoryAccounts") ?? "يرجى تصنيف حسابات المخزون والذمم الدائنة أولاً."); return; }
-    setPosting(true); setPostError("");
-    try { await postGRN({ grnId: grnId as any, userId: currentUser._id, inventoryAccountId: inventoryAcc._id, apAccruedAccountId: apAcc._id }); }
-    catch (e: any) { setPostError(e.message ?? t("errUnexpected")); }
-    finally { setPosting(false); }
+    const inventoryAcc = smartPickAccount("inventory");
+    const apAcc        = smartPickAccount("payable");
+    if (!inventoryAcc || !apAcc) {
+      setPostError(
+        isRTL
+          ? "لم نتمكن من إيجاد حساب 'مخزون' أو 'موردين' في شجرة الحسابات. تأكد من وجود حساب باسم RAW MATERIALS أو SUPPLIERS."
+          : "Could not find inventory or supplier accounts. Make sure accounts named 'RAW MATERIALS' or 'SUPPLIERS' exist."
+      );
+      setShowAutoFix(true);
+      return;
+    }
+    setPosting(true); setPostError(""); setShowAutoFix(false);
+    try {
+      await postGRN({
+        grnId: grnId as any,
+        userId: currentUser._id,
+        inventoryAccountId: inventoryAcc._id,
+        apAccruedAccountId: apAcc._id,
+      });
+    } catch (e: any) {
+      setPostError(e.message ?? t("errUnexpected"));
+    } finally {
+      setPosting(false);
+    }
+  };
+
+  const handleAutoFix = async () => {
+    if (!currentUser?._id || !company?._id) return;
+    setAutoFixing(true);
+    try {
+      const result: any = await autoClassify({ companyId: company._id, userId: currentUser._id });
+      if (result.totalSet > 0) {
+        setPostError("");
+        setShowAutoFix(false);
+        // Re-attempt posting after classification (allAccounts will refresh via reactivity)
+        setTimeout(() => handlePostGRN(), 600);
+      } else {
+        setPostError(
+          (isRTL
+            ? "لم يتم العثور على حسابات بأسماء معروفة (مخزون / موردين). الرجاء تصنيف الحسابات يدوياً من شجرة الحسابات."
+            : "No accounts matching known names (inventory / suppliers). Please classify manually in the chart of accounts.")
+        );
+      }
+    } catch (e: any) {
+      setPostError(e.message);
+    } finally {
+      setAutoFixing(false);
+    }
   };
 
   if (grn === undefined) return <LoadingState label={t("loading") ?? "Loading..."} />;
@@ -144,7 +234,28 @@ export default function GRNDetailPage() {
             <PdfDownloadButton document={<GrnPdf data={grnPdfData} />} fileName={`grn-${grn.grnNumber}.pdf`} label={t("downloadPdf") ?? "PDF"} />
             <button onClick={() => window.print()} className="inline-flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold bg-[color:var(--brand-700)] text-white hover:bg-[color:var(--brand-800)]"><Printer className="h-4 w-4" />{t("printGRN")}</button>
           </div>
-          {postError && <p className="text-xs text-red-600 max-w-xs text-end">{postError}</p>}
+          {postError && (
+            <div className="flex flex-col items-end gap-1.5 max-w-md">
+              <p className="text-xs text-red-600 text-end">{postError}</p>
+              {showAutoFix && (
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={handleAutoFix}
+                    disabled={autoFixing}
+                    className="h-7 px-3 rounded-md text-xs font-bold inline-flex items-center gap-1.5 bg-violet-600 text-white hover:bg-violet-700 disabled:opacity-50"
+                  >
+                    ✨ {autoFixing ? (isRTL ? "جاري الإصلاح..." : "Fixing...") : (isRTL ? "إصلاح تلقائي" : "Auto-Fix")}
+                  </button>
+                  <button
+                    onClick={() => router.push("/finance/chart-of-accounts")}
+                    className="h-7 px-3 rounded-md text-xs font-bold inline-flex items-center gap-1.5 bg-white text-gray-700 border border-gray-200 hover:bg-gray-50"
+                  >
+                    {isRTL ? "اذهب لشجرة الحسابات" : "Open Chart of Accounts"}
+                  </button>
+                </div>
+              )}
+            </div>
+          )}
         </div>
       </div>
 

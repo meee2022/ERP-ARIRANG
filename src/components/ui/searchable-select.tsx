@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useState, useRef, useEffect, useCallback } from "react";
+import { createPortal } from "react-dom";
 import { ChevronDown, Search, X } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -26,6 +27,7 @@ interface SearchableSelectProps {
 /**
  * Searchable dropdown — replaces native <select> when options are many.
  * Supports Arabic/English, RTL, keyboard nav (↑ ↓ Enter Esc).
+ * Uses a portal so the dropdown is never clipped by overflow:hidden parents.
  */
 export function SearchableSelect({
   options,
@@ -42,6 +44,8 @@ export function SearchableSelect({
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState("");
   const [highlighted, setHighlighted] = useState(0);
+  const [dropdownStyle, setDropdownStyle] = useState<React.CSSProperties>({});
+
   const containerRef = useRef<HTMLDivElement>(null);
   const searchRef = useRef<HTMLInputElement>(null);
   const listRef = useRef<HTMLUListElement>(null);
@@ -60,11 +64,28 @@ export function SearchableSelect({
     setHighlighted(0);
   }, [query]);
 
-  // Focus search input when opened
+  // Calculate dropdown position when opened
   useEffect(() => {
-    if (open) {
+    if (open && containerRef.current) {
+      const rect = containerRef.current.getBoundingClientRect();
+      const viewportHeight = window.innerHeight;
+      const spaceBelow = viewportHeight - rect.bottom;
+      const spaceAbove = rect.top;
+      const dropdownHeight = Math.min(280, options.length * 36 + 60); // approx height
+
+      const openUpward = spaceBelow < dropdownHeight && spaceAbove > spaceBelow;
+
+      setDropdownStyle({
+        position: "fixed",
+        width: rect.width,
+        left: rect.left,
+        ...(openUpward
+          ? { bottom: viewportHeight - rect.top + 4 }
+          : { top: rect.bottom + 4 }),
+        zIndex: 9999,
+      });
+
       setTimeout(() => searchRef.current?.focus(), 50);
-      // scroll selected item into view
       const idx = filtered.findIndex((o) => o.value === value);
       if (idx >= 0) setHighlighted(idx);
     } else {
@@ -72,10 +93,45 @@ export function SearchableSelect({
     }
   }, [open]);
 
+  // Recalculate on scroll/resize
+  useEffect(() => {
+    if (!open) return;
+    const update = () => {
+      if (!containerRef.current) return;
+      const rect = containerRef.current.getBoundingClientRect();
+      const viewportHeight = window.innerHeight;
+      const spaceBelow = viewportHeight - rect.bottom;
+      const spaceAbove = rect.top;
+      const dropdownHeight = Math.min(280, options.length * 36 + 60);
+      const openUpward = spaceBelow < dropdownHeight && spaceAbove > spaceBelow;
+
+      setDropdownStyle((prev) => ({
+        ...prev,
+        width: rect.width,
+        left: rect.left,
+        ...(openUpward
+          ? { bottom: viewportHeight - rect.top + 4, top: undefined }
+          : { top: rect.bottom + 4, bottom: undefined }),
+      }));
+    };
+    window.addEventListener("scroll", update, true);
+    window.addEventListener("resize", update);
+    return () => {
+      window.removeEventListener("scroll", update, true);
+      window.removeEventListener("resize", update);
+    };
+  }, [open]);
+
   // Close on outside click
   useEffect(() => {
     const handler = (e: MouseEvent) => {
-      if (!containerRef.current?.contains(e.target as Node)) setOpen(false);
+      const target = e.target as Node;
+      // Check if click is inside the trigger or the portal dropdown
+      if (containerRef.current?.contains(target)) return;
+      // Check if click is inside the portal (by class or data attr)
+      const portalEl = document.getElementById("searchable-select-portal-active");
+      if (portalEl?.contains(target)) return;
+      setOpen(false);
     };
     document.addEventListener("mousedown", handler);
     return () => document.removeEventListener("mousedown", handler);
@@ -118,6 +174,76 @@ export function SearchableSelect({
     item?.scrollIntoView({ block: "nearest" });
   }, [highlighted]);
 
+  // The portal dropdown content
+  const dropdownContent = open ? (
+    <div
+      id="searchable-select-portal-active"
+      style={dropdownStyle}
+      className="rounded-xl border border-[color:var(--ink-200)] bg-white shadow-2xl overflow-hidden"
+      dir={isRTL ? "rtl" : "ltr"}
+      onKeyDown={handleKeyDown}
+    >
+      {/* Search input */}
+      <div className="p-2 border-b border-[color:var(--ink-100)]">
+        <div className="relative">
+          <Search className={cn(
+            "absolute top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-[color:var(--ink-400)]",
+            isRTL ? "right-2.5" : "left-2.5"
+          )} />
+          <input
+            ref={searchRef}
+            type="text"
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            placeholder={searchPlaceholder}
+            className={cn(
+              "w-full h-8 text-sm rounded-lg border border-[color:var(--ink-200)] bg-[color:var(--ink-50)] focus:outline-none focus:border-[color:var(--brand-400)]",
+              isRTL ? "pr-8 pl-3" : "pl-8 pr-3"
+            )}
+            onKeyDown={(e) => {
+              if (e.key !== "ArrowDown" && e.key !== "ArrowUp" && e.key !== "Enter" && e.key !== "Escape") {
+                e.stopPropagation();
+              }
+            }}
+          />
+        </div>
+      </div>
+
+      {/* Options list */}
+      <ul
+        ref={listRef}
+        role="listbox"
+        className="max-h-56 overflow-y-auto py-1"
+      >
+        {filtered.length === 0 ? (
+          <li className="px-4 py-3 text-sm text-[color:var(--ink-400)] text-center">{emptyMessage}</li>
+        ) : (
+          filtered.map((opt, idx) => (
+            <li
+              key={opt.value}
+              role="option"
+              aria-selected={opt.value === value}
+              onMouseDown={(e) => { e.preventDefault(); select(opt.value); }}
+              onMouseEnter={() => setHighlighted(idx)}
+              className={cn(
+                "px-3 py-2 cursor-pointer text-sm transition-colors",
+                idx === highlighted
+                  ? "bg-[color:var(--brand-50)] text-[color:var(--brand-700)]"
+                  : "text-[color:var(--ink-800)] hover:bg-[color:var(--ink-50)]",
+                opt.value === value && "font-semibold"
+              )}
+            >
+              <span className="block truncate">{opt.label}</span>
+              {opt.sublabel && (
+                <span className="block text-[11px] text-[color:var(--ink-400)] truncate mt-0.5">{opt.sublabel}</span>
+              )}
+            </li>
+          ))
+        )}
+      </ul>
+    </div>
+  ) : null;
+
   return (
     <div
       ref={containerRef}
@@ -153,76 +279,10 @@ export function SearchableSelect({
         )}
       </button>
 
-      {/* Dropdown */}
-      {open && (
-        <div
-          className={cn(
-            "absolute z-50 mt-1 w-full min-w-[220px] rounded-xl border border-[color:var(--ink-200)] bg-white shadow-xl overflow-hidden",
-            isRTL ? "right-0" : "left-0"
-          )}
-          dir={isRTL ? "rtl" : "ltr"}
-        >
-          {/* Search input */}
-          <div className="p-2 border-b border-[color:var(--ink-100)]">
-            <div className="relative">
-              <Search className={cn(
-                "absolute top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-[color:var(--ink-400)]",
-                isRTL ? "right-2.5" : "left-2.5"
-              )} />
-              <input
-                ref={searchRef}
-                type="text"
-                value={query}
-                onChange={(e) => setQuery(e.target.value)}
-                placeholder={searchPlaceholder}
-                className={cn(
-                  "w-full h-8 text-sm rounded-lg border border-[color:var(--ink-200)] bg-[color:var(--ink-50)] focus:outline-none focus:border-[color:var(--brand-400)]",
-                  isRTL ? "pr-8 pl-3" : "pl-8 pr-3"
-                )}
-                onKeyDown={(e) => {
-                  // Don't propagate up to container for regular typing
-                  if (e.key !== "ArrowDown" && e.key !== "ArrowUp" && e.key !== "Enter" && e.key !== "Escape") {
-                    e.stopPropagation();
-                  }
-                }}
-              />
-            </div>
-          </div>
-
-          {/* Options list */}
-          <ul
-            ref={listRef}
-            role="listbox"
-            className="max-h-56 overflow-y-auto py-1"
-          >
-            {filtered.length === 0 ? (
-              <li className="px-4 py-3 text-sm text-[color:var(--ink-400)] text-center">{emptyMessage}</li>
-            ) : (
-              filtered.map((opt, idx) => (
-                <li
-                  key={opt.value}
-                  role="option"
-                  aria-selected={opt.value === value}
-                  onMouseDown={(e) => { e.preventDefault(); select(opt.value); }}
-                  onMouseEnter={() => setHighlighted(idx)}
-                  className={cn(
-                    "px-3 py-2 cursor-pointer text-sm transition-colors",
-                    idx === highlighted
-                      ? "bg-[color:var(--brand-50)] text-[color:var(--brand-700)]"
-                      : "text-[color:var(--ink-800)] hover:bg-[color:var(--ink-50)]",
-                    opt.value === value && "font-semibold"
-                  )}
-                >
-                  <span className="block truncate">{opt.label}</span>
-                  {opt.sublabel && (
-                    <span className="block text-[11px] text-[color:var(--ink-400)] truncate mt-0.5">{opt.sublabel}</span>
-                  )}
-                </li>
-              ))
-            )}
-          </ul>
-        </div>
-      )}
+      {/* Render dropdown via portal to escape overflow:hidden parents */}
+      {typeof window !== "undefined" && dropdownContent
+        ? createPortal(dropdownContent, document.body)
+        : null}
 
       {/* Hidden input for form validation */}
       {required && (

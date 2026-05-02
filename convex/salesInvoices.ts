@@ -127,6 +127,18 @@ export const createSalesInvoice = mutation({
       );
     }
 
+    // ── Compute sales-rep commission (internal only) ───────────────────────
+    let commissionRate: number | undefined;
+    let commissionAmount: number | undefined;
+    if (args.salesRepId) {
+      const rep: any = await ctx.db.get(args.salesRepId);
+      if (rep?.commissionRate && rep.commissionRate > 0) {
+        commissionRate = rep.commissionRate;
+        // Default = on_sales (% of total invoice amount)
+        commissionAmount = Math.round(totalAmount * (commissionRate / 100) * 100) / 100;
+      }
+    }
+
     const invoiceId = await ctx.db.insert("salesInvoices", {
       companyId: args.companyId,
       branchId: effectiveBranchId,
@@ -160,6 +172,10 @@ export const createSalesInvoice = mutation({
       postingStatus: "unposted",
       paymentStatus:
         args.invoiceType === "cash_sale" ? "not_applicable" : "unpaid",
+      // Commission (internal)
+      commissionRate,
+      commissionAmount,
+      commissionStatus: commissionAmount && commissionAmount > 0 ? "pending" : undefined,
       createdBy: args.createdBy,
       createdAt: Date.now(),
       updatedAt: Date.now(),
@@ -1372,6 +1388,17 @@ export const updateDraftSalesInvoice = mutation({
       creditAmount = totalAmount;
     }
 
+    // ── Re-compute commission on edit ──
+    let commissionRate: number | undefined;
+    let commissionAmount: number | undefined;
+    if (args.salesRepId) {
+      const rep: any = await ctx.db.get(args.salesRepId);
+      if (rep?.commissionRate && rep.commissionRate > 0) {
+        commissionRate = rep.commissionRate;
+        commissionAmount = Math.round(totalAmount * (commissionRate / 100) * 100) / 100;
+      }
+    }
+
     // Update invoice header
     await ctx.db.patch(args.invoiceId, {
       invoiceDate: args.invoiceDate,
@@ -1391,6 +1418,9 @@ export const updateDraftSalesInvoice = mutation({
       cardReceived,
       creditAmount,
       notes: args.notes,
+      commissionRate,
+      commissionAmount,
+      commissionStatus: commissionAmount && commissionAmount > 0 ? "pending" : undefined,
     });
 
     // Delete old lines

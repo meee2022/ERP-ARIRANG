@@ -53,6 +53,7 @@ const SECTIONS: NavSection[] = [
     id: "purchases", titleKey: "navPurchases", labelAr: "مشتريات", labelEn: "Purchases",
     icon: ShoppingCart, color: "#60a5fa",
     items: [
+      { href: "/purchases/lpo",                 icon: ClipboardList, key: "lpo"                },
       { href: "/purchases/invoices",            icon: ShoppingCart, key: "purchaseInvoices"   },
       { href: "/purchases/grn",                 icon: FileCheck,    key: "grn"                },
       { href: "/purchases/returns",             icon: RotateCcw,    key: "purchaseReturns"    },
@@ -72,6 +73,7 @@ const SECTIONS: NavSection[] = [
       { href: "/inventory/movements",     icon: RotateCcw,         key: "inventoryMovements" },
       { href: "/inventory/low-stock",     icon: AlertTriangle,     key: "lowStockAlerts"     },
       { href: "/inventory/wastage",       icon: Trash2,            key: "wastage"            },
+      { href: "/inventory/stock-take",    icon: ClipboardList,     key: "stockTake"          },
     ],
   },
   {
@@ -79,6 +81,9 @@ const SECTIONS: NavSection[] = [
     icon: ChefHat, color: "#22d3ee",
     items: [
       { href: "/production",                 icon: LayoutDashboard, key: "productionDashboard" },
+      { href: "/production/my-requests",     icon: Truck,           key: "productionMyRequests"},
+      { href: "/production/daily-plan",      icon: FileCheck,       key: "productionDailyPlan" },
+      { href: "/production/plans",           icon: ClipboardList,   key: "productionPlans"     },
       { href: "/production/recipes",         icon: FlaskConical,    key: "recipes"             },
       { href: "/production/orders",          icon: ClipboardList,   key: "productionOrders"    },
       { href: "/production/recipe-costs",    icon: BarChart2,       key: "recipeCosts"         },
@@ -142,6 +147,7 @@ const SECTIONS: NavSection[] = [
       { href: "/reports/top-sales",             icon: TrendingUp,   key: "topSales"            },
       { href: "/reports/sales-by-sales-rep",    icon: User,         key: "salesBySalesRep"     },
       { href: "/reports/sales-by-vehicle",      icon: Truck,        key: "salesByVehicle"      },
+      { href: "/reports/sales-rep-commission",  icon: User,         key: "salesRepCommission"  },
       { href: "/reports/purchase-report",       icon: ShoppingCart, key: "purchaseReport"      },
       { href: "/reports/stock-valuation",       icon: PackageOpen,  key: "stockValuation"      },
       { href: "/reports/customer-statement",    icon: Users,        key: "customerStatement"   },
@@ -577,8 +583,14 @@ export function Sidebar() {
         <div className="w-8 h-px my-1 rounded-full shrink-0"
           style={{ background: "rgba(255,255,255,0.08)" }} />
 
-        {/* ── Section icons ─────────────────────────────────────────────── */}
-        <div className="flex-1 flex flex-col items-center gap-1 overflow-hidden">
+        {/* ── Section icons (scrollable when zoomed/many items) ─────────── */}
+        <div
+          className="flex-1 w-full flex flex-col items-center gap-1 overflow-y-auto overflow-x-hidden nav-rail-scroll"
+          style={{
+            scrollbarWidth: "thin",
+            scrollbarColor: "rgba(255,255,255,0.18) transparent",
+          }}
+        >
           {visibleSections.map((section) => {
             const isCurrent  = section.id === activeSectionId;
             const isOpen     = section.id === openSection;
@@ -594,6 +606,22 @@ export function Sidebar() {
             );
           })}
         </div>
+        {/* Custom scrollbar styling for the nav rail */}
+        <style jsx global>{`
+          .nav-rail-scroll::-webkit-scrollbar {
+            width: 4px;
+          }
+          .nav-rail-scroll::-webkit-scrollbar-track {
+            background: transparent;
+          }
+          .nav-rail-scroll::-webkit-scrollbar-thumb {
+            background: rgba(255, 255, 255, 0.18);
+            border-radius: 2px;
+          }
+          .nav-rail-scroll::-webkit-scrollbar-thumb:hover {
+            background: rgba(255, 255, 255, 0.35);
+          }
+        `}</style>
 
         {/* ── Footer: user avatar + logout ─────────────────────────────── */}
         <div className="shrink-0 flex flex-col items-center gap-2 mt-1">

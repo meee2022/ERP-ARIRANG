@@ -701,6 +701,30 @@ export default function ChartOfAccountsPage() {
   const rootAccounts = accounts.filter((a) => !a.parentId);
   const loading    = rawAccounts === undefined;
 
+  // ── Auto-classify operational types ──
+  const autoClassify = useMutation(api.accounts.autoClassifyOperationalTypes);
+  const [classifying, setClassifying] = useState(false);
+  const handleAutoClassify = async () => {
+    if (!company?._id || !currentUser?._id) return;
+    if (!confirm(isRTL
+      ? "تصنيف الحسابات تلقائياً (المخزون، الموردين، العملاء، النقدية، البنوك)؟"
+      : "Auto-classify accounts (Inventory, Payables, Receivables, Cash, Banks)?")) return;
+    setClassifying(true);
+    try {
+      const result: any = await autoClassify({ companyId: company._id, userId: currentUser._id });
+      const lines = Object.entries(result.report || {})
+        .map(([k, arr]: any) => `${k}: ${arr.length}`)
+        .join("\n");
+      toast.success(
+        (isRTL ? `✅ تم تصنيف ${result.totalSet} حساب\n` : `✅ Classified ${result.totalSet} accounts\n`) + lines
+      );
+    } catch (e: any) {
+      toast.error(e.message);
+    } finally {
+      setClassifying(false);
+    }
+  };
+
   return (
     <div dir={isRTL ? "rtl" : "ltr"} className="flex flex-col h-[calc(100vh-120px)] space-y-4">
       {showNewModal && (
@@ -727,14 +751,26 @@ export default function ChartOfAccountsPage() {
           title={t("chartOfAccountsTitle")}
           count={(rawAccounts ?? []).length}
           actions={
-            canCreate("finance") ? (
-              <button
-                onClick={() => setShowNewModal(true)}
-                className="btn-primary h-9 px-4 rounded-xl inline-flex items-center gap-2 text-sm font-semibold"
-              >
-                <Plus className="h-4 w-4" /> {t("newAccount")}
-              </button>
-            ) : undefined
+            <div className="flex items-center gap-2">
+              {canEdit("finance") && (
+                <button
+                  onClick={handleAutoClassify}
+                  disabled={classifying}
+                  className="h-9 px-4 rounded-xl inline-flex items-center gap-2 text-sm font-semibold bg-violet-50 text-violet-700 border border-violet-200 hover:bg-violet-100 disabled:opacity-50"
+                  title={isRTL ? "تصنيف تلقائي للحسابات الأساسية" : "Auto-classify core accounts"}
+                >
+                  ✨ {classifying ? (isRTL ? "جاري..." : "Working...") : (isRTL ? "تصنيف تلقائي" : "Auto-Classify")}
+                </button>
+              )}
+              {canCreate("finance") && (
+                <button
+                  onClick={() => setShowNewModal(true)}
+                  className="btn-primary h-9 px-4 rounded-xl inline-flex items-center gap-2 text-sm font-semibold"
+                >
+                  <Plus className="h-4 w-4" /> {t("newAccount")}
+                </button>
+              )}
+            </div>
           }
         />
       </div>

@@ -374,6 +374,40 @@ export default function SalesInvoiceDetailPage() {
             </div>
           )}
 
+          {/* ══ COMMISSION (INTERNAL — never printed) ══════════════════════════ */}
+          {inv.commissionAmount && inv.commissionAmount > 0 && (
+            <div className="mx-8 mb-6 print:hidden px-4 py-3 bg-violet-50 border border-violet-200 rounded-lg flex items-center justify-between">
+              <div className="flex items-center gap-2 text-sm">
+                <span className="text-violet-600">💰</span>
+                <span className="font-bold text-violet-800">
+                  {isRTL ? "عمولة المندوب" : "Sales Rep Commission"}
+                </span>
+                <span className="text-[11px] text-violet-600 px-2 py-0.5 rounded-full bg-violet-100 font-bold">
+                  {isRTL ? "داخلي فقط" : "Internal only"}
+                </span>
+              </div>
+              <div className="flex items-center gap-3 text-sm">
+                <span className="text-violet-700">
+                  {inv.commissionRate}% × {formatCurrency(inv.totalAmount)}
+                </span>
+                <span className="text-violet-900 font-extrabold tabular-nums text-base">
+                  = {formatCurrency(inv.commissionAmount)}
+                </span>
+                <span className={`text-[11px] font-bold px-2 py-0.5 rounded-full ${
+                  inv.commissionStatus === "paid" ? "bg-emerald-100 text-emerald-700"
+                  : inv.commissionStatus === "approved" ? "bg-blue-100 text-blue-700"
+                  : "bg-amber-100 text-amber-700"
+                }`}>
+                  {inv.commissionStatus === "paid"
+                    ? (isRTL ? "مدفوعة" : "Paid")
+                    : inv.commissionStatus === "approved"
+                      ? (isRTL ? "معتمدة" : "Approved")
+                      : (isRTL ? "معلقة" : "Pending")}
+                </span>
+              </div>
+            </div>
+          )}
+
           {/* ══ SIGNATURES ═══════════════════════════════════════════════════ */}
           <div className="px-8 pb-6">
             <SignatureStrip t={t} />

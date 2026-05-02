@@ -7,7 +7,7 @@ import { api } from "../../../../convex/_generated/api";
 import { useI18n } from "@/hooks/useI18n";
 import { PageHeader } from "@/components/ui/page-header";
 import { LoadingState } from "@/components/ui/data-display";
-import { FileSpreadsheet, Printer, FileText } from "lucide-react";
+import { FileSpreadsheet, Printer, FileText, BedDouble } from "lucide-react";
 import dynamic from "next/dynamic";
 
 const PdfDownloadButton = dynamic(() => import("@/components/ui/PdfDownloadButton"), { ssr: false });
@@ -18,7 +18,8 @@ const MONTH_NAMES_AR = ["يناير","فبراير","مارس","أبريل","م�
 // ─── Simple Sheet (مبسّط) ─────────────────────────────────────────────────────
 
 function SimpleGroupTable({ groupLabel, groupRows, startSn, isRTL }: any) {
-  const groupTotal = groupRows.reduce((s: number, r: any) => s + r.totalSalary, 0);
+  // Only count non-leave rows in totals
+  const groupTotal = groupRows.filter((r: any) => !r.isOnLeave).reduce((s: number, r: any) => s + r.totalSalary, 0);
   return (
     <div className="mb-6">
       {/* Department header */}
@@ -46,16 +47,35 @@ function SimpleGroupTable({ groupLabel, groupRows, startSn, isRTL }: any) {
         </thead>
         <tbody>
           {groupRows.map((r: any, i: number) => (
-            <tr key={r.sn} className="hover:bg-gray-50">
-              <td className="border border-gray-300 px-3 py-3 text-center">{startSn + i}</td>
-              <td className="border border-gray-300 px-3 py-3 text-center font-bold">{r.erpCode}</td>
-              <td className="border border-gray-300 px-3 py-3 font-semibold">{r.name}</td>
-              <td className="border border-gray-300 px-3 py-3 text-center text-sm">{r.designation}</td>
-              <td className="border border-gray-300 px-3 py-3 text-center text-sm">{r.sponsorship}</td>
-              <td className="border border-gray-300 px-3 py-3 text-center tabular-nums font-semibold">{r.workingDays}</td>
-              <td className="border border-gray-300 px-3 py-3 text-center tabular-nums font-bold">{r.totalSalary.toLocaleString()}</td>
-              <td className="border border-gray-300 px-3 py-3 print:h-10">&nbsp;</td>
-            </tr>
+            r.isOnLeave ? (
+              /* ── On-Leave Row (Simple) ── */
+              <tr key={`leave-${r.erpCode}`} style={{ background: "#f0f9ff", fontStyle: "italic" }}>
+                <td className="border border-blue-200 px-3 py-3 text-center text-gray-400">{startSn + i}</td>
+                <td className="border border-blue-200 px-3 py-3 text-center font-bold text-blue-700">{r.erpCode}</td>
+                <td className="border border-blue-200 px-3 py-3 font-semibold text-blue-900">
+                  {r.name}
+                  <span className="ms-2 inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[9px] font-bold bg-blue-100 text-blue-700 not-italic">
+                    {isRTL ? "إجازة" : "ON LEAVE"}
+                  </span>
+                </td>
+                <td className="border border-blue-200 px-3 py-3 text-center text-sm text-gray-500">{r.designation}</td>
+                <td className="border border-blue-200 px-3 py-3 text-center text-sm text-gray-400">{r.sponsorship}</td>
+                <td className="border border-blue-200 px-3 py-3 text-center text-gray-300">—</td>
+                <td className="border border-blue-200 px-3 py-3 text-center text-gray-300">—</td>
+                <td className="border border-blue-200 px-3 py-3 print:h-10">&nbsp;</td>
+              </tr>
+            ) : (
+              <tr key={r.sn} className="hover:bg-gray-50">
+                <td className="border border-gray-300 px-3 py-3 text-center">{startSn + i}</td>
+                <td className="border border-gray-300 px-3 py-3 text-center font-bold">{r.erpCode}</td>
+                <td className="border border-gray-300 px-3 py-3 font-semibold">{r.name}</td>
+                <td className="border border-gray-300 px-3 py-3 text-center text-sm">{r.designation}</td>
+                <td className="border border-gray-300 px-3 py-3 text-center text-sm">{r.sponsorship}</td>
+                <td className="border border-gray-300 px-3 py-3 text-center tabular-nums font-semibold">{r.workingDays}</td>
+                <td className="border border-gray-300 px-3 py-3 text-center tabular-nums font-bold">{r.totalSalary.toLocaleString()}</td>
+                <td className="border border-gray-300 px-3 py-3 print:h-10">&nbsp;</td>
+              </tr>
+            )
           ))}
         </tbody>
         <tfoot>
@@ -108,7 +128,7 @@ function SimpleSheetView({ rows, groupBy, isRTL, monthLabel, sheetTitle }: any) 
                   {isRTL ? "الإجمالي الكلي" : "GRAND TOTAL"}
                 </td>
                 <td className="border border-gray-400 px-4 py-2 font-bold tabular-nums text-center">
-                  {rows.reduce((s: number, r: any) => s + r.totalSalary, 0).toLocaleString()}
+                  {rows.filter((r: any) => !r.isOnLeave).reduce((s: number, r: any) => s + r.totalSalary, 0).toLocaleString()}
                 </td>
               </tr>
             </tbody>
@@ -141,6 +161,8 @@ export default function SalarySheetPage() {
   const [sheetFormat, setSheetFormat] = useState<"detailed" | "simple">("detailed");
   // "all" = كل الموظفين | "department" = مجمّع بالأقسام
   const [groupBy, setGroupBy] = useState<"all" | "department">("all");
+  // Toggle: include employees on leave with blank salary fields
+  const [includeOnLeave, setIncludeOnLeave] = useState(false);
 
   const companies = useQuery(api.seed.getCompanies, {});
   const company = companies?.[0];
@@ -150,6 +172,18 @@ export default function SalarySheetPage() {
     company ? { companyId: company._id, periodYear: year, periodMonth: month } : "skip"
   );
 
+  // Employees currently marked as on_leave in their profile
+  const onLeaveEmployees = useQuery(
+    api.hr.listEmployees,
+    company ? { companyId: company._id, status: "on_leave" } : "skip"
+  );
+
+  // Approved leave requests — to catch employees on leave during the selected month
+  const approvedLeaveRequests = useQuery(
+    api.hr.listLeaveRequests,
+    company ? { companyId: company._id, status: "approved" } : "skip"
+  );
+
   const loading = payrollData === undefined;
 
   // If user typed a manual value, use it; otherwise fall back to attendance then formula
@@ -157,13 +191,14 @@ export default function SalarySheetPage() {
 
   const rows = useMemo(() => {
     if (!payrollData) return [];
-    return payrollData.map((item: any, i: number) => {
+
+    // Build active employee rows
+    const activeRows = payrollData.map((item: any, i: number) => {
       const emp = item.employee ?? {};
       const basic = item.basicSalary ?? 0;
       const othersAllowance = (item.housingAllowance ?? 0) + (item.transportAllowance ?? 0) + (item.otherAllowance ?? 0);
       const totalSalary = basic + othersAllowance;
 
-      // Working days: manual override > actual attendance > formula
       const attendanceDays = item.presentDays ?? 0;
       const displayWorkDays = overrideDays !== null
         ? overrideDays
@@ -171,7 +206,6 @@ export default function SalarySheetPage() {
           ? attendanceDays
           : (item.workingDays || 22);
 
-      // OT hourly rate always uses month's total working days (formula-based) for fairness
       const monthWorkDays = overrideDays !== null ? overrideDays : (item.workingDays || 22);
       const oneHourOT = monthWorkDays > 0 ? basic / (monthWorkDays * 8) : 0;
       const totalOTHours = item.overtimeHours ?? 0;
@@ -197,20 +231,98 @@ export default function SalarySheetPage() {
         absentDays,
         absentSalary,
         netAmount,
+        isOnLeave: false,
+        _empId: item.employee?._id,
       };
     });
-  }, [payrollData, isRTL, overrideDays]);
 
-  const totals = useMemo(() => ({
-    basic: rows.reduce((s, r) => s + r.basic, 0),
-    othersAllowance: rows.reduce((s, r) => s + r.othersAllowance, 0),
-    totalSalary: rows.reduce((s, r) => s + r.totalSalary, 0),
-    totalOTHours: rows.reduce((s, r) => s + r.totalOTHours, 0),
-    totalOTAmount: rows.reduce((s, r) => s + r.totalOTAmount, 0),
-    absentDays: rows.reduce((s, r) => s + r.absentDays, 0),
-    absentSalary: rows.reduce((s, r) => s + r.absentSalary, 0),
-    netAmount: rows.reduce((s, r) => s + r.netAmount, 0),
-  }), [rows]);
+    if (!includeOnLeave) {
+      return activeRows.map((r, i) => ({ ...r, sn: i + 1 }));
+    }
+
+    // ── Collect on-leave employee IDs ──────────────────────────────────────
+    // IDs of employees already in payroll (active) — exclude them from on-leave section
+    const activeIds = new Set(activeRows.map((r) => r._empId).filter(Boolean));
+
+    // Month date bounds for leave-request overlap check
+    const lastDay = new Date(year, month, 0).getDate();
+    const firstDayStr = `${year}-${String(month).padStart(2, "0")}-01`;
+    const lastDayStr  = `${year}-${String(month).padStart(2, "0")}-${String(lastDay).padStart(2, "0")}`;
+
+    // Collect unique on-leave employees from both sources
+    const leaveEmpMap = new Map<string, any>(); // empId → employee object
+
+    // Source 1: employees whose status = "on_leave"
+    if (onLeaveEmployees) {
+      for (const emp of onLeaveEmployees) {
+        if (!activeIds.has(emp._id)) {
+          leaveEmpMap.set(emp._id, emp);
+        }
+      }
+    }
+
+    // Source 2: approved leave requests overlapping the selected month
+    if (approvedLeaveRequests) {
+      for (const req of approvedLeaveRequests) {
+        if (
+          req.startDate <= lastDayStr &&
+          req.endDate   >= firstDayStr &&
+          !activeIds.has(req.employeeId)
+        ) {
+          // employee object is embedded in req.employee
+          const emp = req.employee;
+          if (emp && !leaveEmpMap.has(req.employeeId)) {
+            leaveEmpMap.set(req.employeeId, emp);
+          }
+        }
+      }
+    }
+
+    // Build on-leave rows (blank salary fields)
+    const leaveRows = Array.from(leaveEmpMap.values()).map((emp: any) => ({
+      sn: 0, // will be renumbered below
+      erpCode: emp.employeeCode ?? "-",
+      name: isRTL ? (emp.nameAr || emp.nameEn || "-") : (emp.nameEn || emp.nameAr || "-"),
+      designation: isRTL
+        ? (emp.designation?.nameAr || emp.designation?.nameEn || "-")
+        : (emp.designation?.nameEn || emp.designation?.nameAr || "-"),
+      sponsorship: emp.sponsorshipStatus || "-",
+      departmentName: isRTL
+        ? (emp.department?.nameAr || emp.department?.nameEn || "")
+        : (emp.department?.nameEn || emp.department?.nameAr || ""),
+      workingDays: 0,
+      basic: 0,
+      othersAllowance: 0,
+      totalSalary: 0,
+      oneHourOT: 0,
+      totalOTHours: 0,
+      totalOTAmount: 0,
+      absentDays: 0,
+      absentSalary: 0,
+      netAmount: 0,
+      isOnLeave: true,
+      _empId: emp._id,
+    }));
+
+    // Merge: active first, then on-leave, renumber sn
+    const merged = [...activeRows, ...leaveRows];
+    return merged.map((r, i) => ({ ...r, sn: i + 1 }));
+  }, [payrollData, isRTL, overrideDays, includeOnLeave, onLeaveEmployees, approvedLeaveRequests, year, month]);
+
+  const totals = useMemo(() => {
+    // Exclude on-leave rows from totals
+    const activeOnly = rows.filter((r) => !r.isOnLeave);
+    return {
+      basic: activeOnly.reduce((s, r) => s + r.basic, 0),
+      othersAllowance: activeOnly.reduce((s, r) => s + r.othersAllowance, 0),
+      totalSalary: activeOnly.reduce((s, r) => s + r.totalSalary, 0),
+      totalOTHours: activeOnly.reduce((s, r) => s + r.totalOTHours, 0),
+      totalOTAmount: activeOnly.reduce((s, r) => s + r.totalOTAmount, 0),
+      absentDays: activeOnly.reduce((s, r) => s + r.absentDays, 0),
+      absentSalary: activeOnly.reduce((s, r) => s + r.absentSalary, 0),
+      netAmount: activeOnly.reduce((s, r) => s + r.netAmount, 0),
+    };
+  }, [rows]);
 
   const monthLabel = isRTL
     ? `${MONTH_NAMES_AR[month - 1]} ${year}`
@@ -226,12 +338,15 @@ export default function SalarySheetPage() {
       ? ["م", "الكود", "اسم الموظف", "أيام العمل", "الراتب الأساسي", "البدلات الأخرى", "إجمالي الراتب", "ساعة أوفرتايم", "إجمالي ساعات OT", "مبلغ OT", "أيام الغياب", "قيمة الغياب", "صافي المبلغ"]
       : ["SN", "ERP CODE", "Employee Name", "Working Days", "Basic Salary QR", "Others Allowance QR", "Total Salary QR", "One Hour OT", "Total OT Hours", "Total OT Amount QR", "Absent Days", "Absent Salary QR", "Net Amount QR"];
 
-    const dataRows = rows.map(r => [
-      r.sn, r.erpCode, r.name, r.workingDays,
-      r.basic, r.othersAllowance, r.totalSalary,
-      r.oneHourOT, r.totalOTHours, r.totalOTAmount,
-      r.absentDays, r.absentSalary, r.netAmount,
-    ]);
+    const dataRows = rows.map(r => r.isOnLeave
+      ? [r.sn, r.erpCode, r.name + (isRTL ? " [إجازة]" : " [On Leave]"), "", "", "", "", "", "", "", "", "", ""]
+      : [
+          r.sn, r.erpCode, r.name, r.workingDays,
+          r.basic, r.othersAllowance, r.totalSalary,
+          r.oneHourOT, r.totalOTHours, r.totalOTAmount,
+          r.absentDays, r.absentSalary, r.netAmount,
+        ]
+    );
 
     const totRow = [
       "", "", isRTL ? "الإجمالي" : "TOTAL", "",
@@ -395,9 +510,38 @@ export default function SalarySheetPage() {
             </div>
           </div>
 
+          {/* Include on-leave toggle */}
+          <div className="flex flex-col gap-1">
+            <label className="text-[10px] font-bold text-gray-500 uppercase">
+              {isRTL ? "الموظفون في إجازة" : "On Leave"}
+            </label>
+            <button
+              onClick={() => setIncludeOnLeave((v) => !v)}
+              className={`h-9 px-4 rounded-md border text-sm font-medium inline-flex items-center gap-2 transition-colors ${
+                includeOnLeave
+                  ? "border-blue-400 bg-blue-50 text-blue-700"
+                  : "border-gray-200 bg-white text-gray-500 hover:bg-gray-50"
+              }`}
+            >
+              <BedDouble className="h-4 w-4" />
+              {includeOnLeave
+                ? (isRTL ? "إخفاء الإجازات" : "Hide On Leave")
+                : (isRTL ? "إظهار الإجازات" : "Show On Leave")}
+            </button>
+          </div>
+
           {rows.length > 0 && (
             <div className={`${isRTL ? "mr-auto" : "ml-auto"} self-end pb-1 text-sm text-gray-500`}>
-              {isRTL ? `${rows.length} موظف` : `${rows.length} employees`}
+              {(() => {
+                const activeCount = rows.filter((r) => !r.isOnLeave).length;
+                const leaveCount = rows.filter((r) => r.isOnLeave).length;
+                if (leaveCount > 0) {
+                  return isRTL
+                    ? `${activeCount} موظف نشط · ${leaveCount} في إجازة`
+                    : `${activeCount} active · ${leaveCount} on leave`;
+                }
+                return isRTL ? `${activeCount} موظف` : `${activeCount} employees`;
+              })()}
             </div>
           )}
         </div>
@@ -460,22 +604,41 @@ export default function SalarySheetPage() {
                     </td>
                   </tr>
                 ) : rows.map((r, idx) => (
-                  <tr key={r.sn} style={{ background: idx % 2 === 0 ? "#fff" : "#f5f7fa" }}>
-                    <td className="border border-gray-300 px-1 py-1.5 text-center text-gray-500">{r.sn}</td>
-                    <td className="border border-gray-300 px-1 py-1.5 text-center font-bold text-blue-900">{r.erpCode}</td>
-                    <td className="border border-gray-300 px-2 py-1.5 font-semibold text-gray-900" style={{maxWidth:"200px", overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap"}} title={r.name}>{r.name}</td>
-                    <td className="border border-gray-300 px-1 py-1.5 text-center tabular-nums">{r.workingDays}</td>
-                    <td className="border border-gray-300 px-1 py-1.5 text-right tabular-nums pr-2">{r.basic.toLocaleString()}</td>
-                    <td className="border border-gray-300 px-1 py-1.5 text-right tabular-nums pr-2">{r.othersAllowance.toLocaleString()}</td>
-                    <td className="border border-gray-300 px-1 py-1.5 text-right tabular-nums pr-2 font-bold text-blue-900" style={{background: idx % 2 === 0 ? "#eef2fb" : "#e5ebf7"}}>{r.totalSalary.toLocaleString()}</td>
-                    <td className="border border-gray-300 px-1 py-1.5 text-center tabular-nums text-gray-500">{r.oneHourOT.toFixed(2)}</td>
-                    <td className="border border-gray-300 px-1 py-1.5 text-center tabular-nums">{r.totalOTHours || 0}</td>
-                    <td className="border border-gray-300 px-1 py-1.5 text-right tabular-nums pr-2">{r.totalOTAmount.toFixed(2)}</td>
-                    <td className="border border-gray-300 px-1 py-1.5 text-center tabular-nums">{r.absentDays || 0}</td>
-                    <td className="border border-gray-300 px-1 py-1.5 text-right tabular-nums pr-2 text-red-700">{r.absentSalary.toFixed(2)}</td>
-                    <td className="border border-gray-300 px-1 py-1.5 text-right tabular-nums pr-2 font-bold text-emerald-800" style={{background: idx % 2 === 0 ? "#ecfdf5" : "#d1fae5"}}>{r.netAmount.toFixed(2)}</td>
-                    <td className="border border-gray-300 px-1 py-1.5" style={{minWidth:"70px"}}>&nbsp;</td>
-                  </tr>
+                  r.isOnLeave ? (
+                    /* ── On-Leave Row (Detailed) ── */
+                    <tr key={`leave-${r.erpCode}`} style={{ background: "#eff6ff", fontStyle: "italic" }}>
+                      <td className="border border-blue-200 px-1 py-1.5 text-center text-gray-400">{r.sn}</td>
+                      <td className="border border-blue-200 px-1 py-1.5 text-center font-bold text-blue-700">{r.erpCode}</td>
+                      <td className="border border-blue-200 px-2 py-1.5 font-semibold text-blue-900" style={{maxWidth:"200px", overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap"}} title={r.name}>
+                        {r.name}
+                        <span className="ms-1.5 inline-flex items-center px-1 py-0.5 rounded text-[8px] font-bold bg-blue-200 text-blue-800 not-italic align-middle">
+                          {isRTL ? "إجازة" : "LEAVE"}
+                        </span>
+                      </td>
+                      {/* All salary columns blank */}
+                      {Array.from({ length: 11 }).map((_, ci) => (
+                        <td key={ci} className="border border-blue-200 px-1 py-1.5 text-center text-gray-300">—</td>
+                      ))}
+                      <td className="border border-blue-200 px-1 py-1.5" style={{minWidth:"70px"}}>&nbsp;</td>
+                    </tr>
+                  ) : (
+                    <tr key={r.sn} style={{ background: idx % 2 === 0 ? "#fff" : "#f5f7fa" }}>
+                      <td className="border border-gray-300 px-1 py-1.5 text-center text-gray-500">{r.sn}</td>
+                      <td className="border border-gray-300 px-1 py-1.5 text-center font-bold text-blue-900">{r.erpCode}</td>
+                      <td className="border border-gray-300 px-2 py-1.5 font-semibold text-gray-900" style={{maxWidth:"200px", overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap"}} title={r.name}>{r.name}</td>
+                      <td className="border border-gray-300 px-1 py-1.5 text-center tabular-nums">{r.workingDays}</td>
+                      <td className="border border-gray-300 px-1 py-1.5 text-right tabular-nums pr-2">{r.basic.toLocaleString()}</td>
+                      <td className="border border-gray-300 px-1 py-1.5 text-right tabular-nums pr-2">{r.othersAllowance.toLocaleString()}</td>
+                      <td className="border border-gray-300 px-1 py-1.5 text-right tabular-nums pr-2 font-bold text-blue-900" style={{background: idx % 2 === 0 ? "#eef2fb" : "#e5ebf7"}}>{r.totalSalary.toLocaleString()}</td>
+                      <td className="border border-gray-300 px-1 py-1.5 text-center tabular-nums text-gray-500">{r.oneHourOT.toFixed(2)}</td>
+                      <td className="border border-gray-300 px-1 py-1.5 text-center tabular-nums">{r.totalOTHours || 0}</td>
+                      <td className="border border-gray-300 px-1 py-1.5 text-right tabular-nums pr-2">{r.totalOTAmount.toFixed(2)}</td>
+                      <td className="border border-gray-300 px-1 py-1.5 text-center tabular-nums">{r.absentDays || 0}</td>
+                      <td className="border border-gray-300 px-1 py-1.5 text-right tabular-nums pr-2 text-red-700">{r.absentSalary.toFixed(2)}</td>
+                      <td className="border border-gray-300 px-1 py-1.5 text-right tabular-nums pr-2 font-bold text-emerald-800" style={{background: idx % 2 === 0 ? "#ecfdf5" : "#d1fae5"}}>{r.netAmount.toFixed(2)}</td>
+                      <td className="border border-gray-300 px-1 py-1.5" style={{minWidth:"70px"}}>&nbsp;</td>
+                    </tr>
+                  )
                 ))}
               </tbody>
               {rows.length > 0 && (

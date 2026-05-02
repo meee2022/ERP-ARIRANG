@@ -5,11 +5,11 @@ import React from "react";
 import { useQuery } from "convex/react";
 import { api } from "../../../../convex/_generated/api";
 import { useI18n } from "@/hooks/useI18n";
-import { LoadingState, SummaryStrip } from "@/components/ui/data-display";
+import { LoadingState, ColorKPIGrid } from "@/components/ui/data-display";
 import { EmptyState } from "@/components/ui/empty-state";
 import { useCompanySettings } from "@/hooks/useCompanySettings";
 import { PrintableReportPage } from "@/components/ui/printable-report";
-import { BarChart2 } from "lucide-react";
+import { BarChart2, Hash, Wallet, TrendingDown, Coins } from "lucide-react";
 
 export default function AssetBookValueReportPage() {
   const { t, isRTL, formatCurrency } = useI18n();
@@ -41,11 +41,16 @@ export default function AssetBookValueReportPage() {
       period={new Date().toISOString().split("T")[0]}
       summary={
         !loading && rows.length > 0 ? (
-          <SummaryStrip items={[
-            { label: t("assetsCount"), value: String(totals.count), borderColor: "var(--brand-600)" },
-            { label: t("totalCostLabel"), value: formatCurrency(totals.cost), borderColor: "var(--brand-600)" },
-            { label: t("accumulatedDepreciation"), value: formatCurrency(totals.depr), accent: "var(--ink-500)", borderColor: "#d97706" },
-            { label: t("netBookValue"), value: formatCurrency(totals.net), borderColor: "#16a34a" },
+          <ColorKPIGrid cols={4} items={[
+            { label: t("netBookValue"), value: formatCurrency(totals.net),
+              color: "#6b1523", bg: "#fdf2f4", border: "#6b152330", icon: Wallet, big: true,
+              hint: `${totals.count} ${t("assetsCount").toLowerCase()}` },
+            { label: t("totalCostLabel"), value: formatCurrency(totals.cost),
+              color: "#15803d", bg: "#f0fdf4", border: "#bbf7d0", icon: Coins },
+            { label: t("accumulatedDepreciation"), value: formatCurrency(totals.depr),
+              color: "#d97706", bg: "#fff7ed", border: "#fed7aa", icon: TrendingDown },
+            { label: t("assetsCount"), value: String(totals.count),
+              color: "#7c3aed", bg: "#faf5ff", border: "#ddd6fe", icon: Hash },
           ]} />
         ) : undefined
       }

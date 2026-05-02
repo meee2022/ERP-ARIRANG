@@ -21,6 +21,7 @@ export const createSalesRep = mutation({
     nameEn: v.optional(v.string()),
     phone: v.optional(v.string()),
     notes: v.optional(v.string()),
+    commissionRate: v.optional(v.number()),
     userId: v.optional(v.id("users")),
   },
   handler: async (ctx, args) => {
@@ -51,6 +52,7 @@ export const updateSalesRep = mutation({
     phone: v.optional(v.string()),
     notes: v.optional(v.string()),
     branchId: v.optional(v.id("branches")),
+    commissionRate: v.optional(v.number()),
     userId: v.optional(v.id("users")),
   },
   handler: async (ctx, args) => {

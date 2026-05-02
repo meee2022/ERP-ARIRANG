@@ -213,7 +213,7 @@ export default function ProductionOrdersPage() {
                     isRTL ? "رقم الأمر"    : "Order #",
                     isRTL ? "الوصفة"       : "Recipe",
                     isRTL ? "المنتج الناتج": "Output Item",
-                    isRTL ? "الكمية"       : "Qty",
+                    isRTL ? "الكمية المطلوبة" : "Planned Qty",
                     isRTL ? "التاريخ"      : "Date",
                     isRTL ? "التكلفة"      : "Cost",
                     isRTL ? "الحالة"       : "Status",
@@ -225,38 +225,100 @@ export default function ProductionOrdersPage() {
                   ))}
                 </tr>
               </thead>
-              <tbody className="divide-y divide-[color:var(--ink-50)]">
+              <tbody className="divide-y divide-[color:var(--ink-100)]">
                 {filtered.map((o) => {
                   const cfg = STATUS_CFG[o.status] ?? STATUS_CFG.planned;
-                  const recipeName  = isRTL ? (o.recipe?.nameAr ?? "—")     : (o.recipe?.nameEn     || o.recipe?.nameAr     || "—");
-                  const outputName  = isRTL ? (o.outputItem?.nameAr ?? "—") : (o.outputItem?.nameEn || o.outputItem?.nameAr || "—");
+                  const recipeName = isRTL ? (o.recipe?.nameAr ?? "—") : (o.recipe?.nameEn || o.recipe?.nameAr || "—");
+                  const outputName = isRTL ? (o.outputItem?.nameAr ?? "—") : (o.outputItem?.nameEn || o.outputItem?.nameAr || "—");
+                  const uomLabel   = isRTL ? (o.uom?.nameAr ?? "") : (o.uom?.nameEn || o.uom?.nameAr || "");
+                  const hasActual  = o.actualQty != null;
+                  const pct        = hasActual ? Math.min(100, Math.round((o.actualQty / o.plannedQty) * 100)) : 0;
+                  const isDone     = o.status === "completed";
+                  const rowBg      = isDone ? "bg-emerald-50/30" : "";
+
                   return (
-                    <tr key={o._id} className="hover:bg-[color:var(--ink-50)]/50 transition-colors">
+                    <tr key={o._id} className={`hover:bg-[color:var(--ink-50)] transition-colors ${rowBg}`}>
+                      {/* Order # */}
                       <td className="px-4 py-3">
                         <span className="font-mono text-[11px] font-bold text-[color:var(--brand-700)] bg-[color:var(--brand-50)] px-2 py-0.5 rounded">
                           {o.orderNumber}
                         </span>
                       </td>
-                      <td className="px-4 py-3 text-[color:var(--ink-600)] text-[13px]">{recipeName}</td>
-                      <td className="px-4 py-3 font-semibold text-[color:var(--ink-900)] text-[13px]">{outputName}</td>
-                      <td className="px-4 py-3 tabular-nums text-[color:var(--ink-700)]">
-                        {o.actualQty != null ? (
-                          <span>
-                            <span className="font-bold text-green-700">{o.actualQty}</span>
-                            <span className="text-[11px] text-[color:var(--ink-400)] ms-1">/ {o.plannedQty}</span>
-                          </span>
-                        ) : <span className="font-medium">{o.plannedQty}</span>}
-                        {o.uom?.nameAr && <span className="ms-1 text-[11px] text-[color:var(--ink-400)]">{isRTL ? o.uom.nameAr : (o.uom.nameEn || o.uom.nameAr)}</span>}
+
+                      {/* Recipe */}
+                      <td className="px-4 py-3 text-[color:var(--ink-500)] text-[12px]">{recipeName}</td>
+
+                      {/* Output Item */}
+                      <td className="px-4 py-3">
+                        <span className="font-semibold text-[color:var(--ink-900)] text-[13px]">{outputName}</span>
                       </td>
-                      <td className="px-4 py-3 text-[color:var(--ink-500)] text-[12px] tabular-nums">{o.plannedDate}</td>
-                      <td className="px-4 py-3 tabular-nums font-bold text-[color:var(--brand-700)]">
+
+                      {/* ── Qty cell ── */}
+                      <td className="px-4 py-3 min-w-[140px]">
+                        <div className="flex items-center gap-3">
+                          {/* Big number */}
+                          <div className="flex items-baseline gap-1">
+                            <span
+                              className="tabular-nums font-black leading-none"
+                              style={{
+                                fontSize: "22px",
+                                color: isDone ? "#16a34a" : hasActual ? "#f59e0b" : "#6b1523",
+                              }}
+                            >
+                              {hasActual ? o.actualQty : o.plannedQty}
+                            </span>
+                            {hasActual && (
+                              <span className="text-[11px] text-[color:var(--ink-400)] font-normal tabular-nums">
+                                /{o.plannedQty}
+                              </span>
+                            )}
+                          </div>
+
+                          {/* Right side: UOM + progress */}
+                          <div className="flex-1 min-w-0">
+                            {uomLabel && (
+                              <span className="block text-[10px] font-semibold text-[color:var(--ink-400)] uppercase tracking-wide truncate">
+                                {uomLabel}
+                              </span>
+                            )}
+                            {hasActual && (
+                              <div className="mt-1 flex items-center gap-1.5">
+                                <div className="flex-1 h-1.5 rounded-full bg-[color:var(--ink-100)] overflow-hidden">
+                                  <div
+                                    className="h-full rounded-full transition-all"
+                                    style={{
+                                      width: `${pct}%`,
+                                      background: isDone ? "#16a34a" : "#f59e0b",
+                                    }}
+                                  />
+                                </div>
+                                <span className="text-[9px] font-bold tabular-nums" style={{ color: isDone ? "#16a34a" : "#f59e0b" }}>
+                                  {pct}%
+                                </span>
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      </td>
+
+                      {/* Date */}
+                      <td className="px-4 py-3 text-[color:var(--ink-500)] text-[12px] tabular-nums whitespace-nowrap">
+                        {o.plannedDate}
+                      </td>
+
+                      {/* Cost */}
+                      <td className="px-4 py-3 tabular-nums font-bold text-[color:var(--brand-700)] whitespace-nowrap">
                         {formatCurrency(o.materialCost ?? 0)}
                       </td>
+
+                      {/* Status */}
                       <td className="px-4 py-3">
-                        <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-[10.5px] font-bold border ${cfg.badge}`}>
+                        <span className={`inline-flex items-center px-2.5 py-1 rounded-full text-[10.5px] font-bold border ${cfg.badge}`}>
                           {cfg.label}
                         </span>
                       </td>
+
+                      {/* Action */}
                       <td className="px-4 py-3">
                         <button
                           onClick={() => setStatusModal(o)}
@@ -272,13 +334,23 @@ export default function ProductionOrdersPage() {
               </tbody>
             </table>
           </div>
+
+          {/* Footer */}
           <div className="px-5 py-3 border-t border-[color:var(--ink-100)] flex items-center justify-between bg-[color:var(--ink-50)]/50">
             <span className="text-[12px] text-[color:var(--ink-400)]">
               {filtered.length} {isRTL ? "أمر" : filtered.length === 1 ? "order" : "orders"}
             </span>
-            <span className="text-[12px] font-bold text-[color:var(--brand-700)]">
-              {isRTL ? "الإجمالي: " : "Total: "}{formatCurrency(filtered.reduce((s, o) => s + (o.materialCost ?? 0), 0))}
-            </span>
+            <div className="flex items-center gap-4">
+              <span className="text-[11px] text-[color:var(--ink-400)]">
+                {isRTL ? "إجمالي الكميات:" : "Total qty:"}
+                <span className="font-bold text-[color:var(--ink-700)] ms-1 tabular-nums">
+                  {filtered.reduce((s, o) => s + (o.plannedQty ?? 0), 0).toLocaleString()}
+                </span>
+              </span>
+              <span className="text-[12px] font-bold text-[color:var(--brand-700)]">
+                {isRTL ? "التكلفة: " : "Cost: "}{formatCurrency(filtered.reduce((s, o) => s + (o.materialCost ?? 0), 0))}
+              </span>
+            </div>
           </div>
         </div>
       )}

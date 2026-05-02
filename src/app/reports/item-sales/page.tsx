@@ -7,7 +7,7 @@ import { useI18n } from "@/hooks/useI18n";
 import { useAppStore } from "@/store/useAppStore";
 import { usePermissions } from "@/hooks/usePermissions";
 import { EmptyState } from "@/components/ui/empty-state";
-import { LoadingState, SummaryStrip } from "@/components/ui/data-display";
+import { LoadingState, ColorKPIGrid } from "@/components/ui/data-display";
 import { FilterPanel, FilterField } from "@/components/ui/filter-panel";
 import { useCompanySettings } from "@/hooks/useCompanySettings";
 import { PrintableReportPage } from "@/components/ui/printable-report";
@@ -39,10 +39,15 @@ export default function ItemSalesPage() {
 
   const summaryItems = useMemo(
     () => totals ? [
-      { label: t("items"), value: String(totals.itemCount), borderColor: "var(--brand-600)", accent: "var(--ink-900)" },
-      { label: t("quantitySold"), value: String(totals.quantitySold), borderColor: "#0ea5e9", accent: "#0f172a" },
-      { label: t("totalSales"), value: formatCurrency(totals.grossSales), borderColor: "#f59e0b", accent: "#92400e" },
-      { label: t("net"), value: formatCurrency(totals.netSales), borderColor: "#16a34a", accent: "#166534" },
+      { label: t("net"), value: formatCurrency(totals.netSales),
+        color: "#6b1523", bg: "#fdf2f4", border: "#6b152330", big: true,
+        hint: `${totals.itemCount} items` },
+      { label: t("totalSales"), value: formatCurrency(totals.grossSales),
+        color: "#15803d", bg: "#f0fdf4", border: "#bbf7d0" },
+      { label: t("items"), value: String(totals.itemCount),
+        color: "#7c3aed", bg: "#faf5ff", border: "#ddd6fe" },
+      { label: t("quantitySold"), value: String(totals.quantitySold),
+        color: "#0369a1", bg: "#f0f9ff", border: "#bae6fd" },
     ] : [],
     [totals, t, formatCurrency]
   );
@@ -67,7 +72,7 @@ export default function ItemSalesPage() {
           </FilterField>
         </FilterPanel>
       }
-      summary={totals ? <SummaryStrip items={summaryItems} /> : undefined}
+      summary={totals ? <ColorKPIGrid items={summaryItems} cols={4} /> : undefined}
     >
       {report === undefined ? (
         <LoadingState label={t("loading")} />

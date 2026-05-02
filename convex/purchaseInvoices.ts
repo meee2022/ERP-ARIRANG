@@ -215,24 +215,16 @@ export const createGRN = mutation({
 
 
     for (const line of args.lines) {
-
       await ctx.db.insert("grnLines", {
         grnId,
         poLineId: line.poLineId,
-        companyId: args.companyId,
-        warehouseId: args.warehouseId,
-        grnDate: args.receiptDate,
         itemId: line.itemId,
         quantity: line.quantity,
         uomId: line.uomId,
         unitCost: line.unitCost,
         totalCost: line.totalCost,
         invoicedQty: 0,
-        batchNumber: (line as any).batchNumber ?? undefined,
-        expiryDate: (line as any).expiryDate ?? undefined,
-        lotNumber: (line as any).lotNumber ?? undefined,
       });
-
     }
 
 
@@ -288,6 +280,59 @@ export const approveGRN = mutation({
       approvedBy: args.userId,
       approvedAt: Date.now(),
     });
+
+    // ── Sync received quantities back to the linked Purchase Order (LPO) ──
+    if (grn.poId) {
+      const grnLines = await ctx.db
+        .query("grnLines")
+        .withIndex("by_grn", (q: any) => q.eq("grnId", args.grnId))
+        .collect();
+
+      // Collect unique PO line IDs touched by this GRN
+      const touchedPoLineIds = new Set<string>();
+      for (const gl of grnLines) {
+        if (gl.poLineId) touchedPoLineIds.add(String(gl.poLineId));
+      }
+
+      // For each touched PO line, recompute total received from all approved GRN lines
+      for (const poLineIdStr of touchedPoLineIds) {
+        const poLine: any = await ctx.db.get(poLineIdStr as any);
+        if (!poLine) continue;
+
+        const allLinkedGrnLines = await ctx.db
+          .query("grnLines")
+          .filter((q: any) => q.eq(q.field("poLineId"), poLineIdStr as any))
+          .collect();
+
+        let totalReceived = 0;
+        for (const linked of allLinkedGrnLines) {
+          const parentGrn: any = await ctx.db.get(linked.grnId);
+          if (parentGrn && parentGrn.documentStatus !== "cancelled" && parentGrn.documentStatus !== "draft") {
+            totalReceived += linked.quantity;
+          }
+        }
+
+        await ctx.db.patch(poLineIdStr as any, { receivedQty: totalReceived });
+      }
+
+      // Recompute PO status: fully_received | partially_received
+      const poLines = await ctx.db
+        .query("purchaseOrderLines")
+        .withIndex("by_po", (q: any) => q.eq("poId", grn.poId))
+        .collect();
+
+      const allFull = poLines.every((l: any) => (l.receivedQty ?? 0) >= l.quantity);
+      const anyReceived = poLines.some((l: any) => (l.receivedQty ?? 0) > 0);
+      const newStatus = allFull
+        ? "fully_received"
+        : anyReceived
+          ? "partially_received"
+          : null;
+
+      if (newStatus) {
+        await ctx.db.patch(grn.poId, { documentStatus: newStatus as any });
+      }
+    }
 
     await logAudit(ctx, {
       companyId: grn.companyId,

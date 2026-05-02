@@ -20,9 +20,9 @@ import { EmptyState } from "@/components/ui/empty-state";
 function todayISO() { return new Date().toISOString().split("T")[0]; }
 function startOfMonthISO() { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}-01`; }
 
-interface GRNLine { id: number; itemId: string; quantity: string; unitCost: string; uomId: string }
+interface GRNLine { id: number; itemId: string; quantity: string; unitCost: string; uomId: string; poLineId?: string }
 
-function NewGRNForm({ company, onClose }: any) {
+function NewGRNForm({ company, onClose, preloadPoId }: any) {
   const { t, isRTL } = useI18n();
   const createGRN = useMutation(api.purchaseInvoices.createGRN);
   const suppliers = useQuery(api.suppliers.getAll, company ? { companyId: company._id } : "skip");
@@ -37,10 +37,39 @@ function NewGRNForm({ company, onClose }: any) {
   const { currentUser: defaultUser } = useAuth();
   const defaultCurrency = useQuery(api.helpers.getDefaultCurrency, {});
 
+  // ── Pre-load from LPO if provided ────────────────────────────────────────
+  const preloadedPO = useQuery(
+    api.purchaseOrders.getPurchaseOrderById,
+    preloadPoId ? { poId: preloadPoId as any } : "skip"
+  );
+
   const [form, setForm] = useState({ supplierId: "", warehouseId: "", notes: "" });
   const [lines, setLines] = useState<GRNLine[]>([{ id: 1, itemId: "", quantity: "1", unitCost: "0", uomId: "" }]);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
+  const [didPreload, setDidPreload] = React.useState(false);
+
+  // Apply preloaded LPO data once it loads
+  React.useEffect(() => {
+    if (didPreload || !preloadedPO || !preloadPoId) return;
+    setForm({
+      supplierId: preloadedPO.supplierId,
+      warehouseId: preloadedPO.warehouseId,
+      notes: preloadedPO.notes || `From LPO ${preloadedPO.poNumber}`,
+    });
+    const remainingLines = (preloadedPO.lines || []).filter((l: any) => l.remainingQty > 0);
+    if (remainingLines.length > 0) {
+      setLines(remainingLines.map((l: any, i: number) => ({
+        id: i + 1,
+        itemId: l.itemId,
+        quantity: String(l.remainingQty),
+        unitCost: String(l.unitPrice ?? 0),
+        uomId: l.uomId,
+        poLineId: l._id,
+      })));
+    }
+    setDidPreload(true);
+  }, [preloadedPO, preloadPoId, didPreload]);
 
   const setF = (k: string, v: any) => setForm(f => ({ ...f, [k]: v }));
   const addLine = () => setLines(ls => [...ls, { id: Date.now(), itemId: "", quantity: "1", unitCost: "0", uomId: "" }]);
@@ -59,6 +88,7 @@ function NewGRNForm({ company, onClose }: any) {
     try {
       await createGRN({
         companyId: company._id, branchId: (effectiveBranchId ?? branch?._id) as any,
+        poId: preloadPoId ? (preloadPoId as any) : undefined,
         supplierId: form.supplierId as any, receiptDate: receiptDate,
         periodId: openPeriod._id, warehouseId: form.warehouseId as any,
         currencyId: defaultCurrency._id, exchangeRate: 1,
@@ -68,6 +98,7 @@ function NewGRNForm({ company, onClose }: any) {
           uomId: (l.uomId || units?.[0]?._id) as any,
           unitCost: Math.round(Number(l.unitCost) * 100) / 100,
           totalCost: Math.round(Number(l.quantity) * Number(l.unitCost) * 100) / 100,
+          poLineId: l.poLineId ? (l.poLineId as any) : undefined,
         })),
       });
       onClose();
@@ -186,7 +217,8 @@ export default function GRNPage() {
   const router = useRouter();
   const { canCreate, canPost } = usePermissions();
   const searchParams = useSearchParams();
-  const [showForm, setShowForm] = useState(searchParams.get("new") === "true");
+  const preloadPoId = searchParams.get("poId");
+  const [showForm, setShowForm] = useState(searchParams.get("new") === "true" || !!preloadPoId);
   const [fromDate, setFromDate] = useState(startOfMonthISO());
   const [toDate, setToDate] = useState(todayISO());
   const [search, setSearch] = useState("");
@@ -222,7 +254,7 @@ export default function GRNPage() {
       />
       </div>
 
-      {showForm && <NewGRNForm company={company} onClose={() => setShowForm(false)} />}
+      {showForm && <NewGRNForm company={company} preloadPoId={preloadPoId} onClose={() => setShowForm(false)} />}
 
       {/* Modern Filter Strip - Box Design */}
       <div className="bg-white rounded-lg border border-gray-200 p-3 flex flex-wrap items-end gap-3 w-full">

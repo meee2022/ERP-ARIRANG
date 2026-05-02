@@ -8,7 +8,7 @@ import { useI18n } from "@/hooks/useI18n";
 import { useAppStore } from "@/store/useAppStore";
 import { usePermissions } from "@/hooks/usePermissions";
 import { EmptyState } from "@/components/ui/empty-state";
-import { LoadingState, SummaryStrip } from "@/components/ui/data-display";
+import { LoadingState, ColorKPIGrid } from "@/components/ui/data-display";
 import { FilterPanel, FilterField } from "@/components/ui/filter-panel";
 import { useCompanySettings } from "@/hooks/useCompanySettings";
 import { PrintableReportPage } from "@/components/ui/printable-report";
@@ -150,13 +150,21 @@ export default function DailySalesPage() {
   const summaryItems = useMemo(
     () =>
       totals ? [
-        { label: t("days"), value: String(totals.dayCount), borderColor: "var(--brand-600)", accent: "var(--ink-900)" },
-        { label: t("invoiceCount"), value: String(totals.invoiceCount), borderColor: "#0ea5e9", accent: "#0f172a" },
-        { label: isRTL ? "نقدي" : "Cash", value: formatCurrency(totals.cashSales), borderColor: "#16a34a", accent: "#166534" },
-        { label: isRTL ? "آجل" : "Credit", value: formatCurrency(totals.creditSales), borderColor: "#7c3aed", accent: "#4c1d95" },
-        { label: isRTL ? "مرتجع نقدي" : "Cash Return", value: formatCurrency(totals.cashReturn), borderColor: "#dc2626", accent: "#991b1b" },
-        { label: isRTL ? "مرتجع آجل" : "Credit Return", value: formatCurrency(totals.creditReturn), borderColor: "#f59e0b", accent: "#92400e" },
-        { label: t("net"), value: formatCurrency(totals.netSales), borderColor: "#0f172a", accent: "#0f172a" },
+        { label: t("net"), value: formatCurrency(totals.netSales),
+          color: "#6b1523", bg: "#fdf2f4", border: "#6b152330", big: true,
+          hint: `${totals.dayCount} ${isRTL ? "يوم" : "days"} · ${totals.invoiceCount} ${isRTL ? "فاتورة" : "invoices"}` },
+        { label: isRTL ? "نقدي" : "Cash", value: formatCurrency(totals.cashSales),
+          color: "#15803d", bg: "#f0fdf4", border: "#bbf7d0" },
+        { label: isRTL ? "آجل" : "Credit", value: formatCurrency(totals.creditSales),
+          color: "#7c3aed", bg: "#faf5ff", border: "#ddd6fe" },
+        { label: isRTL ? "مرتجع نقدي" : "Cash Return", value: formatCurrency(totals.cashReturn),
+          color: "#dc2626", bg: "#fef2f2", border: "#fecaca" },
+        { label: isRTL ? "مرتجع آجل" : "Credit Return", value: formatCurrency(totals.creditReturn),
+          color: "#ea580c", bg: "#fff7ed", border: "#fed7aa" },
+        { label: t("days"), value: String(totals.dayCount),
+          color: "#0369a1", bg: "#f0f9ff", border: "#bae6fd" },
+        { label: t("invoiceCount"), value: String(totals.invoiceCount),
+          color: "#ca8a04", bg: "#fefce8", border: "#fde68a" },
       ] : [],
     [totals, t, formatCurrency, isRTL]
   );
@@ -181,7 +189,7 @@ export default function DailySalesPage() {
           </FilterField>
         </FilterPanel>
       }
-      summary={totals ? <SummaryStrip items={summaryItems} className="grid-cols-7" /> : undefined}
+      summary={totals ? <ColorKPIGrid items={summaryItems} cols={7} /> : undefined}
     >
       {report === undefined ? (
         <LoadingState label={t("loading")} />

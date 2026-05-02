@@ -38,6 +38,7 @@ export default function SalesRepsPage() {
     phone: "",
     branchId: "",
     notes: "",
+    commissionRate: "",
   });
 
   const filtered = useMemo(() => {
@@ -62,7 +63,7 @@ export default function SalesRepsPage() {
 
 
   function resetForm() {
-    setForm({ code: "", nameAr: "", nameEn: "", phone: "", branchId: "", notes: "" });
+    setForm({ code: "", nameAr: "", nameEn: "", phone: "", branchId: "", notes: "", commissionRate: "" });
     setEditRep(null);
     setError(null);
   }
@@ -81,6 +82,7 @@ export default function SalesRepsPage() {
       phone: rep.phone ?? "",
       branchId: rep.branchId ?? "",
       notes: rep.notes ?? "",
+      commissionRate: rep.commissionRate != null ? String(rep.commissionRate) : "",
     });
     setError(null);
     setShowForm(true);
@@ -95,6 +97,7 @@ export default function SalesRepsPage() {
     setSaving(true);
     setError(null);
     try {
+      const commissionRate = form.commissionRate.trim() === "" ? undefined : Number(form.commissionRate);
       if (editRep) {
         await updateRep({
           id: editRep._id,
@@ -103,6 +106,7 @@ export default function SalesRepsPage() {
           phone: form.phone || undefined,
           branchId: form.branchId ? (form.branchId as any) : undefined,
           notes: form.notes || undefined,
+          commissionRate,
           userId: currentUser?._id,
         });
       } else {
@@ -114,6 +118,7 @@ export default function SalesRepsPage() {
           phone: form.phone || undefined,
           branchId: form.branchId ? (form.branchId as any) : undefined,
           notes: form.notes || undefined,
+          commissionRate,
           userId: currentUser?._id,
         });
       }
@@ -262,6 +267,25 @@ export default function SalesRepsPage() {
                   ))}
                 </select>
               </label>
+              <label className="block md:col-span-2 bg-amber-50 border border-amber-200 rounded-lg p-3 -mx-1">
+                <div className="text-xs font-bold mb-1.5 text-amber-800 flex items-center gap-1.5">
+                  💰 {isRTL ? "نسبة العمولة على المبيعات (%)" : "Commission Rate on Sales (%)"}
+                </div>
+                <input
+                  type="number"
+                  min="0" max="100" step="0.01"
+                  value={form.commissionRate}
+                  onChange={(e) => setForm({ ...form, commissionRate: e.target.value })}
+                  placeholder={isRTL ? "مثال: 2.5 = 2.5%" : "e.g. 2.5 = 2.5%"}
+                  className="input-field bg-white"
+                />
+                <p className="text-[11px] text-amber-700 mt-1">
+                  {isRTL
+                    ? "تُحسب تلقائياً على إجمالي كل فاتورة. اتركه فارغاً لإلغاء العمولة."
+                    : "Auto-calculated on each invoice total. Leave empty to disable."}
+                </p>
+              </label>
+
               <label className="block md:col-span-2">
                 <div className="text-xs font-semibold mb-1.5">{t("notes")}</div>
                 <textarea value={form.notes} onChange={(e) => setForm({ ...form, notes: e.target.value })} rows={2} className="input-field w-full resize-none" />

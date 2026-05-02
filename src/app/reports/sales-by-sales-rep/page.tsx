@@ -8,7 +8,8 @@ import { useI18n } from "@/hooks/useI18n";
 import { useAppStore } from "@/store/useAppStore";
 import { User, ChevronDown, ChevronUp, ExternalLink, RotateCcw, Banknote, CreditCard, Shuffle, LayoutList } from "lucide-react";
 import { FilterPanel, FilterField } from "@/components/ui/filter-panel";
-import { SummaryStrip } from "@/components/ui/data-display";
+import { ColorKPIGrid } from "@/components/ui/data-display";
+import { Wallet, Hash } from "lucide-react";
 import { EmptyState } from "@/components/ui/empty-state";
 import { SearchableSelect } from "@/components/ui/searchable-select";
 import { useCompanySettings } from "@/hooks/useCompanySettings";
@@ -313,15 +314,25 @@ export default function SalesBySalesRepPage() {
   const activeTx = TX_TYPES.find((t) => t.value === txType)!;
 
   const summaryItems = isReturns ? [
-    { label: isRTL ? "عدد المرتجعات"    : "Return Count",   value: String(returnsTotals.returnCount),           borderColor: "#dc2626", accent: "#dc2626" },
-    { label: isRTL ? "إجمالي المرتجعات" : "Total Returns",  value: formatCurrency(returnsTotals.totalReturns),  borderColor: "#dc2626", accent: "#dc2626" },
-    { label: isRTL ? "استرداد نقدي"      : "Cash Refunds",   value: formatCurrency(returnsTotals.cashReturns),   borderColor: "#16a34a", accent: "#16a34a" },
-    { label: isRTL ? "إشعار دائن"        : "Credit Notes",   value: formatCurrency(returnsTotals.creditReturns), borderColor: "#2563eb", accent: "#2563eb" },
+    { label: isRTL ? "إجمالي المرتجعات" : "Total Returns",  value: formatCurrency(returnsTotals.totalReturns),
+      color: "#6b1523", bg: "#fdf2f4", border: "#6b152330", icon: RotateCcw, big: true,
+      hint: `${returnsTotals.returnCount} ${isRTL ? "مرتجع" : "returns"}` },
+    { label: isRTL ? "عدد المرتجعات"    : "Return Count",   value: String(returnsTotals.returnCount),
+      color: "#dc2626", bg: "#fef2f2", border: "#fecaca", icon: Hash },
+    { label: isRTL ? "استرداد نقدي"      : "Cash Refunds",   value: formatCurrency(returnsTotals.cashReturns),
+      color: "#16a34a", bg: "#f0fdf4", border: "#bbf7d0", icon: Banknote },
+    { label: isRTL ? "إشعار دائن"        : "Credit Notes",   value: formatCurrency(returnsTotals.creditReturns),
+      color: "#2563eb", bg: "#eff6ff", border: "#bfdbfe", icon: CreditCard },
   ] : [
-    { label: t("invoiceCount"),  value: String(salesTotals.invoiceCount),           borderColor: "var(--brand-600)", accent: "var(--ink-900)" },
-    { label: t("totalSales"),    value: formatCurrency(salesTotals.totalSales),     borderColor: "var(--gold-400)",  accent: "var(--ink-900)" },
-    { label: t("cashSales"),     value: formatCurrency(salesTotals.cashSales),      borderColor: "#16a34a",          accent: "#16a34a" },
-    { label: t("creditSales"),   value: formatCurrency(salesTotals.creditSales),    borderColor: "#2563eb",          accent: "#2563eb" },
+    { label: t("totalSales"),    value: formatCurrency(salesTotals.totalSales),
+      color: "#6b1523", bg: "#fdf2f4", border: "#6b152330", icon: Wallet, big: true,
+      hint: `${salesTotals.invoiceCount} ${t("invoiceCount").toLowerCase()}` },
+    { label: t("cashSales"),     value: formatCurrency(salesTotals.cashSales),
+      color: "#16a34a", bg: "#f0fdf4", border: "#bbf7d0", icon: Banknote },
+    { label: t("creditSales"),   value: formatCurrency(salesTotals.creditSales),
+      color: "#2563eb", bg: "#eff6ff", border: "#bfdbfe", icon: CreditCard },
+    { label: t("invoiceCount"),  value: String(salesTotals.invoiceCount),
+      color: "#7c3aed", bg: "#faf5ff", border: "#ddd6fe", icon: Hash },
   ];
 
   const loading = isReturns ? returnsReport === undefined : report === undefined;
@@ -379,7 +390,7 @@ export default function SalesBySalesRepPage() {
           </FilterPanel>
         </div>
       }
-      summary={<SummaryStrip items={summaryItems} />}
+      summary={<ColorKPIGrid items={summaryItems} cols={4} />}
     >
       {loading ? (
         <div className="loading-spinner"><div className="spinner" /><span className="spinner-label">{t("loading")}</span></div>

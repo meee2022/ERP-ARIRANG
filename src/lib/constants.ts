@@ -127,6 +127,24 @@ export const DOCUMENT_STATUS_CONFIG: Record<
 
 
 
+// ─── LPO STATUS CONFIG (Local Purchase Order) ────────────────────────────────
+
+export type LpoStatus =
+  | "draft" | "approved" | "sent"
+  | "partially_received" | "fully_received" | "cancelled";
+
+export const LPO_STATUS_CONFIG: Record<
+  LpoStatus,
+  { labelAr: string; labelEn: string; bgColor: string; textColor: string }
+> = {
+  draft:              { labelAr: "مسودة",            labelEn: "Draft",              bgColor: "bg-gray-100",   textColor: "text-gray-700"   },
+  approved:           { labelAr: "معتمد",             labelEn: "Approved",           bgColor: "bg-blue-100",   textColor: "text-blue-700"   },
+  sent:               { labelAr: "مرسل للمورد",       labelEn: "Sent to Supplier",   bgColor: "bg-violet-100", textColor: "text-violet-700" },
+  partially_received: { labelAr: "مستلم جزئياً",     labelEn: "Partially Received", bgColor: "bg-amber-100",  textColor: "text-amber-700"  },
+  fully_received:     { labelAr: "مستلم بالكامل",    labelEn: "Fully Received",     bgColor: "bg-green-100",  textColor: "text-green-700"  },
+  cancelled:          { labelAr: "ملغي",              labelEn: "Cancelled",          bgColor: "bg-red-100",    textColor: "text-red-700"    },
+};
+
 // ─── POSTING STATUS CONFIG ────────────────────────────────────────────────────
 
 

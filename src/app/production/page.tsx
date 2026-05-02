@@ -3,7 +3,7 @@
 
 import { useQuery } from "convex/react";
 import { api } from "../../../convex/_generated/api";
-import { ChefHat, FlaskConical, ClipboardList, TrendingUp, CheckCircle2, Clock } from "lucide-react";
+import { ChefHat, FlaskConical, ClipboardList, TrendingUp, CheckCircle2, Clock, Truck, FileCheck, BookOpen } from "lucide-react";
 import { useI18n } from "@/hooks/useI18n";
 import { PageHeader } from "@/components/ui/page-header";
 import { LoadingState } from "@/components/ui/data-display";
@@ -67,6 +67,9 @@ export default function ProductionDashboardPage() {
       {/* Quick links */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
         {[
+          { href: "/production/my-requests",   icon: Truck,         iconClass: "text-emerald-700",              bgClass: "bg-emerald-50",              title: isRTL ? "طلبات المناديب"  : "Sales-Rep Requests", desc: isRTL ? "كل مندوب يرسل طلب الإنتاج للغد"   : "Each rep submits next day production request" },
+          { href: "/production/daily-plan",    icon: FileCheck,     iconClass: "text-purple-700",               bgClass: "bg-purple-50",               title: isRTL ? "خطة الإنتاج اليومية" : "Daily Production Plan", desc: isRTL ? "تجميع، تعديل، واعتماد طلبات اليوم" : "Aggregate, adjust, approve daily requests" },
+          { href: "/production/plans",         icon: BookOpen,      iconClass: "text-indigo-700",               bgClass: "bg-indigo-50",               title: isRTL ? "سجل الخطط"        : "Plans History", desc: isRTL ? "كل الخطط المعتمدة سابقاً"        : "All previously approved plans" },
           { href: "/production/recipes",       icon: FlaskConical,  iconClass: "text-[color:var(--brand-700)]", bgClass: "bg-[color:var(--brand-50)]", title: t("recipesTitle"),          desc: isRTL ? "إدارة وصفات الإنتاج ومكوناتها"   : "Manage recipes and ingredients" },
           { href: "/production/orders",        icon: ClipboardList, iconClass: "text-blue-600",                 bgClass: "bg-blue-50",                 title: t("productionOrdersTitle"), desc: isRTL ? "تتبع أوامر الإنتاج وحالتها"      : "Track production orders and status" },
           { href: "/reports/production-cost",  icon: TrendingUp,    iconClass: "text-amber-600",                bgClass: "bg-amber-50",                title: t("productionCostTitle"),   desc: isRTL ? "تحليل تكاليف الإنتاج"             : "Analyze production costs" },

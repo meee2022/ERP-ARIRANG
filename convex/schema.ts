@@ -123,6 +123,13 @@ export default defineSchema({
     phone: v.optional(v.string()),
     notes: v.optional(v.string()),
     isActive: v.boolean(),
+    // ── Commission settings (internal only, never shown on customer invoice) ──
+    commissionRate: v.optional(v.number()),  // % e.g. 2.5 = 2.5%
+    commissionType: v.optional(v.union(
+      v.literal("on_sales"),     // % of total invoice
+      v.literal("on_net_sales"), // % of (sales − returns)
+      v.literal("on_profit"),    // % of (sales − cost)
+    )),
     createdAt: v.number(),
   }).index("by_company", ["companyId"])
     .index("by_company_code", ["companyId", "code"]),
@@ -246,6 +253,67 @@ export default defineSchema({
     .index("by_warehouse", ["warehouseId"])
     .index("by_item", ["itemId"]),
 
+  // ─── Monthly Stock Take (الجرد الشهري) ─────────────────────────────────
+  stockTakes: defineTable({
+    companyId: v.id("companies"),
+    branchId: v.id("branches"),
+    warehouseId: v.id("warehouses"),
+    takeNumber: v.string(),
+    takeDate: v.string(),
+    status: v.union(
+      v.literal("draft"),
+      v.literal("in_progress"),
+      v.literal("pending_review"),
+      v.literal("completed"),
+      v.literal("cancelled"),
+    ),
+    // Aggregated counts (updated as user enters data + on completion)
+    totalItems: v.number(),
+    countedItems: v.number(),
+    itemsWithVariance: v.number(),
+    totalVarianceQty: v.number(),
+    totalVarianceValue: v.number(),
+    shortageValue: v.number(),
+    excessValue: v.number(),
+    // Workflow
+    notes: v.optional(v.string()),
+    rejectionReason: v.optional(v.string()),
+    submittedBy: v.optional(v.id("users")), submittedAt: v.optional(v.number()),
+    reviewedBy:  v.optional(v.id("users")), reviewedAt:  v.optional(v.number()),
+    // Optional auto-adjustment link
+    adjustmentJournalEntryId: v.optional(v.id("journalEntries")),
+    adjustmentCreated: v.boolean(),
+    createdBy: v.id("users"),
+    createdAt: v.number(),
+  }).index("by_branch",            ["branchId"])
+    .index("by_warehouse",         ["warehouseId"])
+    .index("by_company_status",    ["companyId", "status"])
+    .index("by_company_date",      ["companyId", "takeDate"]),
+
+  stockTakeLines: defineTable({
+    takeId: v.id("stockTakes"),
+    itemId: v.id("items"),
+    uomId: v.id("unitOfMeasure"),
+    systemQty: v.number(),                  // snapshot at creation
+    physicalQty: v.optional(v.number()),    // null until counted
+    variance: v.number(),                   // physicalQty - systemQty (0 if uncounted)
+    unitCost: v.number(),                   // snapshot at creation
+    varianceValue: v.number(),              // variance * unitCost
+    reason: v.optional(v.union(
+      v.literal("wastage"),
+      v.literal("theft"),
+      v.literal("damaged"),
+      v.literal("production_loss"),
+      v.literal("counting_error"),
+      v.literal("other"),
+    )),
+    notes: v.optional(v.string()),
+    counted: v.boolean(),                   // true once physicalQty is set
+    countedAt: v.optional(v.number()),
+    countedBy: v.optional(v.id("users")),
+  }).index("by_take", ["takeId"])
+    .index("by_take_item", ["takeId", "itemId"]),
+
   recipes: defineTable({
     companyId: v.id("companies"), code: v.string(), nameAr: v.string(), nameEn: v.optional(v.string()),
     outputItemId: v.id("items"), yieldQuantity: v.number(), yieldUomId: v.id("unitOfMeasure"),
@@ -302,6 +370,108 @@ export default defineSchema({
     sortOrder: v.optional(v.number()),
   }).index("by_order", ["orderId"]),
 
+  // ─── PRODUCTION REQUESTS (Sales Rep → Production Manager workflow) ────────
+  // Each sales rep submits what they want produced for a given date.
+  // The production manager aggregates them, edits, and approves into a Plan.
+  productionRequests: defineTable({
+    companyId:       v.id("companies"),
+    branchId:        v.id("branches"),
+    requestNumber:   v.string(),               // PR-001-2026
+    salesRepId:      v.id("salesReps"),
+    productionDate:  v.string(),               // YYYY-MM-DD — when items are needed
+    status: v.union(
+      v.literal("draft"),                       // rep is still editing
+      v.literal("submitted"),                   // sent to production manager
+      v.literal("consolidated"),                // included in an approved plan
+      v.literal("cancelled"),                   // rejected or cancelled by rep
+    ),
+    notes:           v.optional(v.string()),
+    submittedAt:     v.optional(v.number()),    // timestamp when submitted
+    consolidatedAt:  v.optional(v.number()),    // timestamp when included in plan
+    consolidatedPlanId: v.optional(v.id("productionPlans")),
+    createdBy:       v.optional(v.id("users")),
+    createdAt:       v.number(),
+    updatedAt:       v.number(),
+  })
+    .index("by_company",        ["companyId"])
+    .index("by_branch",         ["branchId"])
+    .index("by_branch_date",    ["branchId", "productionDate"])
+    .index("by_rep_date",       ["salesRepId", "productionDate"])
+    .index("by_status",         ["status"]),
+
+  productionRequestLines: defineTable({
+    requestId:     v.id("productionRequests"),
+    itemId:        v.id("items"),
+    requestedQty:  v.number(),
+    uomId:         v.optional(v.id("unitOfMeasure")),
+    notes:         v.optional(v.string()),
+    sortOrder:     v.optional(v.number()),
+  }).index("by_request", ["requestId"])
+    .index("by_item",    ["itemId"]),
+
+  // ─── PRODUCTION PLAN (Manager's consolidated daily plan) ──────────────────
+  productionPlans: defineTable({
+    companyId:        v.id("companies"),
+    branchId:         v.id("branches"),
+    planNumber:       v.string(),              // PP-001-2026
+    productionDate:   v.string(),              // YYYY-MM-DD
+    status: v.union(
+      v.literal("draft"),                      // being built/edited
+      v.literal("approved"),                   // approved as plan only
+      v.literal("converted"),                  // converted to production orders
+    ),
+    totalRequestedQty: v.optional(v.number()),  // sum across items (for KPI)
+    totalApprovedQty:  v.optional(v.number()),
+    requestCount:      v.optional(v.number()), // # requests included
+    notes:             v.optional(v.string()),
+    approvedBy:        v.optional(v.id("users")),
+    approvedAt:        v.optional(v.number()),
+    convertedAt:       v.optional(v.number()),
+    createdBy:         v.optional(v.id("users")),
+    createdAt:         v.number(),
+    updatedAt:         v.number(),
+  })
+    .index("by_company",        ["companyId"])
+    .index("by_branch",         ["branchId"])
+    .index("by_branch_date",    ["branchId", "productionDate"])
+    .index("by_status",         ["status"]),
+
+  productionPlanLines: defineTable({
+    planId:             v.id("productionPlans"),
+    itemId:             v.id("items"),
+    totalRequestedQty:  v.number(),                 // sum from all reps
+    approvedQty:        v.number(),                 // manager's final number
+    uomId:              v.optional(v.id("unitOfMeasure")),
+    recipeId:           v.optional(v.id("recipes")),// linked recipe for production
+    productionOrderId:  v.optional(v.id("productionOrders")), // after conversion
+    sourceRequestIds:   v.array(v.id("productionRequests")),  // tracking
+    notes:              v.optional(v.string()),
+    sortOrder:          v.optional(v.number()),
+  }).index("by_plan", ["planId"])
+    .index("by_item", ["itemId"]),
+
+  // ─── PRODUCTION DISTRIBUTION (Per-rep allocation after plan approval) ─────
+  // After the plan is approved, each rep's share is calculated and stored here.
+  // Status flow: pending → dispatched → confirmed
+  productionDistributions: defineTable({
+    planId:       v.id("productionPlans"),
+    planLineId:   v.id("productionPlanLines"),
+    salesRepId:   v.id("salesReps"),
+    requestId:    v.id("productionRequests"),
+    itemId:       v.id("items"),
+    uomId:        v.optional(v.id("unitOfMeasure")),
+    requestedQty: v.number(),          // what this rep originally asked for
+    allocatedQty: v.number(),          // their proportional share of approved qty
+    status:       v.union(v.literal("pending"), v.literal("dispatched"), v.literal("confirmed")),
+    dispatchedAt: v.optional(v.number()),
+    confirmedAt:  v.optional(v.number()),
+    notes:        v.optional(v.string()),
+    createdAt:    v.number(),
+  }).index("by_plan",     ["planId"])
+    .index("by_rep",      ["salesRepId"])
+    .index("by_rep_plan", ["salesRepId", "planId"])
+    .index("by_request",  ["requestId"]),
+
   salesInvoices: defineTable({
     companyId: v.id("companies"), branchId: v.id("branches"), invoiceNumber: v.string(),
     externalInvoiceNumber: v.optional(v.string()),
@@ -328,12 +498,22 @@ export default defineSchema({
     cancelledBy: v.optional(v.id("users")), cancelledAt: v.optional(v.number()),
     notes: v.optional(v.string()), internalNotes: v.optional(v.string()),
     customerOutletId: v.optional(v.id("customerOutlets")),
+    // ── Sales rep commission (internal — never on customer invoice) ──
+    commissionRate:   v.optional(v.number()),
+    commissionAmount: v.optional(v.number()),
+    commissionStatus: v.optional(v.union(
+      v.literal("pending"), v.literal("approved"), v.literal("paid"),
+    )),
+    commissionApprovedBy: v.optional(v.id("users")), commissionApprovedAt: v.optional(v.number()),
+    commissionPaidAt:     v.optional(v.number()),
+    commissionVoucherId:  v.optional(v.id("cashPaymentVouchers")),
     createdBy: v.id("users"), createdAt: v.number(), updatedAt: v.number(),
   }).index("by_branch", ["branchId"])
     .index("by_customer", ["customerId"])
     .index("by_period", ["periodId"])
     .index("by_branch_date", ["branchId", "invoiceDate"])
     .index("by_company_date", ["companyId", "invoiceDate"])
+    .index("by_rep_date", ["salesRepId", "invoiceDate"])
     .index("by_customer_payment", ["customerId", "paymentStatus"])
     .index("by_number", ["invoiceNumber"]),
 
@@ -375,11 +555,17 @@ export default defineSchema({
     supplierId: v.id("suppliers"), orderDate: v.string(), expectedDate: v.optional(v.string()),
     warehouseId: v.id("warehouses"), currencyId: v.id("currencies"), exchangeRate: v.number(),
     subtotal: v.number(), vatAmount: v.number(), totalAmount: v.number(),
-    documentStatus: v.union(v.literal("draft"), v.literal("approved"), v.literal("partially_received"), v.literal("fully_received"), v.literal("cancelled")),
+    documentStatus: v.union(
+      v.literal("draft"), v.literal("approved"), v.literal("sent"),
+      v.literal("partially_received"), v.literal("fully_received"), v.literal("cancelled")
+    ),
+    approvedBy: v.optional(v.id("users")), approvedAt: v.optional(v.number()),
+    sentBy:     v.optional(v.id("users")), sentAt:     v.optional(v.number()),
     notes: v.optional(v.string()), createdBy: v.id("users"), createdAt: v.number(),
   }).index("by_branch", ["branchId"])
     .index("by_supplier", ["supplierId"])
-    .index("by_status", ["documentStatus"]),
+    .index("by_status", ["documentStatus"])
+    .index("by_company_status", ["companyId", "documentStatus"]),
 
   purchaseOrderLines: defineTable({
     poId: v.id("purchaseOrders"), itemId: v.id("items"), quantity: v.number(), receivedQty: v.number(),

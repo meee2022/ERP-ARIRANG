@@ -4,10 +4,10 @@ import React, { useState, useMemo } from "react";
 import { useI18n } from "@/hooks/useI18n";
 import { useQuery } from "convex/react";
 import { api } from "../../../../convex/_generated/api";
-import { Scale, Download, ChevronDown, AlertTriangle, CheckCircle2 } from "lucide-react";
+import { Scale, Download, ChevronDown, AlertTriangle, CheckCircle2, ArrowUpCircle, ArrowDownCircle } from "lucide-react";
 import { useAppStore } from "@/store/useAppStore";
 import { FilterPanel, FilterField } from "@/components/ui/filter-panel";
-import { SummaryStrip } from "@/components/ui/data-display";
+import { ColorKPIGrid } from "@/components/ui/data-display";
 import { EmptyState } from "@/components/ui/empty-state";
 import { PrintableReportPage } from "@/components/ui/printable-report";
 import { useCompanySettings } from "@/hooks/useCompanySettings";
@@ -200,14 +200,18 @@ export default function TrialBalancePage() {
 
   // ── Summary strip ─────────────────────────────────────────────────────────
   const summaryNode = (
-    <SummaryStrip items={[
-      { label: t("totalDebit"),  value: formatCurrency(totals.totalDebit),  borderColor: "var(--brand-600)", accent: "var(--ink-900)" },
-      { label: t("totalCredit"), value: formatCurrency(totals.totalCredit), borderColor: "var(--gold-400)",  accent: "var(--ink-900)" },
-      {
-        label: t("difference"),
+    <ColorKPIGrid cols={3} items={[
+      { label: t("totalDebit"),  value: formatCurrency(totals.totalDebit),
+        color: "#dc2626", bg: "#fef2f2", border: "#fecaca", icon: ArrowUpCircle, big: true },
+      { label: t("totalCredit"), value: formatCurrency(totals.totalCredit),
+        color: "#16a34a", bg: "#f0fdf4", border: "#bbf7d0", icon: ArrowDownCircle, big: true },
+      { label: t("difference"),
         value: formatCurrency(Math.abs(totals.totalDebit - totals.totalCredit)),
-        borderColor: isBalanced ? "#16a34a" : "#dc2626",
-        accent: isBalanced ? "#16a34a" : "#dc2626",
+        color: isBalanced ? "#16a34a" : "#dc2626",
+        bg:    isBalanced ? "#f0fdf4" : "#fef2f2",
+        border:isBalanced ? "#bbf7d0" : "#fecaca",
+        icon:  isBalanced ? CheckCircle2 : AlertTriangle,
+        big: true,
       },
     ]} />
   );

@@ -102,6 +102,138 @@ export const setOperationalType = mutation({
   },
 });
 
+/**
+ * Smart auto-classify operational types for accounts.
+ *
+ * Strategy:
+ *  1. For each op-type, find the BEST single candidate (postable, active, by score).
+ *  2. CLEAR any wrong/parent classifications of the same op-type.
+ *  3. Idempotent — safe to run multiple times.
+ *
+ * Scoring per candidate:
+ *  +10 postable
+ *  +5  active
+ *  +20 strong-keyword name match (e.g. "RAW MATERIALS", "SUPPLIERS")
+ *  +10 generic keyword match
+ *  +3  matches accountSubType
+ *  -5  is a parent (has children)
+ */
+export const autoClassifyOperationalTypes = mutation({
+  args: { companyId: v.id("companies"), userId: v.id("users") },
+  handler: async (ctx, args) => {
+    await assertUserPermission(ctx, args.userId, "finance", "edit");
+
+    const accounts = await ctx.db
+      .query("accounts")
+      .withIndex("by_company", (q) => q.eq("companyId", args.companyId))
+      .collect();
+
+    const lower = (s: string) => (s || "").toLowerCase();
+    const childCountByParent = new Map<string, number>();
+    for (const a of accounts) {
+      if (a.parentId) childCountByParent.set(String(a.parentId), (childCountByParent.get(String(a.parentId)) ?? 0) + 1);
+    }
+    const isParent = (a: any) => (childCountByParent.get(String(a._id)) ?? 0) > 0;
+
+    type Cfg = {
+      type: "asset" | "liability";
+      strong: string[];   // exact strong matches (raw materials, suppliers)
+      generic: string[];  // weaker matches (inventory, payable)
+      subTypes?: string[];
+    };
+
+    const PATTERNS: Record<string, Cfg> = {
+      inventory_asset: {
+        type: "asset",
+        strong: ["raw material", "raw materials", "خامات", "مواد خام", "finished products", "finished goods", "منتجات تامة"],
+        generic: ["inventory", "stock", "مخزون", "بضاعة", "بضائع", "مخازن", "merchandise", "supplies", "goods", "منتجات"],
+        subTypes: ["inventory"],
+      },
+      trade_payable: {
+        type: "liability",
+        strong: ["suppliers", "supplier", "موردين", "موردون", "الموردون", "vendors"],
+        generic: ["payable", "accounts payable", "ap", "ذمم دائنة", "دائنون", "حسابات دائنة", "creditor"],
+        subTypes: ["accounts_payable"],
+      },
+      trade_receivable: {
+        type: "asset",
+        strong: ["customers", "customer", "عملاء", "العملاء", "local customer"],
+        generic: ["receivable", "accounts receivable", "ar", "مدينون", "ذمم مدينة", "debtor"],
+        subTypes: ["accounts_receivable"],
+      },
+      cash: {
+        type: "asset",
+        strong: ["cash in hand", "petty cash", "صندوق", "نقدية في الصندوق"],
+        generic: ["cash", "نقدية", "خزينة", "كاش"],
+        subTypes: ["cash"],
+      },
+      bank: {
+        type: "asset",
+        strong: ["bank account", "حساب بنكي"],
+        generic: ["bank", "بنك", "مصرف"],
+        subTypes: ["bank"],
+      },
+    };
+
+    const containsAny = (text: string, list: string[]) => list.some((p) => text.includes(lower(p)));
+
+    const scoreFor = (acc: any, cfg: Cfg): number => {
+      if (acc.accountType !== cfg.type) return -999;
+      if (!acc.isActive) return -999;
+      const text = `${lower(acc.nameAr)} ${lower(acc.nameEn)}`;
+      let s = 0;
+      if (acc.isPostable) s += 10;
+      else s -= 5;
+      if (isParent(acc)) s -= 5;
+      if (containsAny(text, cfg.strong))  s += 20;
+      if (containsAny(text, cfg.generic)) s += 10;
+      if (cfg.subTypes && cfg.subTypes.includes(lower(acc.accountSubType))) s += 3;
+      // Skip if no name match at all and no subtype match
+      if (s < 5) return -999;
+      return s;
+    };
+
+    const report: Record<string, { code: string; nameAr: string; nameEn: string; score: number }[]> = {};
+    let totalSet = 0;
+    let totalCleared = 0;
+
+    for (const [opType, cfg] of Object.entries(PATTERNS)) {
+      // Score every account
+      const scored = accounts
+        .map((a: any) => ({ acc: a, score: scoreFor(a, cfg) }))
+        .filter((x) => x.score > 0)
+        .sort((a, b) => b.score - a.score);
+
+      report[opType] = scored.slice(0, 5).map((x) => ({
+        code: x.acc.code,
+        nameAr: x.acc.nameAr,
+        nameEn: x.acc.nameEn ?? "",
+        score: x.score,
+      }));
+
+      const winner = scored[0]?.acc;
+      if (!winner) continue;
+
+      // Clear any other accounts wrongly tagged with this opType (parents, etc.)
+      for (const a of accounts) {
+        if (a._id === winner._id) continue;
+        if (a.operationalType === opType) {
+          await ctx.db.patch(a._id, { operationalType: undefined });
+          totalCleared++;
+        }
+      }
+
+      // Set the winner
+      if (winner.operationalType !== opType) {
+        await ctx.db.patch(winner._id, { operationalType: opType });
+        totalSet++;
+      }
+    }
+
+    return { totalSet, totalCleared, report };
+  },
+});
+
 export const toggleActive = mutation({
   args: { id: v.id("accounts"), userId: v.id("users") },
   handler: async (ctx, args) => {
