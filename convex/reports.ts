@@ -193,6 +193,7 @@ export const getGeneralLedger = query({
     fromDate: v.string(),
     toDate: v.string(),
     branchId: v.optional(v.id("branches")),
+    journalType: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
     const account = await ctx.db.get(args.accountId);
@@ -211,13 +212,16 @@ export const getGeneralLedger = query({
       })
     );
 
-    const valid = entriesWithLines.filter(
+    let valid = entriesWithLines.filter(
       (x) => x && x.entry.postingStatus === "posted"
     ) as Array<{ line: (typeof allLines)[0]; entry: any }>;
 
     if (args.branchId) {
-      const filtered = valid.filter((x) => x.entry.branchId === args.branchId);
-      valid.splice(0, valid.length, ...filtered);
+      valid = valid.filter((x) => x.entry.branchId === args.branchId);
+    }
+
+    if (args.journalType) {
+      valid = valid.filter((x) => x.entry.journalType === args.journalType);
     }
 
     // Opening balance: all transactions before fromDate
@@ -235,31 +239,109 @@ export const getGeneralLedger = query({
       (x) => x.entry.entryDate >= args.fromDate && x.entry.entryDate <= args.toDate
     );
 
-    period.sort((a, b) => a.entry.entryDate.localeCompare(b.entry.entryDate));
+    period.sort((a, b) => {
+      const d = a.entry.entryDate.localeCompare(b.entry.entryDate);
+      if (d !== 0) return d;
+      return a.entry.entryNumber.localeCompare(b.entry.entryNumber);
+    });
 
-    let runningBalance = openingBalance;
-    const ledgerLines = period.map((x) => {
+    // ── Build counter-account map (the OTHER side of each entry) ───────────
+    // For each line, we look up all OTHER lines in the same entry to find
+    // what account(s) form the balancing side.
+    const accountCache = new Map<string, any>();
+    const getAccountInfo = async (id: string) => {
+      if (accountCache.has(id)) return accountCache.get(id);
+      const acc = await ctx.db.get(id as any);
+      accountCache.set(id, acc);
+      return acc;
+    };
+
+    const ledgerLines = await Promise.all(period.map(async (x) => {
       const movement = x.line.debit - x.line.credit;
-      runningBalance += movement;
+
+      // Fetch counter-lines for this entry
+      const allEntryLines = await ctx.db
+        .query("journalLines")
+        .withIndex("by_entry", (q) => q.eq("entryId", x.entry._id))
+        .collect();
+
+      // The other lines (opposite side of the current line)
+      const counterLines = allEntryLines.filter((cl) => {
+        if (cl._id === x.line._id) return false;
+        // Match opposite side: if our line is debit, counter must be credit
+        if (x.line.debit > 0) return cl.credit > 0;
+        if (x.line.credit > 0) return cl.debit > 0;
+        return true;
+      });
+
+      let counterAccountCode: string | null = null;
+      let counterAccountNameAr: string | null = null;
+      let counterAccountNameEn: string | null = null;
+      let counterIsMultiple = false;
+
+      if (counterLines.length === 1) {
+        const ca = await getAccountInfo(counterLines[0].accountId as string);
+        if (ca) {
+          counterAccountCode   = ca.code;
+          counterAccountNameAr = ca.nameAr;
+          counterAccountNameEn = ca.nameEn ?? ca.nameAr;
+        }
+      } else if (counterLines.length > 1) {
+        counterIsMultiple = true;
+        // Pick the largest counter line as primary
+        const largest = counterLines.reduce((a, b) =>
+          (a.debit + a.credit) > (b.debit + b.credit) ? a : b
+        );
+        const ca = await getAccountInfo(largest.accountId as string);
+        if (ca) {
+          counterAccountCode   = ca.code;
+          counterAccountNameAr = ca.nameAr;
+          counterAccountNameEn = ca.nameEn ?? ca.nameAr;
+        }
+      }
+
       return {
         entryDate: x.entry.entryDate,
         entryNumber: x.entry.entryNumber,
         description: x.line.description ?? x.entry.description,
         journalType: x.entry.journalType,
+        sourceType: x.entry.sourceType ?? null,
+        sourceNumber: x.entry.sourceNumber ?? null,
         debit: x.line.debit,
         credit: x.line.credit,
-        runningBalance,
+        runningBalance: 0, // filled below
         entryId: x.entry._id,
+        // ── Counter account (the offsetting side) ───────────────────
+        counterAccountCode,
+        counterAccountNameAr,
+        counterAccountNameEn,
+        counterIsMultiple,
+        counterCount: counterLines.length,
       };
-    });
+    }));
+
+    // Fill running balance after fetching all counter-lines
+    let runningBalance = openingBalance;
+    for (const ll of ledgerLines) {
+      runningBalance += (ll.debit - ll.credit);
+      ll.runningBalance = runningBalance;
+    }
+
+    // ── Available journal types (for filter pills) ─────────────────────────
+    const allJournalTypesSet = new Set<string>();
+    for (const x of valid) {
+      if (x.entry.journalType) allJournalTypesSet.add(x.entry.journalType);
+    }
 
     return {
       account,
       openingBalance,
       lines: ledgerLines,
-      totalDebit: period.reduce((s, x) => s + x.line.debit, 0),
-      totalCredit: period.reduce((s, x) => s + x.line.credit, 0),
+      totalDebit:    period.reduce((s, x) => s + x.line.debit,  0),
+      totalCredit:   period.reduce((s, x) => s + x.line.credit, 0),
+      transactionCount: period.length,
       closingBalance: runningBalance,
+      availableJournalTypes: Array.from(allJournalTypesSet),
     };
   },
 });
@@ -1245,10 +1327,53 @@ export const getARaging = query({
       }
     }
 
+    // Build rows with customer details + sort by total desc
+    const rows = Array.from(customerTotals.values())
+      .map((ct: any) => {
+        const c = ct.customer ?? {};
+        const total = ct.buckets.current + ct.buckets.days1_30 + ct.buckets.days31_60 + ct.buckets.days61_90 + ct.buckets.days91Plus;
+        const overdue = ct.buckets.days1_30 + ct.buckets.days31_60 + ct.buckets.days61_90 + ct.buckets.days91Plus;
+        return {
+          customerId:      c._id ?? "unknown",
+          customerCode:    c.customerCode ?? c.code ?? "",
+          customerName:    c.nameAr ?? "—",
+          customerNameEn:  c.nameEn ?? c.nameAr ?? "—",
+          phone:           c.phone ?? null,
+          creditLimit:     c.creditLimit ?? null,
+          total,
+          current:         ct.buckets.current,
+          days30:          ct.buckets.days1_30,
+          days60:          ct.buckets.days31_60,
+          days90:          ct.buckets.days61_90,
+          over90:          ct.buckets.days91Plus,
+          overdue,
+          // Risk %: overdue / total
+          overduePct:      total > 0 ? Math.round((overdue / total) * 100) : 0,
+        };
+      })
+      .filter((r: any) => r.total > 0)
+      .sort((a: any, b: any) => b.total - a.total);
+
+    const totalOutstanding = Object.values(buckets).reduce((s, v) => s + v, 0);
+    const totalOverdue     = buckets.days1_30 + buckets.days31_60 + buckets.days61_90 + buckets.days91Plus;
+
     return {
+      // ── Old shape (kept for back-compat) ──
       summary: buckets,
-      totalOutstanding: Object.values(buckets).reduce((s, v) => s + v, 0),
+      totalOutstanding,
       byCustomer: Array.from(customerTotals.values()),
+      // ── New shape used by the redesigned page ──
+      rows,
+      totals: {
+        total:       totalOutstanding,
+        current:     buckets.current,
+        days30:      buckets.days1_30,
+        days60:      buckets.days31_60,
+        days90:      buckets.days61_90,
+        over90:      buckets.days91Plus,
+        overdue:     totalOverdue,
+        customerCount: rows.length,
+      },
     };
   },
 });
@@ -1351,10 +1476,52 @@ export const getAPaging = query({
       }
     }
 
+    // Build rows with supplier details + sort by total desc
+    const rows = Array.from(supplierTotals.values())
+      .map((st: any) => {
+        const s = st.supplier ?? {};
+        const total   = st.buckets.current + st.buckets.days1_30 + st.buckets.days31_60 + st.buckets.days61_90 + st.buckets.days91Plus;
+        const overdue = st.buckets.days1_30 + st.buckets.days31_60 + st.buckets.days61_90 + st.buckets.days91Plus;
+        return {
+          supplierId:     s._id ?? "unknown",
+          supplierCode:   s.code ?? "",
+          supplierName:   s.nameAr ?? "—",
+          supplierNameEn: s.nameEn ?? s.nameAr ?? "—",
+          phone:          s.phone ?? null,
+          paymentTerms:   s.paymentTerms ?? null,
+          total,
+          current:        st.buckets.current,
+          days30:         st.buckets.days1_30,
+          days60:         st.buckets.days31_60,
+          days90:         st.buckets.days61_90,
+          over90:         st.buckets.days91Plus,
+          overdue,
+          overduePct:     total > 0 ? Math.round((overdue / total) * 100) : 0,
+        };
+      })
+      .filter((r: any) => r.total > 0)
+      .sort((a: any, b: any) => b.total - a.total);
+
+    const totalOutstanding = Object.values(buckets).reduce((s, v) => s + v, 0);
+    const totalOverdue     = buckets.days1_30 + buckets.days31_60 + buckets.days61_90 + buckets.days91Plus;
+
     return {
+      // ── Old shape (back-compat) ──
       summary: buckets,
-      totalOutstanding: Object.values(buckets).reduce((s, v) => s + v, 0),
+      totalOutstanding,
       bySupplier: Array.from(supplierTotals.values()),
+      // ── New shape ──
+      rows,
+      totals: {
+        total:         totalOutstanding,
+        current:       buckets.current,
+        days30:        buckets.days1_30,
+        days60:        buckets.days31_60,
+        days90:        buckets.days61_90,
+        over90:        buckets.days91Plus,
+        overdue:       totalOverdue,
+        supplierCount: rows.length,
+      },
     };
   },
 });
@@ -1400,56 +1567,74 @@ export const getSalesReport = query({
       invoices = invoices.filter((inv) => inv.invoiceType === args.invoiceType);
     }
 
+    // ── Overall totals (always returned) ────────────────────────────────────
+    const totalSales      = invoices.reduce((s, i) => s + i.totalAmount, 0);
+    const totalCash       = invoices.reduce((s, i) => s + (i.cashAmount   ?? 0), 0);
+    const totalCredit     = invoices.reduce((s, i) => s + (i.creditAmount ?? 0), 0);
+    const totalDiscount   = invoices.reduce((s, i) => s + (i.discountAmount ?? 0), 0);
+    const cashInvoices    = invoices.filter((i) => i.invoiceType === "cash_sale").length;
+    const creditInvoices  = invoices.filter((i) => i.invoiceType === "credit_sale").length;
+    const mixedInvoices   = invoices.filter((i) => i.invoiceType === "mixed_sale").length;
+    const avgInvoice      = invoices.length > 0 ? totalSales / invoices.length : 0;
+
+    const baseTotals = {
+      totalSales, totalCash, totalCredit, totalDiscount,
+      invoiceCount: invoices.length,
+      cashInvoices, creditInvoices, mixedInvoices,
+      avgInvoice,
+    };
+
     if (args.groupBy === "day") {
-      const byDay: Map<string, { date: string; total: number; count: number; vat: number }> =
-        new Map();
+      const byDay: Map<string, { date: string; total: number; count: number; cash: number; credit: number; discount: number }> = new Map();
       for (const inv of invoices) {
         if (!byDay.has(inv.invoiceDate)) {
-          byDay.set(inv.invoiceDate, { date: inv.invoiceDate, total: 0, count: 0, vat: 0 });
+          byDay.set(inv.invoiceDate, { date: inv.invoiceDate, total: 0, count: 0, cash: 0, credit: 0, discount: 0 });
         }
         const d = byDay.get(inv.invoiceDate)!;
-        d.total += inv.totalAmount;
-        d.count += 1;
-        d.vat += inv.vatAmount;
+        d.total    += inv.totalAmount;
+        d.count    += 1;
+        d.cash     += inv.cashAmount   ?? 0;
+        d.credit   += inv.creditAmount ?? 0;
+        d.discount += inv.discountAmount ?? 0;
       }
       return {
         groupBy: "day",
         data: Array.from(byDay.values()).sort((a, b) => a.date.localeCompare(b.date)),
-        totalSales: invoices.reduce((s, i) => s + i.totalAmount, 0),
-        invoiceCount: invoices.length,
+        ...baseTotals,
       };
     }
 
     if (args.groupBy === "customer") {
-      const byCustomer: Map<string, { customerId: string; customerName: string; total: number; count: number }> =
-        new Map();
+      const byCustomer: Map<string, { customerId: string; customerCode: string | null; customerName: string; total: number; count: number; cash: number; credit: number; discount: number }> = new Map();
       for (const inv of invoices) {
         const key = inv.customerId ?? "walk_in";
         if (!byCustomer.has(key)) {
           const customer = inv.customerId ? await ctx.db.get(inv.customerId) : null;
           byCustomer.set(key, {
             customerId: key,
-            customerName: customer?.nameAr ?? "عميل نقدي",
-            total: 0,
-            count: 0,
+            customerCode: (customer as any)?.code ?? null,
+            customerName: (customer as any)?.nameAr ?? "عميل نقدي",
+            total: 0, count: 0, cash: 0, credit: 0, discount: 0,
           });
         }
         const c = byCustomer.get(key)!;
-        c.total += inv.totalAmount;
-        c.count += 1;
+        c.total    += inv.totalAmount;
+        c.count    += 1;
+        c.cash     += inv.cashAmount   ?? 0;
+        c.credit   += inv.creditAmount ?? 0;
+        c.discount += inv.discountAmount ?? 0;
       }
       return {
         groupBy: "customer",
         data: Array.from(byCustomer.values()).sort((a, b) => b.total - a.total),
-        totalSales: invoices.reduce((s, i) => s + i.totalAmount, 0),
-        invoiceCount: invoices.length,
+        ...baseTotals,
       };
     }
 
     if (args.groupBy === "salesRep") {
       const byRep: Map<string, {
         salesRepId: string | null; repName: string; repCode: string | null;
-        total: number; count: number; vat: number; discount: number;
+        total: number; count: number; discount: number; cash: number; credit: number;
       }> = new Map();
 
       for (const inv of invoices) {
@@ -1458,23 +1643,23 @@ export const getSalesReport = query({
           const rep = inv.salesRepId ? await ctx.db.get(inv.salesRepId) : null;
           byRep.set(key, {
             salesRepId: inv.salesRepId ?? null,
-            repName: rep?.nameAr ?? inv.salesRepName ?? (key === "__none__" ? "بدون مندوب" : key),
-            repCode: rep?.code ?? null,
-            total: 0, count: 0, vat: 0, discount: 0,
+            repName: (rep as any)?.nameAr ?? inv.salesRepName ?? (key === "__none__" ? "بدون مندوب" : key),
+            repCode: (rep as any)?.code ?? null,
+            total: 0, count: 0, discount: 0, cash: 0, credit: 0,
           });
         }
         const r = byRep.get(key)!;
-        r.total += inv.totalAmount;
-        r.count += 1;
-        r.vat += inv.vatAmount;
-        r.discount += inv.discountAmount;
+        r.total    += inv.totalAmount;
+        r.count    += 1;
+        r.discount += inv.discountAmount ?? 0;
+        r.cash     += inv.cashAmount     ?? 0;
+        r.credit   += inv.creditAmount   ?? 0;
       }
 
       return {
         groupBy: "salesRep",
         data: Array.from(byRep.values()).sort((a, b) => b.total - a.total),
-        totalSales: invoices.reduce((s, i) => s + i.totalAmount, 0),
-        invoiceCount: invoices.length,
+        ...baseTotals,
       };
     }
 
@@ -1511,8 +1696,7 @@ export const getSalesReport = query({
     return {
       groupBy: "item",
       data: Array.from(byItem.values()).sort((a, b) => b.total - a.total),
-      totalSales: invoices.reduce((s, i) => s + i.totalAmount, 0),
-      invoiceCount: invoices.length,
+      ...baseTotals,
     };
   },
 });

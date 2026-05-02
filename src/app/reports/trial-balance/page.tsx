@@ -234,7 +234,7 @@ export default function TrialBalancePage() {
       {/* ── Balance status banner ─────────────────────────────────────────── */}
       {!loading && rows.length > 0 && (
         isBalanced ? (
-          <div className="flex items-center gap-3 px-4 py-3 rounded-xl mb-4"
+          <div className="no-print flex items-center gap-3 px-4 py-3 rounded-xl mb-4"
             style={{ background: "#f0fdf4", border: "1.5px solid #bbf7d0" }}>
             <CheckCircle2 className="h-5 w-5 shrink-0" style={{ color: "#15803d" }} />
             <span className="text-sm font-semibold" style={{ color: "#15803d" }}>
@@ -242,7 +242,7 @@ export default function TrialBalancePage() {
             </span>
           </div>
         ) : (
-          <div className="rounded-xl mb-4 overflow-hidden"
+          <div className="no-print rounded-xl mb-4 overflow-hidden"
             style={{ border: "1.5px solid #fca5a5", background: "#fff5f5" }}>
             {/* Header strip */}
             <div className="flex items-center gap-3 px-4 py-3" style={{ background: "#dc2626" }}>

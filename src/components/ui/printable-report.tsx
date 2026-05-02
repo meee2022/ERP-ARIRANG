@@ -21,7 +21,7 @@
  */
 
 import React from "react";
-import { Printer } from "lucide-react";
+import { Printer, AlertTriangle, AlertCircle, CheckCircle2, Info } from "lucide-react";
 
 interface Company {
   nameAr: string;
@@ -50,6 +50,57 @@ interface Props {
 
 const BRAND = "#6b1523";
 const GOLD  = "#c9a84c";
+
+/**
+ * ReportBanner — screen-only alert/info banner inside reports
+ * ──────────────────────────────────────────────────────────
+ * Auto-hides on print so the printed document stays clean & official.
+ * Variants: success | warning | error | info
+ *
+ * Usage:
+ *   <ReportBanner variant="warning" title="Out of balance" >
+ *     Total Debit ≠ Total Credit
+ *   </ReportBanner>
+ */
+export function ReportBanner({
+  variant = "info",
+  title,
+  children,
+  rightSlot,
+  className = "",
+}: {
+  variant?: "success" | "warning" | "error" | "info";
+  title: string;
+  children?: React.ReactNode;
+  rightSlot?: React.ReactNode;
+  className?: string;
+}) {
+  const palette = {
+    success: { headerBg: "#16a34a", bodyBg: "#f0fdf4", border: "#bbf7d0", text: "#15803d", Icon: CheckCircle2 },
+    warning: { headerBg: "#ea580c", bodyBg: "#fff7ed", border: "#fed7aa", text: "#9a3412", Icon: AlertCircle  },
+    error:   { headerBg: "#dc2626", bodyBg: "#fff5f5", border: "#fca5a5", text: "#991b1b", Icon: AlertTriangle },
+    info:    { headerBg: "#2563eb", bodyBg: "#eff6ff", border: "#bfdbfe", text: "#1e40af", Icon: Info          },
+  }[variant];
+  const Icon = palette.Icon;
+  const hasBody = !!children;
+
+  return (
+    <div className={`no-print rounded-xl mb-4 overflow-hidden ${className}`}
+      style={{ border: `1.5px solid ${palette.border}`, background: palette.bodyBg }}>
+      <div className="flex items-center gap-3 px-4 py-2.5"
+        style={{ background: palette.headerBg }}>
+        <Icon className="h-4 w-4 text-white shrink-0" />
+        <span className="text-sm font-black text-white flex-1">{title}</span>
+        {rightSlot && <div className="text-white text-sm font-bold">{rightSlot}</div>}
+      </div>
+      {hasBody && (
+        <div className="px-4 py-3 text-[12.5px]" style={{ color: palette.text }}>
+          {children}
+        </div>
+      )}
+    </div>
+  );
+}
 
 export function PrintableReportPage({
   company,
