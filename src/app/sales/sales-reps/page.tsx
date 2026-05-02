@@ -25,8 +25,6 @@ export default function SalesRepsPage() {
   const updateRep = useMutation(api.salesMasters.updateSalesRep);
   const toggleRep = useMutation(api.salesMasters.toggleSalesRepActive);
   const deleteSalesRep = useMutation(api.salesMasters.deleteSalesRep);
-  const seedSalesReps = useMutation(api.seedStaff.seedSalesReps);
-  const [seeding, setSeeding] = useState(false);
 
   const [search, setSearch] = useState("");
   const [showForm, setShowForm] = useState(false);
@@ -62,19 +60,6 @@ export default function SalesRepsPage() {
     return clean || "Something went wrong. Please try again.";
   }
 
-  async function handleSeedSalesReps() {
-    if (!companyId) return;
-    if (!window.confirm("This will import 15 sales reps from the routes file. Existing reps with matching codes will be updated. Continue?")) return;
-    setSeeding(true);
-    try {
-      const result = await seedSalesReps({});
-      toast.success(`Import complete! Processed ${result.total} sales reps.\n\n${result.results.join("\n")}`);
-    } catch (e: any) {
-      toast.error(e);
-    } finally {
-      setSeeding(false);
-    }
-  }
 
   function resetForm() {
     setForm({ code: "", nameAr: "", nameEn: "", phone: "", branchId: "", notes: "" });
@@ -155,19 +140,9 @@ export default function SalesRepsPage() {
         badge={<span className="badge-soft">{filtered.length}</span>}
         actions={
           canCreate("sales") ? (
-            <div className="flex items-center gap-2">
-              <button
-                onClick={handleSeedSalesReps}
-                disabled={seeding || !companyId}
-                className="h-10 px-4 rounded-lg inline-flex items-center gap-2 text-sm font-semibold bg-orange-500 hover:bg-orange-600 text-white disabled:opacity-50"
-              >
-                <RefreshCw className={`h-4 w-4 ${seeding ? "animate-spin" : ""}`} />
-                {seeding ? "جاري الاستيراد..." : "استيراد مناديب الروتات"}
-              </button>
-              <button onClick={openCreate} className="btn-primary h-10 px-4 rounded-lg inline-flex items-center gap-2 text-sm font-semibold">
-                <Plus className="h-4 w-4" /> {t("newSalesRep")}
-              </button>
-            </div>
+            <button onClick={openCreate} className="btn-primary h-10 px-4 rounded-lg inline-flex items-center gap-2 text-sm font-semibold">
+              <Plus className="h-4 w-4" /> {t("newSalesRep")}
+            </button>
           ) : undefined
         }
       />

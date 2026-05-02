@@ -493,6 +493,34 @@ html[dir="rtl"] .rtl-flip { transform: scaleX(-1); }
     border-top: 1.5pt solid #6b7280 !important;
   }
 
+  /* ── Trial balance: section group headers ───────────────── */
+  .tb-group-header td {
+    background: #f5e9eb !important;
+    border-top: 2pt solid #6b1523 !important;
+    border-bottom: 0.5pt solid #d4a0a8 !important;
+    font-weight: 800 !important;
+    font-size: 9pt !important;
+    color: #6b1523 !important;
+    padding: 5pt 7pt !important;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+  /* Always show account rows in print (collapse is screen-only) */
+  .tb-account-row { display: table-row !important; }
+
+  /* ── PrintableReportPage: document card in print ─────────── */
+  /* Remove card shadow / rounded corners */
+  .printable-report-card {
+    box-shadow: none !important;
+    border-radius: 0 !important;
+    margin: 0 !important;
+    max-width: 100% !important;
+  }
+  /* Hide the sticky toolbar */
+  .printable-report-toolbar { display: none !important; }
+  /* Keep print footer visible */
+  .print-only { display: flex !important; }
+
   /* Numeric cells in print */
   .tabular-nums, .numeric, td.numeric {
     font-variant-numeric: tabular-nums;

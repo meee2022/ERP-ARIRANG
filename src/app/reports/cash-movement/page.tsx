@@ -2,23 +2,21 @@
 "use client";
 
 import React, { useState } from "react";
-import { formatCurrency } from "@/lib/i18n";
 import { useQuery } from "convex/react";
 import { api } from "../../../../convex/_generated/api";
 import { useI18n } from "@/hooks/useI18n";
 import { useAuth } from "@/hooks/useAuth";
 import { PdfDownloadButton } from "@/components/ui/PdfDownloadButton";
 import { CashMovementPdf } from "@/lib/pdf/CashMovementPdf";
-import { Printer, Search, TrendingUp, TrendingDown } from "lucide-react";
+import { Search, TrendingUp, TrendingDown } from "lucide-react";
 import { SearchableSelect } from "@/components/ui/searchable-select";
 import { LoadingState } from "@/components/ui/data-display";
 import { EmptyState } from "@/components/ui/empty-state";
-import { CompanyPrintHeader } from "@/components/ui/company-print-header";
 import { useCompanySettings } from "@/hooks/useCompanySettings";
-import { PageHeader } from "@/components/ui/page-header";
+import { PrintableReportPage } from "@/components/ui/printable-report";
 
 export default function CashMovementReportPage() {
-  const { t, isRTL, lang } = useI18n();
+  const { t, isRTL } = useI18n();
   const { currentUser } = useAuth();
   const { company: printCompany } = useCompanySettings();
   const companyId = currentUser?.companyId;
@@ -61,125 +59,105 @@ export default function CashMovementReportPage() {
     : [];
 
   return (
-    <div className="space-y-5" dir={isRTL ? "rtl" : "ltr"}>
-      <CompanyPrintHeader
-        company={printCompany}
-        isRTL={isRTL}
-        documentTitle={t("cashMovementReport")}
-        periodLine={`${fromDate} — ${toDate}`}
-      />
-
-      {/* Page header */}
-      <div className="no-print">
-        <PageHeader
-          icon={TrendingUp}
-          title={t("cashMovementReport")}
-          actions={<button onClick={() => window.print()} className="btn-ghost h-9 px-4 rounded-xl inline-flex items-center gap-2 text-sm font-semibold"><Printer className="h-4 w-4" />{t("print")}</button>}
-        />
-      </div>
-
-      {/* Filters */}
-      <div className="no-print">
-      <div className="surface-card p-5 print:hidden">
-        <div className="grid grid-cols-1 gap-4 sm:grid-cols-4">
-          <div className="sm:col-span-2">
-            <label className="block text-xs font-medium text-[color:var(--ink-700)] mb-1">{t("account")}</label>
-            <SearchableSelect
-              isRTL={isRTL}
-              value={selectedAccount}
-              onChange={(v) => { setSelectedAccount(v); setSubmitted(false); }}
-              placeholder={t("selectAccount")}
-              searchPlaceholder={isRTL ? "ابحث بالاسم أو الكود..." : "Search by name or code..."}
-              emptyMessage={isRTL ? "لا توجد نتائج" : "No results"}
-              options={(accounts ?? []).map((a: any) => ({
-                value: a._id,
-                label: `${a.code ? `${a.code} — ` : ""}${isRTL ? a.nameAr : (a.nameEn || a.nameAr)}`,
-              }))}
-            />
-          </div>
-          <div>
-            <label className="block text-xs font-medium text-[color:var(--ink-700)] mb-1">{t("statementFrom")}</label>
-            <input type="date" value={fromDate}
-              onChange={(e) => { setFromDate(e.target.value); setSubmitted(false); }}
-              className="input-field w-full"
-            />
-          </div>
-          <div>
-            <label className="block text-xs font-medium text-[color:var(--ink-700)] mb-1">{t("statementTo")}</label>
-            <input type="date" value={toDate}
-              onChange={(e) => { setToDate(e.target.value); setSubmitted(false); }}
-              className="input-field w-full"
-            />
-          </div>
-        </div>
-        <div className="flex gap-3 mt-4">
-          <button
-            onClick={() => setSubmitted(true)}
-            disabled={!selectedAccount || !fromDate || !toDate}
-            className="flex items-center gap-2 px-4 py-2 btn-primary text-sm font-medium rounded-lg disabled:opacity-40"
-          >
-            <Search className="w-4 h-4" />
-            {t("generateStatement")}
-          </button>
-          {report && (
-            <>
-              <PdfDownloadButton
-                document={
-                  <CashMovementPdf data={{
-                    logoUrl: printCompany?.logoUrl ?? undefined,
-                    companyNameEn: printCompany?.nameEn ?? undefined,
-                    companyPhone: printCompany?.phone ?? undefined,
-                    companyName: (accounts?.find((a: any) => a._id === selectedAccount) as any)?.companyNameAr ?? "",
-                    accountCode: (accounts?.find((a: any) => a._id === selectedAccount) as any)?.code ?? "",
-                    accountName: (accounts?.find((a: any) => a._id === selectedAccount) as any)?.nameAr ?? "",
-                    fromDate, toDate,
-                    openingBalance: report.openingBalance ?? 0,
-                    rows: (report.rows ?? report.movements ?? []).map((r: any) => ({
-                      date: r.date, debit: r.debit ?? 0, credit: r.credit ?? 0,
-                      net: (r.debit ?? 0) - (r.credit ?? 0),
-                      balance: r.balance ?? r.runningBalance ?? 0,
-                    })),
-                    totalDebit:     report.totalDebit     ?? 0,
-                    totalCredit:    report.totalCredit    ?? 0,
-                    closingBalance: report.closingBalance ?? 0,
-                    isRTL,
-                    labels: {
-                      title:          t("cashBankMovement")   ?? (isRTL ? "حركة النقدية والبنوك" : "Cash/Bank Movement"),
-                      period:         `${fromDate} → ${toDate}`,
-                      accountLabel:   t("account"),
-                      date:           t("date"),
-                      debit:          t("debit"),
-                      credit:         t("credit"),
-                      net:            t("netMovement")        ?? (isRTL ? "الحركة الصافية" : "Net Movement"),
-                      balance:        t("balance")            ?? (isRTL ? "الرصيد" : "Balance"),
-                      openingBalance: t("openingBalance"),
-                      totalDebit:     t("totalDebit"),
-                      totalCredit:    t("totalCredit"),
-                      closingBalance: t("closingBalance"),
-                      printedBy:      t("printedBy"),
-                    },
-                    formatCurrency: fmt,
-                  }} />
-                }
-                fileName={`cash-movement-${fromDate}-${toDate}.pdf`}
-                label={t("downloadPdf") ?? "PDF"}
+    <PrintableReportPage
+      company={printCompany}
+      isRTL={isRTL}
+      title={t("cashMovementReport")}
+      period={`${fromDate} — ${toDate}`}
+      actions={
+        report ? (
+          <PdfDownloadButton
+            document={
+              <CashMovementPdf data={{
+                logoUrl: printCompany?.logoUrl ?? undefined,
+                companyNameEn: printCompany?.nameEn ?? undefined,
+                companyPhone: printCompany?.phone ?? undefined,
+                companyName: (accounts?.find((a: any) => a._id === selectedAccount) as any)?.companyNameAr ?? "",
+                accountCode: (accounts?.find((a: any) => a._id === selectedAccount) as any)?.code ?? "",
+                accountName: (accounts?.find((a: any) => a._id === selectedAccount) as any)?.nameAr ?? "",
+                fromDate, toDate,
+                openingBalance: report.openingBalance ?? 0,
+                rows: (report.rows ?? report.movements ?? []).map((r: any) => ({
+                  date: r.date, debit: r.debit ?? 0, credit: r.credit ?? 0,
+                  net: (r.debit ?? 0) - (r.credit ?? 0),
+                  balance: r.balance ?? r.runningBalance ?? 0,
+                })),
+                totalDebit:     report.totalDebit     ?? 0,
+                totalCredit:    report.totalCredit    ?? 0,
+                closingBalance: report.closingBalance ?? 0,
+                isRTL,
+                labels: {
+                  title:          t("cashBankMovement")   ?? (isRTL ? "حركة النقدية والبنوك" : "Cash/Bank Movement"),
+                  period:         `${fromDate} → ${toDate}`,
+                  accountLabel:   t("account"),
+                  date:           t("date"),
+                  debit:          t("debit"),
+                  credit:         t("credit"),
+                  net:            t("netMovement")        ?? (isRTL ? "الحركة الصافية" : "Net Movement"),
+                  balance:        t("balance")            ?? (isRTL ? "الرصيد" : "Balance"),
+                  openingBalance: t("openingBalance"),
+                  totalDebit:     t("totalDebit"),
+                  totalCredit:    t("totalCredit"),
+                  closingBalance: t("closingBalance"),
+                  printedBy:      t("printedBy"),
+                },
+                formatCurrency: fmt,
+              }} />
+            }
+            fileName={`cash-movement-${fromDate}-${toDate}.pdf`}
+            label={t("downloadPdf") ?? "PDF"}
+          />
+        ) : undefined
+      }
+      filters={
+        <div className="surface-card p-5">
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-4">
+            <div className="sm:col-span-2">
+              <label className="block text-xs font-medium text-[color:var(--ink-700)] mb-1">{t("account")}</label>
+              <SearchableSelect
+                isRTL={isRTL}
+                value={selectedAccount}
+                onChange={(v) => { setSelectedAccount(v); setSubmitted(false); }}
+                placeholder={t("selectAccount")}
+                searchPlaceholder={isRTL ? "ابحث بالاسم أو الكود..." : "Search by name or code..."}
+                emptyMessage={isRTL ? "لا توجد نتائج" : "No results"}
+                options={(accounts ?? []).map((a: any) => ({
+                  value: a._id,
+                  label: `${a.code ? `${a.code} — ` : ""}${isRTL ? a.nameAr : (a.nameEn || a.nameAr)}`,
+                }))}
               />
-              <button
-                onClick={() => window.print()}
-                className="flex items-center gap-2 px-4 py-2 btn-ghost text-sm font-medium rounded-lg"
-              >
-                <Printer className="w-4 h-4" />
-                {t("printInvoice")}
-              </button>
-            </>
-          )}
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-[color:var(--ink-700)] mb-1">{t("statementFrom")}</label>
+              <input type="date" value={fromDate}
+                onChange={(e) => { setFromDate(e.target.value); setSubmitted(false); }}
+                className="input-field w-full"
+              />
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-[color:var(--ink-700)] mb-1">{t("statementTo")}</label>
+              <input type="date" value={toDate}
+                onChange={(e) => { setToDate(e.target.value); setSubmitted(false); }}
+                className="input-field w-full"
+              />
+            </div>
+          </div>
+          <div className="mt-4">
+            <button
+              onClick={() => setSubmitted(true)}
+              disabled={!selectedAccount || !fromDate || !toDate}
+              className="flex items-center gap-2 px-4 py-2 btn-primary text-sm font-medium rounded-lg disabled:opacity-40"
+            >
+              <Search className="w-4 h-4" />
+              {t("generateStatement")}
+            </button>
+          </div>
         </div>
-      </div>
-      </div>
-
-      {/* Report */}
+      }
+    >
       {submitted && report !== undefined && (
-        <div className="surface-card overflow-hidden print:shadow-none print:border-none">
+        <div>
+          {/* Account header band */}
           <div className="p-5 border-b flex justify-between items-start" style={{ background: "var(--brand-50)" }}>
             <div>
               <h2 className="text-lg font-bold text-[color:var(--brand-800)]">{t("cashMovementReport")}</h2>
@@ -217,7 +195,7 @@ export default function CashMovementReportPage() {
                   </tr>
                 </thead>
                 <tbody>
-                  {report.rows.map((row: any, i: number) => (
+                  {report.rows.map((row: any) => (
                     <tr key={row.date}>
                       <td className="muted font-medium">{row.date}</td>
                       <td className="numeric text-end text-green-700">
@@ -239,9 +217,7 @@ export default function CashMovementReportPage() {
                       <td className={`numeric text-end font-medium ${((row.debit ?? 0) - (row.credit ?? 0)) >= 0 ? "text-green-700" : "text-red-600"}`}>
                         {(() => { const net = (row.debit ?? 0) - (row.credit ?? 0); return (net >= 0 ? "+" : "") + fmt(net); })()}
                       </td>
-                      <td className="numeric text-end font-semibold">
-                        {fmt(row.balance)}
-                      </td>
+                      <td className="numeric text-end font-semibold">{fmt(row.balance)}</td>
                     </tr>
                   ))}
                 </tbody>
@@ -258,13 +234,12 @@ export default function CashMovementReportPage() {
                     </td>
                     <td className="numeric text-end text-[color:var(--brand-800)]">{fmt(report.closingBalance)}</td>
                   </tr>
-
-              </tfoot>
-            </table>
-          </div>
+                </tfoot>
+              </table>
+            </div>
           )}
         </div>
       )}
-    </div>
+    </PrintableReportPage>
   );
 }

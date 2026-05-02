@@ -6,10 +6,9 @@ import { useQuery } from "convex/react";
 import { api } from "../../../../convex/_generated/api";
 import { useI18n } from "@/hooks/useI18n";
 import { useCompanySettings } from "@/hooks/useCompanySettings";
-import { PageHeader } from "@/components/ui/page-header";
+import { PrintableReportPage } from "@/components/ui/printable-report";
 import { LoadingState } from "@/components/ui/data-display";
-import { Truck, Printer, Package, CreditCard, Banknote, MapPin, ChevronDown, ChevronUp } from "lucide-react";
-import { useState as useLocalState } from "react";
+import { Truck, Package, CreditCard, Banknote, MapPin, ChevronDown, ChevronUp } from "lucide-react";
 
 const ACCENT = "#0ea5e9";
 
@@ -193,8 +192,8 @@ function Chip({ icon: Icon, label, value, color }: any) {
 
 // ─── Main Page ─────────────────────────────────────────────────────────────────
 export default function RouteSheetPage() {
-  const { isRTL, formatCurrency } = useI18n();
-  const { company } = useCompanySettings();
+  const { isRTL } = useI18n();
+  const { company: printCompany } = useCompanySettings();
   const companies = useQuery(api.seed.getCompanies, {}) ?? [];
   const companyId = companies[0]?._id;
 
@@ -205,58 +204,41 @@ export default function RouteSheetPage() {
     companyId ? { companyId, date } : "skip"
   );
 
-  const t = (key: string, ar: string, en: string) => isRTL ? ar : en;
-
   return (
-    <div className="space-y-5 max-w-5xl mx-auto" dir={isRTL ? "rtl" : "ltr"}>
-      {/* Header */}
-      <div className="print:hidden">
-        <PageHeader
-          title={isRTL ? "ورقة مسار التوزيع" : "Route Sheet"}
-          subtitle={isRTL
-            ? "تقرير يومي مفصل لكل مركبة — يطبع قبل الخروج"
-            : "Daily delivery manifest per vehicle — print before dispatch"}
-          icon={Truck}
-          iconColor={ACCENT}
-          actions={
-            <div className="flex items-center gap-2">
-              <input
-                type="date"
-                value={date}
-                onChange={(e) => setDate(e.target.value)}
-                className="h-10 px-3 rounded-xl border text-[13px] font-medium outline-none"
-                style={{ borderColor: "var(--ink-200)", color: "var(--ink-700)", background: "white" }}
-              />
-              <button
-                onClick={() => window.print()}
-                className="h-10 px-4 rounded-xl flex items-center gap-2 text-[13px] font-semibold text-white"
-                style={{ background: ACCENT }}>
-                <Printer className="h-4 w-4" />
-                {isRTL ? "طباعة" : "Print"}
-              </button>
+    <PrintableReportPage
+      company={printCompany}
+      isRTL={isRTL}
+      title={isRTL ? "ورقة مسار التوزيع" : "Route Sheet"}
+      period={date}
+      filters={
+        <div className="flex flex-wrap items-center gap-3 p-1">
+          <div className="flex items-center gap-2">
+            <label className="text-[12px] font-semibold" style={{ color: "var(--ink-500)" }}>
+              {isRTL ? "التاريخ" : "Date"}
+            </label>
+            <input
+              type="date"
+              value={date}
+              onChange={(e) => setDate(e.target.value)}
+              className="h-9 px-3 rounded-xl border text-[13px] font-medium outline-none"
+              style={{ borderColor: "var(--ink-200)", color: "var(--ink-700)", background: "white" }}
+            />
+          </div>
+          {data && (
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 w-full mt-2">
+              <Chip icon={Truck}      color={ACCENT}    label={isRTL ? "مركبات" : "Vehicles"} value={data.totals.vehicleCount} />
+              <Chip icon={Package}    color="#6366f1"   label={isRTL ? "فواتير" : "Invoices"} value={data.totals.invoiceCount} />
+              <Chip icon={Banknote}   color="#10b981"   label={isRTL ? "نقدي" : "Cash"}       value={moneyFmt(data.totals.cashAmount)} />
+              <Chip icon={CreditCard} color="#f59e0b"   label={isRTL ? "آجل" : "Credit"}      value={moneyFmt(data.totals.creditAmount)} />
             </div>
-          }
-        />
-      </div>
-
-      {/* Print header */}
-      <div className="hidden print:block mb-6">
-        <div className="flex items-center justify-between border-b-2 border-gray-800 pb-4 mb-4">
-          <div>
-            <h1 className="text-xl font-black">{isRTL ? company?.nameAr : (company?.nameEn || company?.nameAr)}</h1>
-          </div>
-          <div className="text-end">
-            <h2 className="text-lg font-black">{isRTL ? "ورقة مسار التوزيع" : "Route Sheet"}</h2>
-            <p className="text-sm font-bold">{date}</p>
-            <p className="text-xs text-gray-500">{isRTL ? "طُبع:" : "Printed:"} {new Date().toLocaleTimeString()}</p>
-          </div>
+          )}
         </div>
-      </div>
-
+      }
+    >
       {!companyId || !data ? (
         <LoadingState />
       ) : data.vehicles.length === 0 ? (
-        <div className="rounded-2xl border-2 border-dashed py-16 text-center print:hidden"
+        <div className="rounded-2xl border-2 border-dashed py-16 text-center"
           style={{ borderColor: "var(--ink-200)" }}>
           <Truck className="h-12 w-12 mx-auto mb-3 opacity-30" style={{ color: ACCENT }} />
           <p className="text-[14px] font-semibold" style={{ color: "var(--ink-600)" }}>
@@ -267,21 +249,11 @@ export default function RouteSheetPage() {
           </p>
         </div>
       ) : (
-        <>
-          {/* KPIs */}
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 print:hidden">
-            <Chip icon={Truck}    color={ACCENT}    label={isRTL ? "مركبات" : "Vehicles"} value={data.totals.vehicleCount} />
-            <Chip icon={Package}  color="#6366f1"   label={isRTL ? "فواتير" : "Invoices"} value={data.totals.invoiceCount} />
-            <Chip icon={Banknote} color="#10b981"   label={isRTL ? "نقدي" : "Cash"}       value={moneyFmt(data.totals.cashAmount)} />
-            <Chip icon={CreditCard} color="#f59e0b" label={isRTL ? "آجل" : "Credit"}      value={moneyFmt(data.totals.creditAmount)} />
-          </div>
-
+        <div className="space-y-4">
           {/* Vehicle blocks */}
-          <div className="space-y-4">
-            {data.vehicles.map((v: any, i: number) => (
-              <VehicleBlock key={v.vehicleId ?? v.vehicleCode} v={v} isRTL={isRTL} idx={i} />
-            ))}
-          </div>
+          {data.vehicles.map((v: any, i: number) => (
+            <VehicleBlock key={v.vehicleId ?? v.vehicleCode} v={v} isRTL={isRTL} idx={i} />
+          ))}
 
           {/* Grand total */}
           <div className="rounded-2xl border-2 p-5 print:rounded-none print:border-t-2 print:border-b-0 print:border-x-0"
@@ -317,8 +289,8 @@ export default function RouteSheetPage() {
               </div>
             ))}
           </div>
-        </>
+        </div>
       )}
-    </div>
+    </PrintableReportPage>
   );
 }

@@ -4,11 +4,13 @@ import { useQuery } from "convex/react";
 import { api } from "../../../../convex/_generated/api";
 import { useI18n } from "@/hooks/useI18n";
 import { formatCurrency } from "@/lib/i18n";
-import { PageHeader } from "@/components/ui/page-header";
+import { useCompanySettings } from "@/hooks/useCompanySettings";
+import { PrintableReportPage } from "@/components/ui/printable-report";
 import { useState } from "react";
 
 export default function HrEmployeesReportPage() {
   const { t, isRTL, lang } = useI18n();
+  const { company: printCompany } = useCompanySettings();
   const [status, setStatus] = useState("");
   const employees = useQuery(api.hr.getEmployeeDirectoryReport, status ? { status } : {}) ?? [];
 
@@ -24,25 +26,28 @@ export default function HrEmployeesReportPage() {
   };
 
   return (
-    <div className="p-6 space-y-4" dir={isRTL ? "rtl" : "ltr"}>
-      <div className="no-print">
-        <PageHeader title={t("employeeDirectoryReport")} />
-      </div>
-
-      {/* Filters */}
-      <div className="no-print flex gap-3 flex-wrap">
-        <select value={status} onChange={(e) => setStatus(e.target.value)} className="input-field w-40">
-          <option value="">{isRTL ? "كل الحالات" : "All Statuses"}</option>
-          <option value="active">{t("statusActive")}</option>
-          <option value="inactive">{t("statusInactive")}</option>
-          <option value="terminated">{t("statusTerminated")}</option>
-          <option value="on_leave">{t("statusOnLeave")}</option>
-        </select>
-        <button onClick={() => window.print()} className="btn-ghost">{isRTL ? "طباعة" : "Print"}</button>
-      </div>
-
-      <div className="surface-card rounded-xl overflow-hidden">
-        <table className="w-full text-sm" dir={isRTL ? "rtl" : "ltr"}>
+    <PrintableReportPage
+      company={printCompany}
+      isRTL={isRTL}
+      title={t("employeeDirectoryReport")}
+      period={new Date().toISOString().split("T")[0]}
+      filters={
+        <div className="flex gap-3 flex-wrap items-center p-1">
+          <select value={status} onChange={(e) => setStatus(e.target.value)} className="input-field w-40">
+            <option value="">{isRTL ? "كل الحالات" : "All Statuses"}</option>
+            <option value="active">{t("statusActive")}</option>
+            <option value="inactive">{t("statusInactive")}</option>
+            <option value="terminated">{t("statusTerminated")}</option>
+            <option value="on_leave">{t("statusOnLeave")}</option>
+          </select>
+          <span className="text-[12px] font-semibold" style={{ color: "var(--ink-500)" }}>
+            {employees.length} {isRTL ? "موظف" : "employees"}
+          </span>
+        </div>
+      }
+    >
+      <div className="overflow-x-auto">
+        <table className="w-full text-sm border-collapse" dir={isRTL ? "rtl" : "ltr"}>
           <thead>
             <tr style={{ background: "#6b1523" }}>
               <th className="px-[14px] py-[10px] text-start text-[11px] font-bold uppercase tracking-wider whitespace-nowrap" style={{ color: "rgba(255,255,255,0.85)" }}>{t("employeeCode")}</th>
@@ -75,7 +80,6 @@ export default function HrEmployeesReportPage() {
           </tbody>
         </table>
       </div>
-      <p className="text-xs text-gray-400 no-print">{isRTL ? "إجمالي الموظفين:" : "Total employees:"} {employees.length}</p>
-    </div>
+    </PrintableReportPage>
   );
 }

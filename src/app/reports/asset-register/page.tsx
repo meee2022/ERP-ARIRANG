@@ -5,12 +5,11 @@ import React from "react";
 import { useQuery } from "convex/react";
 import { api } from "../../../../convex/_generated/api";
 import { useI18n } from "@/hooks/useI18n";
-import { PageHeader } from "@/components/ui/page-header";
 import { LoadingState } from "@/components/ui/data-display";
 import { EmptyState } from "@/components/ui/empty-state";
-import { CompanyPrintHeader } from "@/components/ui/company-print-header";
 import { useCompanySettings } from "@/hooks/useCompanySettings";
-import { HardDrive, Printer } from "lucide-react";
+import { PrintableReportPage } from "@/components/ui/printable-report";
+import { HardDrive } from "lucide-react";
 
 export default function AssetRegisterReportPage() {
   const { t, isRTL, formatCurrency, formatDate } = useI18n();
@@ -19,10 +18,7 @@ export default function AssetRegisterReportPage() {
   const companies = useQuery(api.seed.getCompanies, {}) ?? [];
   const companyId = companies[0]?._id;
 
-  const data = useQuery(
-    api.fixedAssets.getAssetRegisterReport,
-    companyId ? { companyId } : "skip"
-  );
+  const data = useQuery(api.fixedAssets.getAssetRegisterReport, companyId ? { companyId } : "skip");
 
   const loading = data === undefined;
   const rows = data ?? [];
@@ -37,27 +33,18 @@ export default function AssetRegisterReportPage() {
   );
 
   return (
-    <div className="space-y-5" dir={isRTL ? "rtl" : "ltr"}>
-      <CompanyPrintHeader company={printCompany} isRTL={isRTL} documentTitle={t("assetRegisterReport")} />
-
-      <div className="no-print">
-        <PageHeader
-          icon={HardDrive}
-          title={t("assetRegisterReport")}
-          actions={
-            <button onClick={() => window.print()} className="flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium btn-ghost">
-              <Printer className="h-4 w-4" /> {t("print")}
-            </button>
-          }
-        />
-      </div>
-
-      <div className="surface-card overflow-x-auto">
-        {loading ? (
-          <LoadingState label={t("loading")} />
-        ) : rows.length === 0 ? (
-          <EmptyState icon={HardDrive} message={t("noFixedAssetsYet")} />
-        ) : (
+    <PrintableReportPage
+      company={printCompany}
+      isRTL={isRTL}
+      title={t("assetRegisterReport")}
+      period={new Date().toISOString().split("T")[0]}
+    >
+      {loading ? (
+        <LoadingState label={t("loading")} />
+      ) : rows.length === 0 ? (
+        <EmptyState icon={HardDrive} message={t("noFixedAssetsYet")} />
+      ) : (
+        <div className="overflow-x-auto">
           <table className="data-table">
             <thead>
               <tr>
@@ -93,8 +80,8 @@ export default function AssetRegisterReportPage() {
               </tr>
             </tfoot>
           </table>
-        )}
-      </div>
-    </div>
+        </div>
+      )}
+    </PrintableReportPage>
   );
 }

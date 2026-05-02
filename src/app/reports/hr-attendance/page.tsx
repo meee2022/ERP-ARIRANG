@@ -3,7 +3,8 @@
 import { useQuery } from "convex/react";
 import { api } from "../../../../convex/_generated/api";
 import { useI18n } from "@/hooks/useI18n";
-import { PageHeader } from "@/components/ui/page-header";
+import { useCompanySettings } from "@/hooks/useCompanySettings";
+import { PrintableReportPage } from "@/components/ui/printable-report";
 import { useState } from "react";
 
 const today = new Date().toISOString().split("T")[0];
@@ -11,24 +12,32 @@ const monthStart = today.slice(0, 8) + "01";
 
 export default function HrAttendanceReportPage() {
   const { t, isRTL } = useI18n();
+  const { company: printCompany } = useCompanySettings();
   const [fromDate, setFromDate] = useState(monthStart);
   const [toDate, setToDate] = useState(today);
   const rows = useQuery(api.hr.getAttendanceReport, { fromDate, toDate }) ?? [];
 
   return (
-    <div className="p-6 space-y-4" dir={isRTL ? "rtl" : "ltr"}>
-      <div className="no-print"><PageHeader title={t("attendanceReport")} /></div>
-
-      <div className="no-print flex gap-3 flex-wrap items-end">
-        <div><label className="text-xs text-gray-500 block mb-1">{isRTL ? "من" : "From"}</label>
-          <input type="date" value={fromDate} onChange={(e) => setFromDate(e.target.value)} className="input-field" /></div>
-        <div><label className="text-xs text-gray-500 block mb-1">{isRTL ? "إلى" : "To"}</label>
-          <input type="date" value={toDate} onChange={(e) => setToDate(e.target.value)} className="input-field" /></div>
-        <button onClick={() => window.print()} className="btn-ghost">{isRTL ? "طباعة" : "Print"}</button>
-      </div>
-
-      <div className="surface-card rounded-xl overflow-hidden">
-        <table className="w-full text-sm">
+    <PrintableReportPage
+      company={printCompany}
+      isRTL={isRTL}
+      title={t("attendanceReport")}
+      period={`${fromDate} — ${toDate}`}
+      filters={
+        <div className="flex gap-3 flex-wrap items-end p-1">
+          <div>
+            <label className="text-xs text-gray-500 block mb-1">{isRTL ? "من" : "From"}</label>
+            <input type="date" value={fromDate} onChange={(e) => setFromDate(e.target.value)} className="input-field" />
+          </div>
+          <div>
+            <label className="text-xs text-gray-500 block mb-1">{isRTL ? "إلى" : "To"}</label>
+            <input type="date" value={toDate} onChange={(e) => setToDate(e.target.value)} className="input-field" />
+          </div>
+        </div>
+      }
+    >
+      <div className="overflow-x-auto">
+        <table className="w-full text-sm border-collapse">
           <thead>
             <tr style={{ background: "#6b1523" }}>
               <th className="px-[14px] py-[10px] text-start text-[11px] font-bold uppercase tracking-wider whitespace-nowrap" style={{ color: "rgba(255,255,255,0.85)" }}>{t("employeeName")}</th>
@@ -59,6 +68,6 @@ export default function HrAttendanceReportPage() {
           </tbody>
         </table>
       </div>
-    </div>
+    </PrintableReportPage>
   );
 }

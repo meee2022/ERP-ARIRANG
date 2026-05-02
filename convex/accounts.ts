@@ -297,6 +297,9 @@ export const deleteAccount = mutation({
   },
 });
 
+// ── Nuclear cleanup: wipe ALL old short-code accounts + every trace of them ─────
+// "Old" = code shorter than 11 digits (legacy demo accounts).
+// This is intentionally destructive — designed for test/migration scenarios only.
 export const cleanupOldAccounts = mutation({
   args: {
     companyId: v.id("companies"),
@@ -305,48 +308,161 @@ export const cleanupOldAccounts = mutation({
   handler: async (ctx, args) => {
     await assertUserPermission(ctx, args.userId, "finance", "delete");
 
-    const all = await ctx.db
+    // 1. Collect all old accounts
+    const allAccounts = await ctx.db
       .query("accounts")
       .withIndex("by_company", (q) => q.eq("companyId", args.companyId))
       .collect();
 
-    // Old accounts = code shorter than 11 digits
-    const old = all.filter((a) => a.code.length < 11);
-    if (old.length === 0) return { deleted: 0, skipped: 0 };
+    const oldAccounts = allAccounts.filter((a) => a.code.length < 11);
+    if (oldAccounts.length === 0) return { deletedAccounts: 0, deletedLines: 0, deletedEntries: 0 };
 
-    // Topological sort: children before parents
-    const byId = new Map(old.map((a) => [a._id, a]));
-    const result: typeof old = [];
-    const visited = new Set<string>();
+    const oldIds = new Set(oldAccounts.map((a) => a._id));
 
-    function visit(acc: (typeof old)[0]) {
-      if (visited.has(acc._id)) return;
-      visited.add(acc._id);
-      old.filter((a) => a.parentId === acc._id).forEach(visit);
-      result.push(acc);
+    // 2. Pre-fetch all referencing data in parallel
+    const [customers, suppliers, items, categories, banks, postingRules, branches, fixedAssets] =
+      await Promise.all([
+        ctx.db.query("customers").withIndex("by_company", (q) => q.eq("companyId", args.companyId)).collect(),
+        ctx.db.query("suppliers").withIndex("by_company", (q) => q.eq("companyId", args.companyId)).collect(),
+        ctx.db.query("items").withIndex("by_company", (q) => q.eq("companyId", args.companyId)).collect(),
+        ctx.db.query("itemCategories").withIndex("by_company", (q) => q.eq("companyId", args.companyId)).collect(),
+        ctx.db.query("bankAccounts").withIndex("by_company", (q) => q.eq("companyId", args.companyId)).collect().catch(() => [] as Doc<"bankAccounts">[]),
+        ctx.db.query("postingRules").withIndex("by_company", (q) => q.eq("companyId", args.companyId)).first(),
+        ctx.db.query("branches").withIndex("by_company", (q) => q.eq("companyId", args.companyId)).collect(),
+        ctx.db.query("fixedAssets").withIndex("by_company", (q) => q.eq("companyId", args.companyId)).collect().catch(() => [] as Doc<"fixedAssets">[]),
+      ]);
+
+    const cashBoxes = (
+      await Promise.all(
+        branches.map((b) =>
+          ctx.db.query("cashBoxes").withIndex("by_branch", (q) => q.eq("branchId", b._id)).collect()
+        )
+      )
+    ).flat();
+
+    // 3. Clear references in customers / suppliers
+    await Promise.all([
+      ...customers
+        .filter((c) => c.accountId && oldIds.has(c.accountId))
+        .map((c) => ctx.db.patch(c._id, { accountId: undefined })),
+      ...suppliers
+        .filter((s) => s.accountId && oldIds.has(s.accountId))
+        .map((s) => ctx.db.patch(s._id, { accountId: undefined })),
+    ]);
+
+    // 4. Clear references in items
+    await Promise.all(
+      items.map((item) => {
+        const patch: Record<string, undefined> = {};
+        if (item.inventoryAccountId && oldIds.has(item.inventoryAccountId)) patch.inventoryAccountId = undefined;
+        if (item.cogsAccountId      && oldIds.has(item.cogsAccountId))      patch.cogsAccountId      = undefined;
+        if (item.revenueAccountId   && oldIds.has(item.revenueAccountId))   patch.revenueAccountId   = undefined;
+        if (item.expenseAccountId   && oldIds.has(item.expenseAccountId))   patch.expenseAccountId   = undefined;
+        return Object.keys(patch).length > 0 ? ctx.db.patch(item._id, patch) : null;
+      }).filter(Boolean)
+    );
+
+    // 5. Clear references in item categories
+    await Promise.all(
+      categories.map((cat) => {
+        const patch: Record<string, undefined> = {};
+        if (cat.defaultInventoryAccountId && oldIds.has(cat.defaultInventoryAccountId)) patch.defaultInventoryAccountId = undefined;
+        if (cat.defaultCogsAccountId      && oldIds.has(cat.defaultCogsAccountId))      patch.defaultCogsAccountId      = undefined;
+        if (cat.defaultRevenueAccountId   && oldIds.has(cat.defaultRevenueAccountId))   patch.defaultRevenueAccountId   = undefined;
+        return Object.keys(patch).length > 0 ? ctx.db.patch(cat._id, patch) : null;
+      }).filter(Boolean)
+    );
+
+    // 6. Clear posting rules
+    if (postingRules) {
+      const rulesPatch: Record<string, undefined> = {};
+      for (const [key, val] of Object.entries(postingRules)) {
+        if (typeof val === "string" && oldIds.has(val as any)) {
+          rulesPatch[key] = undefined;
+        }
+      }
+      if (Object.keys(rulesPatch).length > 0) {
+        await ctx.db.patch(postingRules._id, rulesPatch);
+      }
     }
-    old.forEach((a) => { if (!a.parentId || !byId.has(a.parentId)) visit(a); });
 
-    let deleted = 0;
-    let skipped = 0;
+    // 7. Clear bank accounts
+    await Promise.all(
+      banks
+        .filter((b) => oldIds.has(b.glAccountId))
+        .map((b) => ctx.db.patch(b._id, { glAccountId: undefined as any }))
+    );
 
-    for (const acc of result) {
-      const line = await ctx.db
+    // 8. Clear cash boxes
+    await Promise.all(
+      cashBoxes
+        .filter((cb) => oldIds.has(cb.glAccountId))
+        .map((cb) => ctx.db.patch(cb._id, { glAccountId: undefined as any }))
+    );
+
+    // 9. Clear fixed assets
+    await Promise.all(
+      fixedAssets.map((fa) => {
+        const patch: Record<string, undefined> = {};
+        if (fa.assetAccountId && oldIds.has(fa.assetAccountId)) patch.assetAccountId = undefined;
+        if (fa.depreciationExpenseAccountId && oldIds.has(fa.depreciationExpenseAccountId)) patch.depreciationExpenseAccountId = undefined;
+        if (fa.accumulatedDepreciationAccountId && oldIds.has(fa.accumulatedDepreciationAccountId)) patch.accumulatedDepreciationAccountId = undefined;
+        return Object.keys(patch).length > 0 ? ctx.db.patch(fa._id, patch) : null;
+      }).filter(Boolean)
+    );
+
+    // 10. Delete all journal lines referencing old accounts, track affected entries
+    let deletedLines = 0;
+    const affectedEntryIds = new Set<string>();
+
+    for (const acc of oldAccounts) {
+      const lines = await ctx.db
         .query("journalLines")
         .withIndex("by_account", (q) => q.eq("accountId", acc._id))
-        .first();
-      if (line) { skipped++; continue; }
-
-      const child = await ctx.db
-        .query("accounts")
-        .withIndex("by_parent", (q) => q.eq("parentId", acc._id))
-        .first();
-      if (child) { skipped++; continue; }
-
-      await ctx.db.delete(acc._id);
-      deleted++;
+        .collect();
+      for (const line of lines) {
+        affectedEntryIds.add(line.entryId);
+        await ctx.db.delete(line._id);
+        deletedLines++;
+      }
     }
 
-    return { deleted, skipped };
+    // 11. For each affected journal entry: delete if it now has zero lines, else leave
+    let deletedEntries = 0;
+    for (const entryId of affectedEntryIds) {
+      const remaining = await ctx.db
+        .query("journalLines")
+        .withIndex("by_entry", (q) => q.eq("entryId", entryId as any))
+        .first();
+      if (!remaining) {
+        await ctx.db.delete(entryId as any);
+        deletedEntries++;
+      }
+    }
+
+    // 12. Delete accounts (children before parents via topological sort)
+    const byId = new Map(oldAccounts.map((a) => [a._id, a]));
+    const sorted: typeof oldAccounts = [];
+    const visited = new Set<string>();
+
+    function visit(acc: (typeof oldAccounts)[0]) {
+      if (visited.has(acc._id)) return;
+      visited.add(acc._id);
+      oldAccounts.filter((a) => a.parentId === acc._id).forEach(visit);
+      sorted.push(acc);
+    }
+    oldAccounts.forEach((a) => {
+      if (!a.parentId || !byId.has(a.parentId)) visit(a);
+    });
+
+    for (const acc of sorted) {
+      await ctx.db.delete(acc._id);
+    }
+
+    return {
+      deletedAccounts: oldAccounts.length,
+      deletedLines,
+      deletedEntries,
+    };
   },
 });

@@ -5,14 +5,13 @@ import { useI18n } from "@/hooks/useI18n";
 import { useQuery } from "convex/react";
 import { api } from "../../../../convex/_generated/api";
 import { formatDateShort } from "@/lib/utils";
-import { BookOpen, Printer } from "lucide-react";
+import { BookOpen } from "lucide-react";
 import { useAppStore } from "@/store/useAppStore";
 import { LoadingState } from "@/components/ui/data-display";
 import { EmptyState } from "@/components/ui/empty-state";
-import { CompanyPrintHeader } from "@/components/ui/company-print-header";
 import { useCompanySettings } from "@/hooks/useCompanySettings";
-import { PageHeader } from "@/components/ui/page-header";
 import { SearchableSelect } from "@/components/ui/searchable-select";
+import { PrintableReportPage } from "@/components/ui/printable-report";
 
 function startOfYearISO() { return new Date().getFullYear() + "-01-01"; }
 function todayISO() { return new Date().toISOString().split("T")[0]; }
@@ -46,26 +45,12 @@ export default function GeneralLedgerPage() {
   };
 
   return (
-    <div dir={isRTL ? "rtl" : "ltr"} className="space-y-5">
-      <CompanyPrintHeader
-        company={printCompany}
-        isRTL={isRTL}
-        documentTitle={t("generalLedgerTitle")}
-        periodLine={fromDate + " — " + toDate}
-      />
-      <div className="no-print">
-        <PageHeader
-          icon={BookOpen}
-          title={t("generalLedgerTitle")}
-          actions={
-            <button onClick={() => window.print()} className="btn-ghost h-9 px-4 rounded-xl inline-flex items-center gap-2 text-sm font-semibold">
-              <Printer className="h-4 w-4" />{t("print")}
-            </button>
-          }
-        />
-      </div>
-
-      <div className="no-print">
+    <PrintableReportPage
+      company={printCompany}
+      isRTL={isRTL}
+      title={t("generalLedgerTitle")}
+      period={`${fromDate} — ${toDate}`}
+      filters={
         <div className="surface-card p-3 flex items-center gap-3 flex-wrap">
           <div className="flex items-center gap-1.5">
             <span className="text-xs text-[color:var(--ink-500)]">{t("fromDate")}:</span>
@@ -90,16 +75,16 @@ export default function GeneralLedgerPage() {
             />
           </div>
         </div>
-      </div>
-
+      }
+    >
       {!accountId ? (
-        <div className="surface-card py-20 text-center text-[color:var(--ink-400)]">
+        <div className="py-20 text-center text-[color:var(--ink-400)]">
           <BookOpen className="h-10 w-10 mx-auto mb-3 opacity-30" />
           <p className="text-sm">{t("selectAccountToView")}</p>
         </div>
       ) : (
         <React.Fragment>
-          <div className="surface-card p-3 grid grid-cols-4 gap-4 text-center text-sm">
+          <div className="p-4 grid grid-cols-4 gap-4 text-center text-sm border-b border-[color:var(--ink-100)]">
             <div>
               <p className="text-xs text-[color:var(--ink-500)] mb-1">{t("openingBalance")}</p>
               <p className="font-bold tabular-nums">{formatCurrency(summary.openingBalance)}</p>
@@ -118,7 +103,7 @@ export default function GeneralLedgerPage() {
             </div>
           </div>
 
-          <div className="surface-card overflow-hidden">
+          <div className="overflow-hidden">
             {loading ? (
               <LoadingState label={t("loading")} />
             ) : lines.length === 0 ? (
@@ -160,6 +145,6 @@ export default function GeneralLedgerPage() {
           </div>
         </React.Fragment>
       )}
-    </div>
+    </PrintableReportPage>
   );
 }

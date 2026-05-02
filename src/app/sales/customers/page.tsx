@@ -435,7 +435,6 @@ export default function CustomersPage() {
   const createCustomer = useMutation(api.customers.create);
   const updateCustomer = useMutation(api.customers.update);
   const toggleActive = useMutation(api.customers.toggleActive);
-
   const [showModal, setShowModal] = useState(searchParams.get("new") === "true");
   const [editId, setEditId] = useState<string | null>(null);
   const [search, setSearch] = useState("");

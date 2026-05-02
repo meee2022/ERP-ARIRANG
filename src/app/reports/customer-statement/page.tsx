@@ -8,13 +8,12 @@ import { api } from "../../../../convex/_generated/api";
 import { useI18n } from "@/hooks/useI18n";
 import { PdfDownloadButton } from "@/components/ui/PdfDownloadButton";
 import { StatementPdf } from "@/lib/pdf/StatementPdf";
-import { Printer, Search, Users, ExternalLink } from "lucide-react";
+import { Search, Users, ExternalLink } from "lucide-react";
 import { SearchableSelect } from "@/components/ui/searchable-select";
 import { EmptyState } from "@/components/ui/empty-state";
-import { CompanyPrintHeader } from "@/components/ui/company-print-header";
 import { useCompanySettings } from "@/hooks/useCompanySettings";
-import { PageHeader } from "@/components/ui/page-header";
 import { FilterPanel, FilterField } from "@/components/ui/filter-panel";
+import { PrintableReportPage } from "@/components/ui/printable-report";
 
 const JOURNAL_CFG: Record<string, { ar: string; en: string; bg: string; color: string; border: string }> = {
   "Sales voucher":          { ar: "فاتورة مبيعات",  en: "Sales voucher",         bg: "#eff6ff", color: "#1d4ed8", border: "#bfdbfe" },
@@ -154,65 +153,48 @@ export default function CustomerStatementPage() {
   };
 
   return (
-    <div className="space-y-5" dir={isRTL ? "rtl" : "ltr"}>
-      <CompanyPrintHeader company={printCompany} isRTL={isRTL}
-        documentTitle={isRTL ? "كشف حساب عميل" : "Customer Statement"}
-        periodLine={`${fromDate} — ${toDate}`} />
-
-      <div className="no-print">
-        <PageHeader
-          icon={Users}
-          title={isRTL ? "كشف حساب عميل" : "Customer Statement"}
-          subtitle={isRTL ? "كل معاملات العميل — فواتير، مرتجعات، مقبوضات" : "All customer transactions — invoices, returns, receipts"}
-          actions={
-            statement ? (
-              <div className="flex gap-2">
-                <PdfDownloadButton
-                  document={
-                    <StatementPdf data={{
-                      logoUrl: printCompany?.logoUrl ?? undefined,
-                      companyNameEn: printCompany?.nameEn ?? undefined,
-                      companyPhone: printCompany?.phone ?? undefined,
-                      companyName: statement.companyNameAr ?? statement.companyNameEn ?? "",
-                      partyName: customers?.find((c: any) => c._id === selectedCustomer)?.nameAr ?? selectedCustomer,
-                      fromDate, toDate,
-                      openingBalance: statement.openingBalance ?? 0,
-                      lines: (statement.transactions ?? []).map((tx: any) => ({
-                        date: tx.date, description: `${tx.journal}${tx.subAccount ? ` — ${tx.subAccount}` : ""}`,
-                        debit: tx.debit ?? 0, credit: tx.credit ?? 0, balance: tx.balance ?? 0,
-                      })),
-                      closingBalance: statement.closingBalance ?? 0,
-                      totalDebit: statement.totalDebit ?? 0,
-                      totalCredit: statement.totalCredit ?? 0,
-                      isRTL,
-                      labels: {
-                        title: isRTL ? "كشف حساب عميل" : "Customer Statement",
-                        partyLabel: t("customer"),
-                        period: `${fromDate} → ${toDate}`,
-                        date: t("date"), description: t("description"),
-                        debit: t("debit"), credit: t("credit"), balance: t("runningBalance"),
-                        openingBalance: t("openingBalance"), closingBalance: t("closingBalance"),
-                        totalDebit: t("totalDebit"), totalCredit: t("totalCredit"),
-                        printedBy: t("printedBy"),
-                      },
-                      formatCurrency: fmt,
-                    }} />
-                  }
-                  fileName={`customer-statement-${selectedCustomer}.pdf`}
-                  label={t("downloadPdf") ?? "PDF"}
-                />
-                <button onClick={() => window.print()}
-                  className="btn-ghost h-9 px-4 rounded-xl inline-flex items-center gap-2 text-sm font-semibold">
-                  <Printer className="h-4 w-4" />{t("print")}
-                </button>
-              </div>
-            ) : undefined
-          }
-        />
-      </div>
-
-      {/* Filters */}
-      <div className="no-print">
+    <PrintableReportPage
+      company={printCompany}
+      isRTL={isRTL}
+      title={isRTL ? "كشف حساب عميل" : "Customer Statement"}
+      period={`${fromDate} — ${toDate}`}
+      actions={
+        statement ? (
+          <PdfDownloadButton
+            document={
+              <StatementPdf data={{
+                logoUrl: printCompany?.logoUrl ?? undefined,
+                companyNameEn: printCompany?.nameEn ?? undefined,
+                companyPhone: printCompany?.phone ?? undefined,
+                companyName: statement.companyNameAr ?? statement.companyNameEn ?? "",
+                partyName: customers?.find((c: any) => c._id === selectedCustomer)?.nameAr ?? selectedCustomer,
+                fromDate, toDate,
+                openingBalance: statement.openingBalance ?? 0,
+                lines: (statement.transactions ?? []).map((tx: any) => ({
+                  date: tx.date, description: `${tx.journal}${tx.subAccount ? ` — ${tx.subAccount}` : ""}`,
+                  debit: tx.debit ?? 0, credit: tx.credit ?? 0, balance: tx.balance ?? 0,
+                })),
+                closingBalance: statement.closingBalance ?? 0,
+                totalDebit: statement.totalDebit ?? 0,
+                totalCredit: statement.totalCredit ?? 0,
+                isRTL,
+                labels: {
+                  title: isRTL ? "كشف حساب عميل" : "Customer Statement",
+                  partyLabel: t("customer"), period: `${fromDate} → ${toDate}`,
+                  date: t("date"), description: t("description"),
+                  debit: t("debit"), credit: t("credit"), balance: t("runningBalance"),
+                  openingBalance: t("openingBalance"), closingBalance: t("closingBalance"),
+                  totalDebit: t("totalDebit"), totalCredit: t("totalCredit"), printedBy: t("printedBy"),
+                },
+                formatCurrency: fmt,
+              }} />
+            }
+            fileName={`customer-statement-${selectedCustomer}.pdf`}
+            label={t("downloadPdf") ?? "PDF"}
+          />
+        ) : undefined
+      }
+      filters={
         <FilterPanel>
           <FilterField label={isRTL ? "العميل" : "Customer"}>
             <div className="min-w-[260px]">
@@ -249,7 +231,8 @@ export default function CustomerStatementPage() {
             </button>
           </FilterField>
         </FilterPanel>
-      </div>
+      }
+    >
 
       {/* Statement */}
       {submitted && statement !== undefined && (
@@ -303,6 +286,6 @@ export default function CustomerStatementPage() {
           )}
         </div>
       )}
-    </div>
+    </PrintableReportPage>
   );
 }

@@ -26,8 +26,6 @@ export default function VehiclesPage() {
   const updateVehicle = useMutation(api.salesMasters.updateVehicle);
   const toggleVehicle = useMutation(api.salesMasters.toggleVehicleActive);
   const deleteVehicle = useMutation(api.salesMasters.deleteVehicle);
-  const seedVehicles = useMutation(api.seedStaff.seedVehicles);
-  const [seeding, setSeeding] = useState(false);
 
   const [search, setSearch] = useState("");
   const [showForm, setShowForm] = useState(false);
@@ -138,19 +136,6 @@ export default function VehiclesPage() {
     }
   }
 
-  async function handleSeedVehicles() {
-    if (!companyId) return;
-    if (!window.confirm(isRTL ? "سيتم استيراد بيانات السيارات والمناديب. هل تريد المتابعة؟" : "Import vehicle & salesman data. Continue?")) return;
-    setSeeding(true);
-    try {
-      const result = await seedVehicles({});
-      toast.success(`Done: ${result.total} vehicles processed.\n${result.results.join("\n")}`);
-    } catch (e: any) {
-      toast.error(e);
-    } finally {
-      setSeeding(false);
-    }
-  }
 
   if (vehicles === undefined) return <LoadingState label={t("loading")} />;
 
@@ -165,21 +150,11 @@ export default function VehiclesPage() {
         title={t("vehiclesTitle")}
         badge={<span className="badge-soft">{filtered.length}</span>}
         actions={
-          <div className="flex items-center gap-2">
-            <button
-              onClick={handleSeedVehicles}
-              disabled={seeding || !companyId}
-              className="h-10 px-4 rounded-lg inline-flex items-center gap-2 text-sm font-medium border border-gray-200 bg-white text-gray-600 hover:bg-gray-50 disabled:opacity-50"
-            >
-              <RefreshCw className={`h-4 w-4 ${seeding ? "animate-spin" : ""}`} />
-              {seeding ? (isRTL ? "جاري الاستيراد..." : "Importing...") : (isRTL ? "استيراد سيارات الروتات" : "Import Route Vehicles")}
+          canCreate("sales") ? (
+            <button onClick={openCreate} className="btn-primary h-10 px-4 rounded-lg inline-flex items-center gap-2 text-sm font-semibold">
+              <Plus className="h-4 w-4" /> {t("newVehicle")}
             </button>
-            {canCreate("sales") && (
-              <button onClick={openCreate} className="btn-primary h-10 px-4 rounded-lg inline-flex items-center gap-2 text-sm font-semibold">
-                <Plus className="h-4 w-4" /> {t("newVehicle")}
-              </button>
-            )}
-          </div>
+          ) : undefined
         }
       />
 

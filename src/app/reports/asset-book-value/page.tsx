@@ -5,12 +5,11 @@ import React from "react";
 import { useQuery } from "convex/react";
 import { api } from "../../../../convex/_generated/api";
 import { useI18n } from "@/hooks/useI18n";
-import { PageHeader } from "@/components/ui/page-header";
 import { LoadingState, SummaryStrip } from "@/components/ui/data-display";
 import { EmptyState } from "@/components/ui/empty-state";
-import { CompanyPrintHeader } from "@/components/ui/company-print-header";
 import { useCompanySettings } from "@/hooks/useCompanySettings";
-import { BarChart2, Printer } from "lucide-react";
+import { PrintableReportPage } from "@/components/ui/printable-report";
+import { BarChart2 } from "lucide-react";
 
 export default function AssetBookValueReportPage() {
   const { t, isRTL, formatCurrency } = useI18n();
@@ -19,10 +18,7 @@ export default function AssetBookValueReportPage() {
   const companies = useQuery(api.seed.getCompanies, {}) ?? [];
   const companyId = companies[0]?._id;
 
-  const data = useQuery(
-    api.fixedAssets.getAssetBookValueSummary,
-    companyId ? { companyId } : "skip"
-  );
+  const data = useQuery(api.fixedAssets.getAssetBookValueSummary, companyId ? { companyId } : "skip");
 
   const loading = data === undefined;
   const rows = data ?? [];
@@ -38,36 +34,28 @@ export default function AssetBookValueReportPage() {
   );
 
   return (
-    <div className="space-y-5" dir={isRTL ? "rtl" : "ltr"}>
-      <CompanyPrintHeader company={printCompany} isRTL={isRTL} documentTitle={t("assetBookValueReport")} />
-
-      <div className="no-print">
-        <PageHeader
-          icon={BarChart2}
-          title={t("assetBookValueReport")}
-          actions={
-            <button onClick={() => window.print()} className="flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium btn-ghost">
-              <Printer className="h-4 w-4" /> {t("print")}
-            </button>
-          }
-        />
-      </div>
-
-      {!loading && rows.length > 0 && (
-        <SummaryStrip items={[
-          { label: t("assetsCount"), value: String(totals.count), borderColor: "var(--brand-600)" },
-          { label: t("totalCostLabel"), value: formatCurrency(totals.cost), borderColor: "var(--brand-600)" },
-          { label: t("accumulatedDepreciation"), value: formatCurrency(totals.depr), accent: "var(--ink-500)", borderColor: "#d97706" },
-          { label: t("netBookValue"), value: formatCurrency(totals.net), borderColor: "#16a34a" },
-        ]} />
-      )}
-
-      <div className="surface-card overflow-x-auto">
-        {loading ? (
-          <LoadingState label={t("loading")} />
-        ) : rows.length === 0 ? (
-          <EmptyState icon={BarChart2} message={t("noFixedAssetsYet")} />
-        ) : (
+    <PrintableReportPage
+      company={printCompany}
+      isRTL={isRTL}
+      title={t("assetBookValueReport")}
+      period={new Date().toISOString().split("T")[0]}
+      summary={
+        !loading && rows.length > 0 ? (
+          <SummaryStrip items={[
+            { label: t("assetsCount"), value: String(totals.count), borderColor: "var(--brand-600)" },
+            { label: t("totalCostLabel"), value: formatCurrency(totals.cost), borderColor: "var(--brand-600)" },
+            { label: t("accumulatedDepreciation"), value: formatCurrency(totals.depr), accent: "var(--ink-500)", borderColor: "#d97706" },
+            { label: t("netBookValue"), value: formatCurrency(totals.net), borderColor: "#16a34a" },
+          ]} />
+        ) : undefined
+      }
+    >
+      {loading ? (
+        <LoadingState label={t("loading")} />
+      ) : rows.length === 0 ? (
+        <EmptyState icon={BarChart2} message={t("noFixedAssetsYet")} />
+      ) : (
+        <div className="overflow-x-auto">
           <table className="data-table">
             <thead>
               <tr>
@@ -99,8 +87,8 @@ export default function AssetBookValueReportPage() {
               </tr>
             </tfoot>
           </table>
-        )}
-      </div>
-    </div>
+        </div>
+      )}
+    </PrintableReportPage>
   );
 }

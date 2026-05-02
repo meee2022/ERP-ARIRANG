@@ -39,21 +39,27 @@ export const getTrialBalance = query({
     includeZero: v.boolean(),
   },
   handler: async (ctx, args) => {
-    // Get all posted journal entries in range
-    let entries = await ctx.db
-      .query("journalEntries")
-      .filter((q) => q.eq(q.field("companyId"), args.companyId))
-      .filter((q) => q.eq(q.field("postingStatus"), "posted"))
-      .collect();
+    // Use index to fetch only entries in/before the date range (no full-table scan)
+    const [periodEntries, openingEntries] = await Promise.all([
+      ctx.db.query("journalEntries")
+        .withIndex("by_company_date", (q) =>
+          q.eq("companyId", args.companyId)
+           .gte("entryDate", args.fromDate)
+           .lte("entryDate", args.toDate)
+        )
+        .filter((q) => q.eq(q.field("postingStatus"), "posted"))
+        .collect(),
+      ctx.db.query("journalEntries")
+        .withIndex("by_company_date", (q) =>
+          q.eq("companyId", args.companyId)
+           .lt("entryDate", args.fromDate)
+        )
+        .filter((q) => q.eq(q.field("postingStatus"), "posted"))
+        .collect(),
+    ]);
 
-    if (args.branchId) {
-      entries = entries.filter((e) => e.branchId === args.branchId);
-    }
-
-    const periodEntries = entries.filter(
-      (e) => e.entryDate >= args.fromDate && e.entryDate <= args.toDate
-    );
-    const openingEntries = entries.filter((e) => e.entryDate < args.fromDate);
+    const filteredPeriod  = args.branchId ? periodEntries.filter((e) => e.branchId === args.branchId) : periodEntries;
+    const filteredOpening = args.branchId ? openingEntries.filter((e) => e.branchId === args.branchId) : openingEntries;
 
     // Aggregate by account
     const accountMap: Map<
@@ -71,12 +77,17 @@ export const getTrialBalance = query({
       entryIds: string[],
       isOpening: boolean
     ) => {
-      for (const entryId of entryIds) {
-        const lines = await ctx.db
-          .query("journalLines")
-          .withIndex("by_entry", (q) => q.eq("entryId", entryId as any))
-          .collect();
+      // Batch-fetch all lines in parallel instead of sequential loop
+      const allLineGroups = await Promise.all(
+        entryIds.map((entryId) =>
+          ctx.db
+            .query("journalLines")
+            .withIndex("by_entry", (q) => q.eq("entryId", entryId as any))
+            .collect()
+        )
+      );
 
+      for (const lines of allLineGroups) {
         for (const line of lines) {
           const key = line.accountId as string;
           if (!accountMap.has(key)) {
@@ -100,13 +111,37 @@ export const getTrialBalance = query({
       }
     };
 
-    await processLines(openingEntries.map((e) => e._id as string), true);
-    await processLines(periodEntries.map((e) => e._id as string), false);
+    await processLines(filteredOpening.map((e) => e._id as string), true);
+    await processLines(filteredPeriod.map((e) => e._id as string), false);
+
+    // Fetch all company accounts (needed for level computation via parentId chain)
+    const allCompanyAccounts = await ctx.db
+      .query("accounts")
+      .withIndex("by_company", (q) => q.eq("companyId", args.companyId))
+      .collect();
+    const allAccMap = new Map(allCompanyAccounts.map((a) => [a._id as string, a]));
+
+    // Compute depth level by traversing parentId chain
+    function computeLevel(accountId: string): number {
+      let level = 0;
+      let current = allAccMap.get(accountId) as any;
+      while (current?.parentId) {
+        level++;
+        current = allAccMap.get(current.parentId as string);
+        if (level > 10) break; // safety guard
+      }
+      return level;
+    }
+
+    // Batch-fetch transaction accounts in parallel
+    const accountIds = [...accountMap.keys()];
+    const accounts = await Promise.all(accountIds.map((id) => ctx.db.get(id as any)));
+    const accountById = new Map(accountIds.map((id, i) => [id, accounts[i]]));
 
     // Enrich with account info
     const result = [];
     for (const [accountId, data] of accountMap.entries()) {
-      const account = await ctx.db.get(accountId as any);
+      const account = accountById.get(accountId);
       if (!account) continue;
 
       const closingDebit =
@@ -124,6 +159,8 @@ export const getTrialBalance = query({
         accountNameAr: (account as any).nameAr,
         accountNameEn: (account as any).nameEn,
         accountType: (account as any).accountType,
+        normalBalance: (account as any).normalBalance ?? "debit",
+        level: computeLevel(accountId),
         openingDebit: Math.max(0, data.openingDebit - data.openingCredit),
         openingCredit: Math.max(0, data.openingCredit - data.openingDebit),
         periodDebit: data.periodDebit,
@@ -135,7 +172,16 @@ export const getTrialBalance = query({
 
     result.sort((a, b) => a.accountCode.localeCompare(b.accountCode));
 
-    return result;
+    const totals = {
+      openingDebit:  result.reduce((s, r) => s + r.openingDebit,  0),
+      openingCredit: result.reduce((s, r) => s + r.openingCredit, 0),
+      totalDebit:    result.reduce((s, r) => s + r.periodDebit,   0),
+      totalCredit:   result.reduce((s, r) => s + r.periodCredit,  0),
+      closingDebit:  result.reduce((s, r) => s + r.closingDebit,  0),
+      closingCredit: result.reduce((s, r) => s + r.closingCredit, 0),
+    };
+
+    return { rows: result, totals };
   },
 });
 
@@ -473,6 +519,7 @@ export const getSalesDetailsReport = query({
     salesRepId: v.optional(v.id("salesReps")),
     vehicleId: v.optional(v.id("deliveryVehicles")),
     paymentMethod: v.optional(v.string()),
+    invoiceType: v.optional(v.union(v.literal("cash_sale"), v.literal("credit_sale"), v.literal("mixed_sale"))),
     postingStatus: v.optional(v.union(v.literal("unposted"), v.literal("posted"), v.literal("reversed"))),
     reviewStatus: v.optional(v.union(v.literal("draft"), v.literal("submitted"), v.literal("rejected"), v.literal("approved"))),
   },
@@ -488,6 +535,7 @@ export const getSalesDetailsReport = query({
         (!args.salesRepId || invoice.salesRepId === args.salesRepId) &&
         (!args.vehicleId || invoice.vehicleId === args.vehicleId) &&
         (!args.paymentMethod || invoice.paymentMethod === args.paymentMethod) &&
+        (!args.invoiceType || invoice.invoiceType === args.invoiceType) &&
         (!args.postingStatus || invoice.postingStatus === args.postingStatus) &&
         (!args.reviewStatus || (invoice.reviewStatus ?? "draft") === args.reviewStatus)
     );
@@ -833,19 +881,32 @@ export const getSalesBySalesRep = query({
     fromDate: v.string(),
     toDate: v.string(),
     branchId: v.optional(v.id("branches")),
+    invoiceType: v.optional(v.union(v.literal("cash_sale"), v.literal("credit_sale"), v.literal("mixed_sale"))),
   },
   handler: async (ctx, args) => {
-    let invoices = await ctx.db
-      .query("salesInvoices")
-      .filter((q) => q.eq(q.field("postingStatus"), "posted"))
-      .collect();
+    let invoices = args.branchId
+      ? await ctx.db
+          .query("salesInvoices")
+          .withIndex("by_branch_date", (q) =>
+            q.eq("branchId", args.branchId!).gte("invoiceDate", args.fromDate).lte("invoiceDate", args.toDate)
+          )
+          .filter((q) => q.eq(q.field("postingStatus"), "posted"))
+          .collect()
+      : await ctx.db
+          .query("salesInvoices")
+          .filter((q) =>
+            q.and(
+              q.eq(q.field("postingStatus"), "posted"),
+              q.gte(q.field("invoiceDate"), args.fromDate),
+              q.lte(q.field("invoiceDate"), args.toDate)
+            )
+          )
+          .collect();
 
-    invoices = invoices.filter(
-      (invoice) =>
-        invoice.invoiceDate >= args.fromDate &&
-        invoice.invoiceDate <= args.toDate &&
-        (!args.branchId || invoice.branchId === args.branchId)
-    );
+    // Filter by invoiceType if specified
+    if (args.invoiceType) {
+      invoices = invoices.filter((inv) => inv.invoiceType === args.invoiceType);
+    }
 
     const grouped = new Map<string, any>();
 
@@ -865,23 +926,27 @@ export const getSalesBySalesRep = query({
           totalSales: 0,
           cashSales: 0,
           creditSales: 0,
+          mixedSales: 0,
+          discountTotal: 0,
         });
       }
 
       const row = grouped.get(key)!;
       row.invoiceCount += 1;
       row.totalSales += invoice.totalAmount ?? 0;
-      if (invoice.invoiceType === "cash_sale" || invoice.invoiceType === "mixed_sale") {
+      row.discountTotal += invoice.discountAmount ?? 0;
+      if (invoice.invoiceType === "cash_sale") {
         row.cashSales += invoice.totalAmount ?? 0;
-      }
-      if (invoice.invoiceType === "credit_sale" || invoice.invoiceType === "mixed_sale") {
+      } else if (invoice.invoiceType === "credit_sale") {
+        row.creditSales += invoice.creditAmount ?? invoice.totalAmount ?? 0;
+      } else if (invoice.invoiceType === "mixed_sale") {
+        row.mixedSales += invoice.totalAmount ?? 0;
+        row.cashSales += invoice.cashReceived ?? 0;
         row.creditSales += invoice.creditAmount ?? 0;
       }
     }
 
-    const rows = Array.from(grouped.values()).sort((a, b) =>
-      String(a.salesRepNameAr).localeCompare(String(b.salesRepNameAr))
-    );
+    const rows = Array.from(grouped.values()).sort((a, b) => b.totalSales - a.totalSales);
 
     return {
       rows,
@@ -890,6 +955,111 @@ export const getSalesBySalesRep = query({
         totalSales: rows.reduce((sum, row) => sum + row.totalSales, 0),
         cashSales: rows.reduce((sum, row) => sum + row.cashSales, 0),
         creditSales: rows.reduce((sum, row) => sum + row.creditSales, 0),
+        discountTotal: rows.reduce((sum, row) => sum + row.discountTotal, 0),
+      },
+    };
+  },
+});
+
+export const getSalesReturnsBySalesRep = query({
+  args: {
+    fromDate: v.string(),
+    toDate: v.string(),
+    branchId: v.optional(v.id("branches")),
+  },
+  handler: async (ctx, args) => {
+    let returns = args.branchId
+      ? await ctx.db
+          .query("salesReturns")
+          .withIndex("by_branch", (q) => q.eq("branchId", args.branchId!))
+          .filter((q) =>
+            q.and(
+              q.eq(q.field("postingStatus"), "posted"),
+              q.gte(q.field("returnDate"), args.fromDate),
+              q.lte(q.field("returnDate"), args.toDate)
+            )
+          )
+          .collect()
+      : await ctx.db
+          .query("salesReturns")
+          .filter((q) =>
+            q.and(
+              q.eq(q.field("postingStatus"), "posted"),
+              q.gte(q.field("returnDate"), args.fromDate),
+              q.lte(q.field("returnDate"), args.toDate)
+            )
+          )
+          .collect();
+
+    const grouped = new Map<string, any>();
+
+    for (const ret of returns) {
+      // Get salesRep from original invoice
+      let salesRepId: any = null;
+      let salesRepCode: string | null = null;
+      let salesRepNameAr = "غير محدد";
+      let salesRepNameEn = "Unassigned";
+
+      if (ret.originalInvoiceId) {
+        const originalInvoice = await ctx.db.get(ret.originalInvoiceId);
+        if (originalInvoice?.salesRepId) {
+          salesRepId = originalInvoice.salesRepId;
+          const salesRep = await ctx.db.get(originalInvoice.salesRepId);
+          if (salesRep) {
+            salesRepCode = salesRep.code ?? null;
+            salesRepNameAr = salesRep.nameAr ?? salesRepNameAr;
+            salesRepNameEn = salesRep.nameEn ?? salesRepNameEn;
+          }
+        }
+      }
+
+      const key = salesRepId ?? `unassigned`;
+      if (!grouped.has(key)) {
+        grouped.set(key, {
+          salesRepId,
+          salesRepCode,
+          salesRepNameAr,
+          salesRepNameEn,
+          returnCount: 0,
+          totalReturns: 0,
+          cashReturns: 0,
+          creditReturns: 0,
+          returns: [] as any[],
+        });
+      }
+
+      const row = grouped.get(key)!;
+      row.returnCount += 1;
+      row.totalReturns += ret.totalAmount ?? 0;
+      if (ret.refundMethod === "cash") {
+        row.cashReturns += ret.totalAmount ?? 0;
+      } else {
+        row.creditReturns += ret.totalAmount ?? 0;
+      }
+
+      const customer = ret.customerId ? await ctx.db.get(ret.customerId) : null;
+      row.returns.push({
+        _id: ret._id,
+        returnNumber: ret.returnNumber,
+        returnDate: ret.returnDate,
+        customerNameAr: customer?.nameAr ?? "—",
+        customerNameEn: customer?.nameEn ?? null,
+        refundMethod: ret.refundMethod,
+        totalAmount: ret.totalAmount,
+        returnReason: ret.returnReason ?? null,
+        postingStatus: ret.postingStatus,
+      });
+    }
+
+    const rows = Array.from(grouped.values()).sort((a, b) => b.totalReturns - a.totalReturns);
+
+    return {
+      rows,
+      totals: {
+        returnCount: rows.reduce((sum, r) => sum + r.returnCount, 0),
+        totalReturns: rows.reduce((sum, r) => sum + r.totalReturns, 0),
+        cashReturns: rows.reduce((sum, r) => sum + r.cashReturns, 0),
+        creditReturns: rows.reduce((sum, r) => sum + r.creditReturns, 0),
       },
     };
   },
@@ -900,19 +1070,31 @@ export const getSalesByVehicle = query({
     fromDate: v.string(),
     toDate: v.string(),
     branchId: v.optional(v.id("branches")),
+    invoiceType: v.optional(v.union(v.literal("cash_sale"), v.literal("credit_sale"), v.literal("mixed_sale"))),
   },
   handler: async (ctx, args) => {
-    let invoices = await ctx.db
-      .query("salesInvoices")
-      .filter((q) => q.eq(q.field("postingStatus"), "posted"))
-      .collect();
+    let invoices = args.branchId
+      ? await ctx.db
+          .query("salesInvoices")
+          .withIndex("by_branch_date", (q) =>
+            q.eq("branchId", args.branchId!).gte("invoiceDate", args.fromDate).lte("invoiceDate", args.toDate)
+          )
+          .filter((q) => q.eq(q.field("postingStatus"), "posted"))
+          .collect()
+      : await ctx.db
+          .query("salesInvoices")
+          .filter((q) =>
+            q.and(
+              q.eq(q.field("postingStatus"), "posted"),
+              q.gte(q.field("invoiceDate"), args.fromDate),
+              q.lte(q.field("invoiceDate"), args.toDate)
+            )
+          )
+          .collect();
 
-    invoices = invoices.filter(
-      (invoice) =>
-        invoice.invoiceDate >= args.fromDate &&
-        invoice.invoiceDate <= args.toDate &&
-        (!args.branchId || invoice.branchId === args.branchId)
-    );
+    if (args.invoiceType) {
+      invoices = invoices.filter((inv) => inv.invoiceType === args.invoiceType);
+    }
 
     const grouped = new Map<string, any>();
 
@@ -1001,27 +1183,42 @@ export const getARaging = query({
 
     const customerTotals: Map<string, { customer: any; buckets: typeof buckets }> = new Map();
 
+    // Batch-fetch: allocations for partial invoices + all unique customers (parallel)
+    const partialInvoices = outstanding.filter((i) => i.paymentStatus === "partial");
+    const uniqueCustomerIds = [...new Set(outstanding.map((i) => i.customerId).filter(Boolean))];
+
+    const [allocGroups, customers] = await Promise.all([
+      Promise.all(
+        partialInvoices.map((inv) =>
+          ctx.db
+            .query("receiptAllocations")
+            .withIndex("by_invoice", (q) => q.eq("invoiceId", inv._id))
+            .filter((q) => q.eq(q.field("isReversed"), false))
+            .collect()
+        )
+      ),
+      Promise.all(uniqueCustomerIds.map((id) => ctx.db.get(id as any))),
+    ]);
+
+    const allocByInvoice = new Map(partialInvoices.map((inv, i) => [inv._id, allocGroups[i]]));
+    const customerById = new Map(uniqueCustomerIds.map((id, i) => [id, customers[i]]));
+
     for (const inv of outstanding) {
       const dueDate = inv.dueDate ? new Date(inv.dueDate) : new Date(inv.invoiceDate);
       const daysPastDue = Math.floor(
         (asOf.getTime() - dueDate.getTime()) / (1000 * 60 * 60 * 24)
       );
 
-      // Compute actual outstanding: creditAmount minus total non-reversed allocations
       let outstanding_amount = inv.creditAmount;
       if (inv.paymentStatus === "partial") {
-        const allocs = await ctx.db
-          .query("receiptAllocations")
-          .withIndex("by_invoice", (q) => q.eq("invoiceId", inv._id))
-          .filter((q) => q.eq(q.field("isReversed"), false))
-          .collect();
+        const allocs = allocByInvoice.get(inv._id) ?? [];
         const paid = allocs.reduce((s, a) => s + a.allocatedAmount, 0);
         outstanding_amount = Math.max(0, inv.creditAmount - paid);
       }
       if (outstanding_amount <= 0) continue;
       const customerId = inv.customerId ?? "unknown";
       if (!customerTotals.has(customerId)) {
-        const customer = inv.customerId ? await ctx.db.get(inv.customerId) : null;
+        const customer = customerById.get(inv.customerId as any) ?? null;
         customerTotals.set(customerId, {
           customer,
           buckets: { current: 0, days1_30: 0, days31_60: 0, days61_90: 0, days91Plus: 0 },
@@ -1093,26 +1290,41 @@ export const getAPaging = query({
 
     const supplierTotals: Map<string, { supplier: any; buckets: typeof buckets }> = new Map();
 
+    // Batch-fetch allocations and suppliers in parallel
+    const partialPurchaseInvoices = outstanding.filter((i) => i.paymentStatus === "partial");
+    const uniqueSupplierIds = [...new Set(outstanding.map((i) => i.supplierId).filter(Boolean))];
+
+    const [apAllocGroups, suppliers] = await Promise.all([
+      Promise.all(
+        partialPurchaseInvoices.map((inv) =>
+          ctx.db
+            .query("paymentAllocations")
+            .withIndex("by_invoice", (q) => q.eq("invoiceId", inv._id))
+            .filter((q) => q.eq(q.field("isReversed"), false))
+            .collect()
+        )
+      ),
+      Promise.all(uniqueSupplierIds.map((id) => ctx.db.get(id as any))),
+    ]);
+
+    const apAllocByInvoice = new Map(partialPurchaseInvoices.map((inv, i) => [inv._id, apAllocGroups[i]]));
+    const supplierById = new Map(uniqueSupplierIds.map((id, i) => [id, suppliers[i]]));
+
     for (const inv of outstanding) {
       const dueDate = inv.dueDate ? new Date(inv.dueDate) : new Date(inv.invoiceDate);
       const daysPastDue = Math.floor(
         (asOf.getTime() - dueDate.getTime()) / (1000 * 60 * 60 * 24)
       );
 
-      // Compute actual outstanding: totalAmount minus total non-reversed payment allocations
       let outstandingAmount = inv.totalAmount;
       if (inv.paymentStatus === "partial") {
-        const allocs = await ctx.db
-          .query("paymentAllocations")
-          .withIndex("by_invoice", (q) => q.eq("invoiceId", inv._id))
-          .filter((q) => q.eq(q.field("isReversed"), false))
-          .collect();
+        const allocs = apAllocByInvoice.get(inv._id) ?? [];
         const paid = allocs.reduce((s, a) => s + a.allocatedAmount, 0);
         outstandingAmount = Math.max(0, inv.totalAmount - paid);
       }
       if (outstandingAmount <= 0) continue;
       if (!supplierTotals.has(inv.supplierId)) {
-        const supplier = await ctx.db.get(inv.supplierId);
+        const supplier = supplierById.get(inv.supplierId as any) ?? null;
         supplierTotals.set(inv.supplierId, {
           supplier,
           buckets: { current: 0, days1_30: 0, days31_60: 0, days61_90: 0, days91Plus: 0 },
@@ -1151,6 +1363,7 @@ export const getAPaging = query({
 
 export const getSalesReport = query({
   args: {
+    companyId: v.optional(v.id("companies")),
     branchId: v.optional(v.id("branches")),
     fromDate: v.string(),
     toDate: v.string(),
@@ -1161,21 +1374,31 @@ export const getSalesReport = query({
       v.literal("customer"),
       v.literal("salesRep")
     ),
+    invoiceType: v.optional(v.union(v.literal("cash_sale"), v.literal("credit_sale"), v.literal("mixed_sale"))),
   },
   handler: async (ctx, args) => {
+    // Use index to fetch ONLY invoices in the date range (no full-table scan)
     let invoices = args.branchId
       ? await ctx.db
           .query("salesInvoices")
-          .withIndex("by_branch", (q) => q.eq("branchId", args.branchId!))
+          .withIndex("by_branch_date", (q) =>
+            q.eq("branchId", args.branchId!).gte("invoiceDate", args.fromDate).lte("invoiceDate", args.toDate)
+          )
+          .filter((q) => q.eq(q.field("postingStatus"), "posted"))
           .collect()
-      : await ctx.db.query("salesInvoices").collect();
+      : args.companyId
+      ? await ctx.db
+          .query("salesInvoices")
+          .withIndex("by_company_date", (q) =>
+            q.eq("companyId", args.companyId!).gte("invoiceDate", args.fromDate).lte("invoiceDate", args.toDate)
+          )
+          .filter((q) => q.eq(q.field("postingStatus"), "posted"))
+          .collect()
+      : [];
 
-    invoices = invoices.filter(
-      (i) =>
-        i.postingStatus === "posted" &&
-        i.invoiceDate >= args.fromDate &&
-        i.invoiceDate <= args.toDate
-    );
+    if (args.invoiceType) {
+      invoices = invoices.filter((inv) => inv.invoiceType === args.invoiceType);
+    }
 
     if (args.groupBy === "day") {
       const byDay: Map<string, { date: string; total: number; count: number; vat: number }> =
@@ -1477,16 +1700,25 @@ export const getStockValuationReport = query({
           .collect()
       : await ctx.db.query("stockBalance").collect();
 
+    // Filter out zero-quantity early to reduce lookups
+    balances = balances.filter((b) => b.quantity !== 0);
+
+    // Batch-fetch all items and warehouses in parallel (fixes N+1 problem)
+    const [items, warehouses] = await Promise.all([
+      Promise.all(balances.map((b) => ctx.db.get(b.itemId))),
+      Promise.all(balances.map((b) => ctx.db.get(b.warehouseId))),
+    ]);
+
     const result = [];
     let totalValue = 0;
 
-    for (const balance of balances) {
-      const item = await ctx.db.get(balance.itemId);
-      const warehouse = await ctx.db.get(balance.warehouseId);
+    for (let i = 0; i < balances.length; i++) {
+      const balance = balances[i];
+      const item = items[i];
+      const warehouse = warehouses[i];
 
       if (!item || !item.isActive) continue;
       if (args.companyId && item.companyId !== args.companyId) continue;
-      if (balance.quantity === 0) continue;
 
       totalValue += balance.totalValue;
       result.push({
@@ -1626,50 +1858,82 @@ export const getIncomeStatement = query({
       )
       .collect();
 
-    const revenueRows = revenueAccounts
-      .filter((a) => a.isPostable)
-      .map((a) => {
-        const mv = movementMap.get(a._id as string) ?? { debit: 0, credit: 0 };
-        // Revenue: credit-normal → balance = credits - debits
-        const balance = mv.credit - mv.debit;
-        return {
-          accountId: a._id as string,
-          code: a.code,
-          nameAr: a.nameAr,
-          nameEn: a.nameEn ?? a.nameAr,
-          accountSubType: a.accountSubType,
-          balance,
-        };
-      })
+    const makeRow = (a: any, normalBalance: "credit" | "debit") => {
+      const mv = movementMap.get(a._id as string) ?? { debit: 0, credit: 0 };
+      const balance = normalBalance === "credit"
+        ? mv.credit - mv.debit   // revenue: credit-normal
+        : mv.debit - mv.credit;  // expense: debit-normal
+      return {
+        accountId:      a._id as string,
+        code:           a.code,
+        nameAr:         a.nameAr,
+        nameEn:         a.nameEn ?? a.nameAr,
+        accountSubType: a.accountSubType ?? "",
+        balance,
+      };
+    };
+
+    // ── Revenue rows ──────────────────────────────────────────────────────────
+    const salesRevenueRows = revenueAccounts
+      .filter((a) => a.isPostable && (a.accountSubType === "sales_revenue" || !a.accountSubType))
+      .map((a) => makeRow(a, "credit"))
       .sort((a, b) => a.code.localeCompare(b.code));
 
-    const expenseRows = expenseAccounts
-      .filter((a) => a.isPostable)
-      .map((a) => {
-        const mv = movementMap.get(a._id as string) ?? { debit: 0, credit: 0 };
-        // Expense: debit-normal → balance = debits - credits
-        const balance = mv.debit - mv.credit;
-        return {
-          accountId: a._id as string,
-          code: a.code,
-          nameAr: a.nameAr,
-          nameEn: a.nameEn ?? a.nameAr,
-          accountSubType: a.accountSubType,
-          balance,
-        };
-      })
+    const otherRevenueRows = revenueAccounts
+      .filter((a) => a.isPostable && a.accountSubType === "other_revenue")
+      .map((a) => makeRow(a, "credit"))
       .sort((a, b) => a.code.localeCompare(b.code));
 
-    const totalRevenue = revenueRows.reduce((s, r) => s + r.balance, 0);
-    const totalExpenses = expenseRows.reduce((s, r) => s + r.balance, 0);
-    const netIncome = totalRevenue - totalExpenses;
+    const allRevenueRows = [...salesRevenueRows, ...otherRevenueRows];
+
+    // ── Expense rows — split COGS vs operating ────────────────────────────────
+    const cogsRows = expenseAccounts
+      .filter((a) => a.isPostable && a.accountSubType === "cogs")
+      .map((a) => makeRow(a, "debit"))
+      .sort((a, b) => a.code.localeCompare(b.code));
+
+    const operatingExpenseRows = expenseAccounts
+      .filter((a) => a.isPostable && a.accountSubType !== "cogs")
+      .map((a) => makeRow(a, "debit"))
+      .sort((a, b) => a.code.localeCompare(b.code));
+
+    // ── Totals ────────────────────────────────────────────────────────────────
+    const totalSalesRevenue   = salesRevenueRows.reduce((s, r) => s + r.balance, 0);
+    const totalOtherRevenue   = otherRevenueRows.reduce((s, r) => s + r.balance, 0);
+    const totalRevenue        = allRevenueRows.reduce((s, r) => s + r.balance, 0);
+    const totalCogs           = cogsRows.reduce((s, r) => s + r.balance, 0);
+    const grossProfit         = totalRevenue - totalCogs;
+    const totalOperatingExp   = operatingExpenseRows.reduce((s, r) => s + r.balance, 0);
+    const totalExpenses       = totalCogs + totalOperatingExp;
+    const operatingProfit     = grossProfit - totalOperatingExp;
+    const netIncome           = totalRevenue - totalExpenses;
+
+    // ── Margin percentages (avoid /0) ─────────────────────────────────────────
+    const pct = (n: number) => totalRevenue > 0 ? Math.round((n / totalRevenue) * 1000) / 10 : 0;
 
     return {
-      revenueAccounts: revenueRows,
-      expenseAccounts: expenseRows,
+      // Detailed rows
+      salesRevenueAccounts:   salesRevenueRows,
+      otherRevenueAccounts:   otherRevenueRows,
+      cogsAccounts:           cogsRows,
+      operatingExpenseAccounts: operatingExpenseRows,
+      // Legacy (backward compat)
+      revenueAccounts:        allRevenueRows,
+      expenseAccounts:        [...cogsRows, ...operatingExpenseRows],
+      // Totals
+      totalSalesRevenue,
+      totalOtherRevenue,
       totalRevenue,
+      totalCogs,
+      grossProfit,
+      totalOperatingExp,
+      operatingProfit,
       totalExpenses,
       netIncome,
+      // Margins
+      grossMarginPct:     pct(grossProfit),
+      operatingMarginPct: pct(operatingProfit),
+      netMarginPct:       pct(netIncome),
     };
   },
 });

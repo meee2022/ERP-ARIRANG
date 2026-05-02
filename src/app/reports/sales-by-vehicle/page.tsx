@@ -6,11 +6,20 @@ import { useQuery } from "convex/react";
 import { api } from "../../../../convex/_generated/api";
 import { useI18n } from "@/hooks/useI18n";
 import { useAppStore } from "@/store/useAppStore";
-import { Truck, Printer } from "lucide-react";
-import { PageHeader } from "@/components/ui/page-header";
+import { Truck, Banknote, CreditCard, Shuffle, LayoutList } from "lucide-react";
+
+const TX_TYPES = [
+  { value: "all",         Icon: LayoutList, color: "#6b1523", bg: "#fdf2f4", labelAr: "الكل",   labelEn: "All"    },
+  { value: "cash_sale",   Icon: Banknote,   color: "#16a34a", bg: "#f0fdf4", labelAr: "نقدي",   labelEn: "Cash"   },
+  { value: "credit_sale", Icon: CreditCard, color: "#2563eb", bg: "#eff6ff", labelAr: "آجل",    labelEn: "Credit" },
+  { value: "mixed_sale",  Icon: Shuffle,    color: "#d97706", bg: "#fffbeb", labelAr: "مختلط",  labelEn: "Mixed"  },
+] as const;
+type TxType = typeof TX_TYPES[number]["value"];
 import { FilterPanel, FilterField } from "@/components/ui/filter-panel";
 import { SummaryStrip } from "@/components/ui/data-display";
 import { EmptyState } from "@/components/ui/empty-state";
+import { useCompanySettings } from "@/hooks/useCompanySettings";
+import { PrintableReportPage } from "@/components/ui/printable-report";
 
 function todayISO() { return new Date().toISOString().split("T")[0]; }
 function startOfMonthISO() {
@@ -20,8 +29,10 @@ function startOfMonthISO() {
 
 export default function SalesByVehiclePage() {
   const { t, isRTL, formatCurrency } = useI18n();
+  const { company: printCompany } = useCompanySettings();
   const [fromDate, setFromDate] = useState(startOfMonthISO());
   const [toDate, setToDate] = useState(todayISO());
+  const [txType, setTxType] = useState<TxType>("all");
   const selectedBranch = useAppStore((s) => s.selectedBranch);
   const branchArg = selectedBranch !== "all" ? selectedBranch : undefined;
 
@@ -29,74 +40,84 @@ export default function SalesByVehiclePage() {
     fromDate,
     toDate,
     branchId: branchArg as any,
+    invoiceType: txType !== "all" ? (txType as any) : undefined,
   });
 
   const rows = report?.rows ?? [];
   const totals = report?.totals ?? { invoiceCount: 0, totalSales: 0, cashSales: 0, creditSales: 0 };
 
   return (
-    <div dir={isRTL ? "rtl" : "ltr"} className="space-y-5">
-      <PageHeader
-        icon={Truck}
-        title={t("salesByVehicleTitle")}
-        actions={
-          <button onClick={() => window.print()} className="btn-ghost h-9 px-4 rounded-xl inline-flex items-center gap-2 text-sm font-semibold">
-            <Printer className="h-4 w-4" />
-            {t("print")}
-          </button>
-        }
-      />
-
-      <FilterPanel>
-        <FilterField label={t("fromDate")}>
-          <input type="date" value={fromDate} onChange={(e) => setFromDate(e.target.value)} className="input-field h-8 w-auto text-sm" />
-        </FilterField>
-        <FilterField label={t("toDate")}>
-          <input type="date" value={toDate} onChange={(e) => setToDate(e.target.value)} className="input-field h-8 w-auto text-sm" />
-        </FilterField>
-      </FilterPanel>
-
-      <SummaryStrip items={[
-        { label: t("invoiceCount"), value: String(totals.invoiceCount), borderColor: "var(--brand-600)", accent: "var(--ink-900)" },
-        { label: t("totalSales"), value: formatCurrency(totals.totalSales), borderColor: "var(--gold-400)", accent: "var(--ink-900)" },
-        { label: t("cashSales"), value: formatCurrency(totals.cashSales), borderColor: "#16a34a", accent: "#16a34a" },
-        { label: t("creditSales"), value: formatCurrency(totals.creditSales), borderColor: "#2563eb", accent: "#2563eb" },
-      ]} />
-
-      <div className="surface-card overflow-hidden">
-        {report === undefined ? (
-          <div className="loading-spinner"><div className="spinner" /><span className="spinner-label">{t("loading")}</span></div>
-        ) : rows.length === 0 ? (
-          <EmptyState icon={Truck} title={t("noResults")} />
-        ) : (
-          <div className="overflow-x-auto">
-            <table className="data-table">
-              <thead>
-                <tr>
-                  <th>{t("vehicleCode")}</th>
-                  <th>{t("vehicleDescription")}</th>
-                  <th className="text-end">{t("invoiceCount")}</th>
-                  <th className="text-end">{t("cashSales")}</th>
-                  <th className="text-end">{t("creditSales")}</th>
-                  <th className="text-end">{t("totalSales")}</th>
-                </tr>
-              </thead>
-              <tbody>
-                {rows.map((row: any, index: number) => (
-                  <tr key={row.vehicleId ?? index}>
-                    <td className="code">{row.vehicleCode || "—"}</td>
-                    <td>{isRTL ? row.vehicleDescriptionAr : (row.vehicleDescriptionEn || row.vehicleDescriptionAr)}</td>
-                    <td className="numeric text-end">{row.invoiceCount}</td>
-                    <td className="numeric text-end">{formatCurrency(row.cashSales)}</td>
-                    <td className="numeric text-end">{formatCurrency(row.creditSales)}</td>
-                    <td className="numeric text-end font-semibold">{formatCurrency(row.totalSales)}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+    <PrintableReportPage
+      company={printCompany}
+      isRTL={isRTL}
+      title={t("salesByVehicleTitle")}
+      period={`${fromDate} — ${toDate}`}
+      filters={
+        <div className="space-y-3">
+          <div className="flex flex-wrap gap-2">
+            {TX_TYPES.map(({ value, Icon, color, bg, labelAr, labelEn }) => {
+              const active = txType === value;
+              return (
+                <button key={value} onClick={() => setTxType(value)}
+                  className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-[12px] font-semibold transition-all border"
+                  style={{ background: active ? color : bg, color: active ? "white" : color, borderColor: active ? color : color + "30", boxShadow: active ? `0 2px 8px ${color}40` : "none" }}>
+                  <Icon className="h-3.5 w-3.5" />
+                  {isRTL ? labelAr : labelEn}
+                </button>
+              );
+            })}
           </div>
-        )}
-      </div>
-    </div>
+          <FilterPanel>
+            <FilterField label={t("fromDate")}>
+              <input type="date" value={fromDate} onChange={(e) => setFromDate(e.target.value)} className="input-field h-8 w-auto text-sm" />
+            </FilterField>
+            <FilterField label={t("toDate")}>
+              <input type="date" value={toDate} onChange={(e) => setToDate(e.target.value)} className="input-field h-8 w-auto text-sm" />
+            </FilterField>
+          </FilterPanel>
+        </div>
+      }
+      summary={
+        <SummaryStrip items={[
+          { label: t("invoiceCount"), value: String(totals.invoiceCount), borderColor: "var(--brand-600)", accent: "var(--ink-900)" },
+          { label: t("totalSales"), value: formatCurrency(totals.totalSales), borderColor: "var(--gold-400)", accent: "var(--ink-900)" },
+          { label: t("cashSales"), value: formatCurrency(totals.cashSales), borderColor: "#16a34a", accent: "#16a34a" },
+          { label: t("creditSales"), value: formatCurrency(totals.creditSales), borderColor: "#2563eb", accent: "#2563eb" },
+        ]} />
+      }
+    >
+      {report === undefined ? (
+        <div className="loading-spinner"><div className="spinner" /><span className="spinner-label">{t("loading")}</span></div>
+      ) : rows.length === 0 ? (
+        <EmptyState icon={Truck} title={t("noResults")} />
+      ) : (
+        <div className="overflow-x-auto">
+          <table className="data-table">
+            <thead>
+              <tr>
+                <th>{t("vehicleCode")}</th>
+                <th>{t("vehicleDescription")}</th>
+                <th className="text-end">{t("invoiceCount")}</th>
+                <th className="text-end">{t("cashSales")}</th>
+                <th className="text-end">{t("creditSales")}</th>
+                <th className="text-end">{t("totalSales")}</th>
+              </tr>
+            </thead>
+            <tbody>
+              {rows.map((row: any, index: number) => (
+                <tr key={row.vehicleId ?? index}>
+                  <td className="code">{row.vehicleCode || "—"}</td>
+                  <td>{isRTL ? row.vehicleDescriptionAr : (row.vehicleDescriptionEn || row.vehicleDescriptionAr)}</td>
+                  <td className="numeric text-end">{row.invoiceCount}</td>
+                  <td className="numeric text-end">{formatCurrency(row.cashSales)}</td>
+                  <td className="numeric text-end">{formatCurrency(row.creditSales)}</td>
+                  <td className="numeric text-end font-semibold">{formatCurrency(row.totalSales)}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </PrintableReportPage>
   );
 }

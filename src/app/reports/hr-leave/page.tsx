@@ -3,13 +3,13 @@
 import { useQuery } from "convex/react";
 import { api } from "../../../../convex/_generated/api";
 import { useI18n } from "@/hooks/useI18n";
-import { PageHeader } from "@/components/ui/page-header";
+import { useCompanySettings } from "@/hooks/useCompanySettings";
+import { PrintableReportPage } from "@/components/ui/printable-report";
 import { useState } from "react";
-
-const MONTHS = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
 
 export default function HrLeaveReportPage() {
   const { t, isRTL } = useI18n();
+  const { company: printCompany } = useCompanySettings();
   const [year, setYear] = useState(new Date().getFullYear());
   const rows = useQuery(api.hr.getLeaveReport, { year }) ?? [];
 
@@ -20,19 +20,25 @@ export default function HrLeaveReportPage() {
   };
 
   return (
-    <div className="p-6 space-y-4" dir={isRTL ? "rtl" : "ltr"}>
-      <div className="no-print"><PageHeader title={t("leaveReport")} /></div>
-
-      <div className="no-print flex gap-3 flex-wrap items-end">
-        <div>
-          <label className="text-xs text-gray-500 block mb-1">{isRTL ? "السنة" : "Year"}</label>
-          <input type="number" value={year} onChange={(e) => setYear(Number(e.target.value))} className="input-field w-28" />
+    <PrintableReportPage
+      company={printCompany}
+      isRTL={isRTL}
+      title={t("leaveReport")}
+      period={String(year)}
+      filters={
+        <div className="flex gap-3 flex-wrap items-end p-1">
+          <div>
+            <label className="text-xs text-gray-500 block mb-1">{isRTL ? "السنة" : "Year"}</label>
+            <input type="number" value={year} onChange={(e) => setYear(Number(e.target.value))} className="input-field w-28" />
+          </div>
+          <span className="text-[12px] font-semibold" style={{ color: "var(--ink-500)" }}>
+            {rows.length} {isRTL ? "طلب" : "requests"}
+          </span>
         </div>
-        <button onClick={() => window.print()} className="btn-ghost">{isRTL ? "طباعة" : "Print"}</button>
-      </div>
-
-      <div className="surface-card rounded-xl overflow-hidden">
-        <table className="w-full text-sm">
+      }
+    >
+      <div className="overflow-x-auto">
+        <table className="w-full text-sm border-collapse">
           <thead>
             <tr style={{ background: "#6b1523" }}>
               <th className="px-[14px] py-[10px] text-start text-[11px] font-bold uppercase tracking-wider whitespace-nowrap" style={{ color: "rgba(255,255,255,0.85)" }}>{t("employeeName")}</th>
@@ -61,6 +67,6 @@ export default function HrLeaveReportPage() {
           </tbody>
         </table>
       </div>
-    </div>
+    </PrintableReportPage>
   );
 }

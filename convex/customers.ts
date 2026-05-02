@@ -115,3 +115,26 @@ export const remove = mutation({
     await ctx.db.delete(args.id);
   },
 });
+
+// ── Fix stale accountId references (points to deleted accounts) ───────────────
+export const fixStaleAccountIds = mutation({
+  args: { companyId: v.id("companies") },
+  handler: async (ctx, args) => {
+    const customers = await ctx.db
+      .query("customers")
+      .withIndex("by_company", (q) => q.eq("companyId", args.companyId))
+      .collect();
+
+    let fixed = 0;
+    for (const customer of customers) {
+      if (!customer.accountId) continue;
+      const account = await ctx.db.get(customer.accountId);
+      if (!account) {
+        // Account was deleted — clear the stale reference
+        await ctx.db.patch(customer._id, { accountId: undefined });
+        fixed++;
+      }
+    }
+    return { fixed, checked: customers.length };
+  },
+});

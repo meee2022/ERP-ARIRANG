@@ -694,64 +694,12 @@ export default function ChartOfAccountsPage() {
   const [selectedAccount, setSelectedAccount] = useState<AccountDoc | null>(null);
   const [showNewModal, setShowNewModal] = useState(false);
   const [showEditModal, setShowEditModal] = useState(false);
-  const [seedingExpenses, setSeedingExpenses] = useState(false);
-  const [cleaningUp, setCleaningUp] = useState(false);
-
   const companies  = useQuery(api.seed.getCompanies, {});
   const company    = companies?.[0] as CompanyDoc | undefined;
   const rawAccounts = useQuery(api.accounts.getAll, company ? { companyId: company._id } : "skip");
   const accounts   = (rawAccounts ?? []).filter((a) => !filterType || a.accountType === filterType);
   const rootAccounts = accounts.filter((a) => !a.parentId);
   const loading    = rawAccounts === undefined;
-  const addDirectExpenses = useMutation(api.seed.addDirectExpensesAccounts);
-  const cleanupOldAccounts = useMutation(api.accounts.cleanupOldAccounts);
-
-  const handleAddDirectExpenses = async () => {
-    if (!company) return;
-    setSeedingExpenses(true);
-    try {
-      const result = await addDirectExpenses({ companyId: company._id });
-      const created = typeof result === "object" && result && "count" in result ? Number(result.count ?? 0) : 0;
-      toast.success(isRTL
-        ? `تم إضافة ${created} حساب مصاريف مباشرة بنجاح`
-        : `Added ${created} Direct Expenses accounts successfully`);
-    } catch (error: unknown) {
-      toast.error(error);
-    } finally {
-      setSeedingExpenses(false);
-    }
-  };
-
-  // Show seed button only if 5100 doesn't exist yet
-  const hasDirectExpenses = (rawAccounts ?? []).some((a) => a.code === "5100");
-
-  // Old accounts = short codes (< 11 digits)
-  const oldAccountsCount = (rawAccounts ?? []).filter((a) => a.code.length < 11).length;
-
-  const handleCleanupOldAccounts = async () => {
-    if (!company || !currentUser?._id) return;
-    const confirmed = window.confirm(
-      isRTL
-        ? `سيتم حذف ${oldAccountsCount} حساب برمز قصير (أقل من 11 رقم). هل تريد المتابعة؟`
-        : `This will delete ${oldAccountsCount} accounts with short codes (< 11 digits). Continue?`
-    );
-    if (!confirmed) return;
-    setCleaningUp(true);
-    try {
-      const res = await cleanupOldAccounts({ companyId: company._id, userId: currentUser._id as Id<"users">, force: true });
-      const { deleted, skipped, linesDeleted } = res as { deleted: number; skipped: number; linesDeleted: number };
-      toast.success(
-        isRTL
-          ? `تم الحذف: ${deleted} حساب${linesDeleted > 0 ? `\nقيود محذوفة: ${linesDeleted}` : ""}${skipped > 0 ? `\nتعذّر حذف: ${skipped}` : ""}`
-          : `Deleted: ${deleted} account(s)${linesDeleted > 0 ? `\nJournal lines deleted: ${linesDeleted}` : ""}${skipped > 0 ? `\nSkipped: ${skipped}` : ""}`
-      );
-      setSelectedAccount(null);
-    } catch (error: unknown) {
-      toast.error(error);
-    } finally {
-      setCleaningUp(false);
-    }
-  };
 
   return (
     <div dir={isRTL ? "rtl" : "ltr"} className="flex flex-col h-[calc(100vh-120px)] space-y-4">
@@ -771,6 +719,7 @@ export default function ChartOfAccountsPage() {
         />
       )}
 
+
       {/* Page header */}
       <div className="no-print">
         <PageHeader
@@ -779,26 +728,12 @@ export default function ChartOfAccountsPage() {
           count={(rawAccounts ?? []).length}
           actions={
             canCreate("finance") ? (
-              <div className="flex items-center gap-2">
-                {oldAccountsCount > 0 && canDelete("finance") && (
-                  <button
-                    onClick={handleCleanupOldAccounts}
-                    disabled={cleaningUp}
-                    className="h-9 px-4 rounded-xl inline-flex items-center gap-2 text-sm font-semibold border border-red-300 bg-red-50 text-red-700 hover:bg-red-100 disabled:opacity-50"
-                  >
-                    <Trash2 className="h-4 w-4" />
-                    {cleaningUp
-                      ? (isRTL ? "جاري الحذف..." : "Deleting...")
-                      : (isRTL ? `حذف الحسابات القديمة (${oldAccountsCount})` : `Delete Old Accounts (${oldAccountsCount})`)}
-                  </button>
-                )}
-                <button
-                  onClick={() => setShowNewModal(true)}
-                  className="btn-primary h-9 px-4 rounded-xl inline-flex items-center gap-2 text-sm font-semibold"
-                >
-                  <Plus className="h-4 w-4" /> {t("newAccount")}
-                </button>
-              </div>
+              <button
+                onClick={() => setShowNewModal(true)}
+                className="btn-primary h-9 px-4 rounded-xl inline-flex items-center gap-2 text-sm font-semibold"
+              >
+                <Plus className="h-4 w-4" /> {t("newAccount")}
+              </button>
             ) : undefined
           }
         />

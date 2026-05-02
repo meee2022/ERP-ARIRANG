@@ -85,7 +85,7 @@ export default defineSchema({
   customers: defineTable({
     companyId: v.id("companies"), branchId: v.optional(v.id("branches")),
     code: v.string(), nameAr: v.string(), nameEn: v.optional(v.string()),
-    accountId: v.id("accounts"), phone: v.optional(v.string()), mobile: v.optional(v.string()),
+    accountId: v.optional(v.id("accounts")), phone: v.optional(v.string()), mobile: v.optional(v.string()),
     email: v.optional(v.string()), address: v.optional(v.string()), taxNumber: v.optional(v.string()),
     currencyId: v.optional(v.id("currencies")), creditLimit: v.number(), creditDays: v.number(),
     isActive: v.boolean(), notes: v.optional(v.string()), createdAt: v.number(),
@@ -144,7 +144,7 @@ export default defineSchema({
 
   suppliers: defineTable({
     companyId: v.id("companies"), code: v.string(), nameAr: v.string(), nameEn: v.optional(v.string()),
-    accountId: v.id("accounts"), phone: v.optional(v.string()), mobile: v.optional(v.string()),
+    accountId: v.optional(v.id("accounts")), phone: v.optional(v.string()), mobile: v.optional(v.string()),
     email: v.optional(v.string()), address: v.optional(v.string()), taxNumber: v.optional(v.string()),
     currencyId: v.optional(v.id("currencies")), paymentTerms: v.optional(v.number()),
     isActive: v.boolean(), notes: v.optional(v.string()), createdAt: v.number(),
@@ -333,6 +333,7 @@ export default defineSchema({
     .index("by_customer", ["customerId"])
     .index("by_period", ["periodId"])
     .index("by_branch_date", ["branchId", "invoiceDate"])
+    .index("by_company_date", ["companyId", "invoiceDate"])
     .index("by_customer_payment", ["customerId", "paymentStatus"])
     .index("by_number", ["invoiceNumber"]),
 
@@ -425,6 +426,8 @@ export default defineSchema({
   }).index("by_branch", ["branchId"])
     .index("by_supplier", ["supplierId"])
     .index("by_period", ["periodId"])
+    .index("by_company_date", ["companyId", "invoiceDate"])
+    .index("by_branch_date", ["branchId", "invoiceDate"])
     .index("by_supplier_payment", ["supplierId", "paymentStatus"]),
 
   purchaseInvoiceLines: defineTable({
@@ -562,6 +565,7 @@ export default defineSchema({
   }).index("by_branch", ["branchId"])
     .index("by_period", ["periodId"])
     .index("by_branch_date", ["branchId", "entryDate"])
+    .index("by_company_date", ["companyId", "entryDate"])
     .index("by_type", ["journalType"])
     .index("by_source", ["sourceType", "sourceId"])
     .index("by_status", ["postingStatus"]),

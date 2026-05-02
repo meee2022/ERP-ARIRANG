@@ -5,13 +5,12 @@ import React, { useState } from "react";
 import { useQuery } from "convex/react";
 import { api } from "../../../../convex/_generated/api";
 import { useI18n } from "@/hooks/useI18n";
-import { PageHeader } from "@/components/ui/page-header";
 import { FilterPanel, FilterField } from "@/components/ui/filter-panel";
 import { LoadingState } from "@/components/ui/data-display";
 import { EmptyState } from "@/components/ui/empty-state";
-import { CompanyPrintHeader } from "@/components/ui/company-print-header";
 import { useCompanySettings } from "@/hooks/useCompanySettings";
-import { TrendingUp, Printer } from "lucide-react";
+import { PrintableReportPage } from "@/components/ui/printable-report";
+import { TrendingUp } from "lucide-react";
 
 const CATEGORIES = ["Oven", "Vehicle", "Furniture", "Equipment", "Building", "Computer", "Other"];
 
@@ -31,70 +30,51 @@ export default function DepreciationScheduleReportPage() {
 
   const data = useQuery(
     api.fixedAssets.getDepreciationScheduleReport,
-    companyId
-      ? {
-          companyId,
-          category: category || undefined,
-          fromYear,
-          fromMonth,
-          toYear,
-          toMonth,
-        }
-      : "skip"
+    companyId ? { companyId, category: category || undefined, fromYear, fromMonth, toYear, toMonth } : "skip"
   );
 
   const loading = data === undefined;
   const rows = data ?? [];
 
   return (
-    <div className="space-y-5" dir={isRTL ? "rtl" : "ltr"}>
-      <CompanyPrintHeader company={printCompany} isRTL={isRTL} documentTitle={t("depScheduleReport")} />
-
-      <div className="no-print">
-        <PageHeader
-          icon={TrendingUp}
-          title={t("depScheduleReport")}
-          actions={
-            <button onClick={() => window.print()} className="flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium btn-ghost">
-              <Printer className="h-4 w-4" /> {t("print")}
-            </button>
-          }
-        />
-      </div>
-
-      <div className="no-print">
+    <PrintableReportPage
+      company={printCompany}
+      isRTL={isRTL}
+      title={t("depScheduleReport")}
+      period={`${fromMonth}/${fromYear} — ${toMonth}/${toYear}`}
+      filters={
         <FilterPanel>
-        <FilterField label={t("category")}>
-          <select value={category} onChange={(e) => setCategory(e.target.value)} className="input-field h-8 w-auto text-sm">
-            <option value="">{t("all")}</option>
-            {CATEGORIES.map(c => <option key={c} value={c}>{c}</option>)}
-          </select>
-        </FilterField>
-        <FilterField label={t("fromDate")}>
-          <div className="flex gap-1">
-            <select value={fromMonth} onChange={(e) => setFromMonth(parseInt(e.target.value))} className="input-field h-8 text-sm w-16">
-              {Array.from({ length: 12 }, (_, i) => i + 1).map(m => <option key={m} value={m}>{m}</option>)}
+          <FilterField label={t("category")}>
+            <select value={category} onChange={(e) => setCategory(e.target.value)} className="input-field h-8 w-auto text-sm">
+              <option value="">{t("all")}</option>
+              {CATEGORIES.map(c => <option key={c} value={c}>{c}</option>)}
             </select>
-            <input type="number" value={fromYear} onChange={(e) => setFromYear(parseInt(e.target.value))} className="input-field h-8 text-sm w-20" />
-          </div>
-        </FilterField>
-        <FilterField label={t("toDate")}>
-          <div className="flex gap-1">
-            <select value={toMonth} onChange={(e) => setToMonth(parseInt(e.target.value))} className="input-field h-8 text-sm w-16">
-              {Array.from({ length: 12 }, (_, i) => i + 1).map(m => <option key={m} value={m}>{m}</option>)}
-            </select>
-            <input type="number" value={toYear} onChange={(e) => setToYear(parseInt(e.target.value))} className="input-field h-8 text-sm w-20" />
-          </div>
-        </FilterField>
-      </FilterPanel>
-      </div>
-
-      <div className="surface-card overflow-x-auto">
-        {loading ? (
-          <LoadingState label={t("loading")} />
-        ) : rows.length === 0 ? (
-          <EmptyState icon={TrendingUp} message={isRTL ? "لا توجد بيانات إهلاك" : "No depreciation data found"} />
-        ) : (
+          </FilterField>
+          <FilterField label={t("fromDate")}>
+            <div className="flex gap-1">
+              <select value={fromMonth} onChange={(e) => setFromMonth(parseInt(e.target.value))} className="input-field h-8 text-sm w-16">
+                {Array.from({ length: 12 }, (_, i) => i + 1).map(m => <option key={m} value={m}>{m}</option>)}
+              </select>
+              <input type="number" value={fromYear} onChange={(e) => setFromYear(parseInt(e.target.value))} className="input-field h-8 text-sm w-20" />
+            </div>
+          </FilterField>
+          <FilterField label={t("toDate")}>
+            <div className="flex gap-1">
+              <select value={toMonth} onChange={(e) => setToMonth(parseInt(e.target.value))} className="input-field h-8 text-sm w-16">
+                {Array.from({ length: 12 }, (_, i) => i + 1).map(m => <option key={m} value={m}>{m}</option>)}
+              </select>
+              <input type="number" value={toYear} onChange={(e) => setToYear(parseInt(e.target.value))} className="input-field h-8 text-sm w-20" />
+            </div>
+          </FilterField>
+        </FilterPanel>
+      }
+    >
+      {loading ? (
+        <LoadingState label={t("loading")} />
+      ) : rows.length === 0 ? (
+        <EmptyState icon={TrendingUp} message={isRTL ? "لا توجد بيانات إهلاك" : "No depreciation data found"} />
+      ) : (
+        <div className="overflow-x-auto">
           <table className="data-table">
             <thead>
               <tr>
@@ -121,8 +101,8 @@ export default function DepreciationScheduleReportPage() {
               ))}
             </tbody>
           </table>
-        )}
-      </div>
-    </div>
+        </div>
+      )}
+    </PrintableReportPage>
   );
 }

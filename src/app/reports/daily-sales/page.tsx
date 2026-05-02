@@ -10,17 +10,15 @@ import { usePermissions } from "@/hooks/usePermissions";
 import { EmptyState } from "@/components/ui/empty-state";
 import { LoadingState, SummaryStrip } from "@/components/ui/data-display";
 import { FilterPanel, FilterField } from "@/components/ui/filter-panel";
-import { PageHeader } from "@/components/ui/page-header";
-import { CompanyPrintHeader } from "@/components/ui/company-print-header";
 import { useCompanySettings } from "@/hooks/useCompanySettings";
-import { BarChart2, Printer, ChevronDown, ChevronUp, ExternalLink } from "lucide-react";
+import { PrintableReportPage } from "@/components/ui/printable-report";
+import { BarChart2, ChevronDown, ChevronUp, ExternalLink } from "lucide-react";
 import Link from "next/link";
 
 // ─── Day drill-down panel ─────────────────────────────────────────────────────
 function DayInvoicesPanel({ date, branchId, isRTL, formatCurrency }: any) {
   const result = useQuery(api.reports.getSalesDetailsReport, {
-    fromDate: date,
-    toDate: date,
+    fromDate: date, toDate: date,
     branchId: branchId ?? undefined,
   });
 
@@ -86,9 +84,7 @@ function DayInvoicesPanel({ date, branchId, isRTL, formatCurrency }: any) {
                       <td className="px-3 py-2 text-end text-red-500">
                         {inv.discountAmount > 0 ? formatCurrency(inv.discountAmount) : "—"}
                       </td>
-                      <td className="px-3 py-2 text-end font-bold text-gray-800">
-                        {formatCurrency(inv.totalAmount)}
-                      </td>
+                      <td className="px-3 py-2 text-end font-bold text-gray-800">{formatCurrency(inv.totalAmount)}</td>
                       <td className="px-3 py-2 text-center">
                         <span className={`inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium ${
                           inv.postingStatus === "posted" ? "bg-green-50 text-green-700" : "bg-amber-50 text-amber-700"
@@ -124,10 +120,7 @@ function DayInvoicesPanel({ date, branchId, isRTL, formatCurrency }: any) {
   );
 }
 
-function todayISO() {
-  return new Date().toISOString().split("T")[0];
-}
-
+function todayISO() { return new Date().toISOString().split("T")[0]; }
 function startOfMonthISO() {
   const d = new Date();
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-01`;
@@ -145,8 +138,7 @@ export default function DailySalesPage() {
   const [expandedDate, setExpandedDate] = useState<string | null>(null);
 
   const report = useQuery(api.reports.getDailySalesReport, {
-    fromDate,
-    toDate,
+    fromDate, toDate,
     branchId: branchArg as any,
     salesRepId: undefined,
     vehicleId: undefined,
@@ -157,17 +149,15 @@ export default function DailySalesPage() {
 
   const summaryItems = useMemo(
     () =>
-      totals
-        ? [
-            { label: t("days"), value: String(totals.dayCount), borderColor: "var(--brand-600)", accent: "var(--ink-900)" },
-            { label: t("invoiceCount"), value: String(totals.invoiceCount), borderColor: "#0ea5e9", accent: "#0f172a" },
-            { label: isRTL ? "نقدي" : "Cash", value: formatCurrency(totals.cashSales), borderColor: "#16a34a", accent: "#166534" },
-            { label: isRTL ? "آجل" : "Credit", value: formatCurrency(totals.creditSales), borderColor: "#7c3aed", accent: "#4c1d95" },
-            { label: isRTL ? "مرتجع نقدي" : "Cash Return", value: formatCurrency(totals.cashReturn), borderColor: "#dc2626", accent: "#991b1b" },
-            { label: isRTL ? "مرتجع آجل" : "Credit Return", value: formatCurrency(totals.creditReturn), borderColor: "#f59e0b", accent: "#92400e" },
-            { label: t("net"), value: formatCurrency(totals.netSales), borderColor: "#0f172a", accent: "#0f172a" },
-          ]
-        : [],
+      totals ? [
+        { label: t("days"), value: String(totals.dayCount), borderColor: "var(--brand-600)", accent: "var(--ink-900)" },
+        { label: t("invoiceCount"), value: String(totals.invoiceCount), borderColor: "#0ea5e9", accent: "#0f172a" },
+        { label: isRTL ? "نقدي" : "Cash", value: formatCurrency(totals.cashSales), borderColor: "#16a34a", accent: "#166534" },
+        { label: isRTL ? "آجل" : "Credit", value: formatCurrency(totals.creditSales), borderColor: "#7c3aed", accent: "#4c1d95" },
+        { label: isRTL ? "مرتجع نقدي" : "Cash Return", value: formatCurrency(totals.cashReturn), borderColor: "#dc2626", accent: "#991b1b" },
+        { label: isRTL ? "مرتجع آجل" : "Credit Return", value: formatCurrency(totals.creditReturn), borderColor: "#f59e0b", accent: "#92400e" },
+        { label: t("net"), value: formatCurrency(totals.netSales), borderColor: "#0f172a", accent: "#0f172a" },
+      ] : [],
     [totals, t, formatCurrency, isRTL]
   );
 
@@ -176,124 +166,101 @@ export default function DailySalesPage() {
   }
 
   return (
-    <div dir={isRTL ? "rtl" : "ltr"} className="space-y-5">
-      <CompanyPrintHeader
-        company={printCompany}
-        isRTL={isRTL}
-        documentTitle={t("dailySalesTitle")}
-        periodLine={`${fromDate} — ${toDate}`}
-      />
-
-      <div className="no-print">
-        <PageHeader
-          icon={BarChart2}
-          title={t("dailySalesTitle")}
-          subtitle={t("salesReportTitle")}
-          actions={
-            <button onClick={() => window.print()} className="btn-ghost h-9 px-4 rounded-xl inline-flex items-center gap-2 text-sm font-semibold">
-              <Printer className="h-4 w-4" />
-              {t("print")}
-            </button>
-          }
-        />
-      </div>
-
-      <FilterPanel>
-        <FilterField label={t("fromDate")}>
-          <input type="date" value={fromDate} onChange={(e) => setFromDate(e.target.value)} className="input-field h-8 w-auto text-sm" />
-        </FilterField>
-        <FilterField label={t("toDate")}>
-          <input type="date" value={toDate} onChange={(e) => setToDate(e.target.value)} className="input-field h-8 w-auto text-sm" />
-        </FilterField>
-      </FilterPanel>
-
-      {totals ? <SummaryStrip items={summaryItems} className="grid-cols-7" /> : null}
-
-      <div className="surface-card overflow-hidden">
-        {report === undefined ? (
-          <LoadingState label={t("loading")} />
-        ) : rows.length === 0 ? (
-          <EmptyState icon={BarChart2} title={t("noResults")} />
-        ) : (
-          <div className="overflow-x-auto">
-            <table className="data-table">
-              <thead>
-                <tr>
-                  <th>{t("date")}</th>
-                  <th className="text-end">{t("invoiceCount")}</th>
-                  <th className="text-end text-green-700">{isRTL ? "مبيعات نقدي" : "Cash Sales"}</th>
-                  <th className="text-end text-purple-700">{isRTL ? "مبيعات آجل" : "Credit Sales"}</th>
-                  <th className="text-end text-red-600">{isRTL ? "مرتجع نقدي" : "Cash Return"}</th>
-                  <th className="text-end text-amber-600">{isRTL ? "مرتجع آجل" : "Credit Return"}</th>
-                  <th className="text-end">{t("discount")}</th>
-                  <th className="text-end font-bold">{t("net")}</th>
-                </tr>
-              </thead>
-              <tbody>
-                {rows.map((row: any) => {
-                  const isExpanded = expandedDate === row.date;
-                  return (
-                    <React.Fragment key={row.date}>
-                      <tr
-                        className={`cursor-pointer transition-colors ${isExpanded ? "bg-indigo-50/60" : "hover:bg-gray-50"}`}
-                        onClick={() => setExpandedDate(isExpanded ? null : row.date)}
-                      >
-                        <td className="muted tabular-nums">
-                          <span className="inline-flex items-center gap-1.5">
-                            <span className={`inline-flex items-center justify-center w-5 h-5 rounded-full transition-colors ${isExpanded ? "bg-indigo-100 text-indigo-600" : "bg-gray-100 text-gray-400"}`}>
-                              {isExpanded ? <ChevronUp className="h-3 w-3" /> : <ChevronDown className="h-3 w-3" />}
-                            </span>
-                            {row.date}
+    <PrintableReportPage
+      company={printCompany}
+      isRTL={isRTL}
+      title={t("dailySalesTitle")}
+      period={`${fromDate} — ${toDate}`}
+      filters={
+        <FilterPanel>
+          <FilterField label={t("fromDate")}>
+            <input type="date" value={fromDate} onChange={(e) => setFromDate(e.target.value)} className="input-field h-8 w-auto text-sm" />
+          </FilterField>
+          <FilterField label={t("toDate")}>
+            <input type="date" value={toDate} onChange={(e) => setToDate(e.target.value)} className="input-field h-8 w-auto text-sm" />
+          </FilterField>
+        </FilterPanel>
+      }
+      summary={totals ? <SummaryStrip items={summaryItems} className="grid-cols-7" /> : undefined}
+    >
+      {report === undefined ? (
+        <LoadingState label={t("loading")} />
+      ) : rows.length === 0 ? (
+        <EmptyState icon={BarChart2} title={t("noResults")} />
+      ) : (
+        <div className="overflow-x-auto">
+          <table className="data-table">
+            <thead>
+              <tr>
+                <th>{t("date")}</th>
+                <th className="text-end">{t("invoiceCount")}</th>
+                <th className="text-end text-green-700">{isRTL ? "مبيعات نقدي" : "Cash Sales"}</th>
+                <th className="text-end text-purple-700">{isRTL ? "مبيعات آجل" : "Credit Sales"}</th>
+                <th className="text-end text-red-600">{isRTL ? "مرتجع نقدي" : "Cash Return"}</th>
+                <th className="text-end text-amber-600">{isRTL ? "مرتجع آجل" : "Credit Return"}</th>
+                <th className="text-end">{t("discount")}</th>
+                <th className="text-end font-bold">{t("net")}</th>
+              </tr>
+            </thead>
+            <tbody>
+              {rows.map((row: any) => {
+                const isExpanded = expandedDate === row.date;
+                return (
+                  <React.Fragment key={row.date}>
+                    <tr
+                      className={`cursor-pointer transition-colors ${isExpanded ? "bg-indigo-50/60" : "hover:bg-gray-50"}`}
+                      onClick={() => setExpandedDate(isExpanded ? null : row.date)}
+                    >
+                      <td className="muted tabular-nums">
+                        <span className="inline-flex items-center gap-1.5">
+                          <span className={`inline-flex items-center justify-center w-5 h-5 rounded-full transition-colors no-print ${isExpanded ? "bg-indigo-100 text-indigo-600" : "bg-gray-100 text-gray-400"}`}>
+                            {isExpanded ? <ChevronUp className="h-3 w-3" /> : <ChevronDown className="h-3 w-3" />}
                           </span>
-                        </td>
-                        <td className="numeric text-end font-semibold text-indigo-700">{row.invoiceCount}</td>
-                        <td className="numeric text-end text-green-700 font-medium">{formatCurrency(row.cashSales)}</td>
-                        <td className="numeric text-end text-purple-700 font-medium">{formatCurrency(row.creditSales)}</td>
-                        <td className="numeric text-end text-red-600">
-                          {row.cashReturn > 0 ? `(${formatCurrency(row.cashReturn)})` : "—"}
-                        </td>
-                        <td className="numeric text-end text-amber-600">
-                          {row.creditReturn > 0 ? `(${formatCurrency(row.creditReturn)})` : "—"}
-                        </td>
-                        <td className="numeric text-end text-red-400">
-                          {row.discountAmount > 0 ? formatCurrency(row.discountAmount) : "—"}
-                        </td>
-                        <td className="numeric text-end font-bold text-[color:var(--ink-900)]">{formatCurrency(row.netSales)}</td>
-                      </tr>
-                      {isExpanded && (
-                        <DayInvoicesPanel
-                          date={row.date}
-                          branchId={branchArg}
-                          isRTL={isRTL}
-                          formatCurrency={formatCurrency}
-                        />
-                      )}
-                    </React.Fragment>
-                  );
-                })}
-              </tbody>
-              {rows.length > 1 && totals && (
-                <tfoot className="bg-[color:var(--ink-50)] border-t-2 border-[color:var(--ink-200)]">
-                  <tr>
-                    <td className="px-3 py-2 text-xs font-bold text-[color:var(--ink-600)] uppercase">{isRTL ? "الإجمالي" : "Total"}</td>
-                    <td className="numeric text-end font-bold">{totals.invoiceCount}</td>
-                    <td className="numeric text-end font-bold text-green-700">{formatCurrency(totals.cashSales)}</td>
-                    <td className="numeric text-end font-bold text-purple-700">{formatCurrency(totals.creditSales)}</td>
-                    <td className="numeric text-end font-bold text-red-600">
-                      {totals.cashReturn > 0 ? `(${formatCurrency(totals.cashReturn)})` : "—"}
-                    </td>
-                    <td className="numeric text-end font-bold text-amber-600">
-                      {totals.creditReturn > 0 ? `(${formatCurrency(totals.creditReturn)})` : "—"}
-                    </td>
-                    <td className="numeric text-end font-bold text-red-400">{formatCurrency(totals.discountAmount)}</td>
-                    <td className="numeric text-end font-bold text-[color:var(--ink-900)]">{formatCurrency(totals.netSales)}</td>
-                  </tr>
-                </tfoot>
-              )}
-            </table>
-          </div>
-        )}
-      </div>
-    </div>
+                          {row.date}
+                        </span>
+                      </td>
+                      <td className="numeric text-end font-semibold text-indigo-700">{row.invoiceCount}</td>
+                      <td className="numeric text-end text-green-700 font-medium">{formatCurrency(row.cashSales)}</td>
+                      <td className="numeric text-end text-purple-700 font-medium">{formatCurrency(row.creditSales)}</td>
+                      <td className="numeric text-end text-red-600">
+                        {row.cashReturn > 0 ? `(${formatCurrency(row.cashReturn)})` : "—"}
+                      </td>
+                      <td className="numeric text-end text-amber-600">
+                        {row.creditReturn > 0 ? `(${formatCurrency(row.creditReturn)})` : "—"}
+                      </td>
+                      <td className="numeric text-end text-red-400">
+                        {row.discountAmount > 0 ? formatCurrency(row.discountAmount) : "—"}
+                      </td>
+                      <td className="numeric text-end font-bold text-[color:var(--ink-900)]">{formatCurrency(row.netSales)}</td>
+                    </tr>
+                    {isExpanded && (
+                      <DayInvoicesPanel date={row.date} branchId={branchArg} isRTL={isRTL} formatCurrency={formatCurrency} />
+                    )}
+                  </React.Fragment>
+                );
+              })}
+            </tbody>
+            {rows.length > 1 && totals && (
+              <tfoot className="bg-[color:var(--ink-50)] border-t-2 border-[color:var(--ink-200)]">
+                <tr>
+                  <td className="px-3 py-2 text-xs font-bold text-[color:var(--ink-600)] uppercase">{isRTL ? "الإجمالي" : "Total"}</td>
+                  <td className="numeric text-end font-bold">{totals.invoiceCount}</td>
+                  <td className="numeric text-end font-bold text-green-700">{formatCurrency(totals.cashSales)}</td>
+                  <td className="numeric text-end font-bold text-purple-700">{formatCurrency(totals.creditSales)}</td>
+                  <td className="numeric text-end font-bold text-red-600">
+                    {totals.cashReturn > 0 ? `(${formatCurrency(totals.cashReturn)})` : "—"}
+                  </td>
+                  <td className="numeric text-end font-bold text-amber-600">
+                    {totals.creditReturn > 0 ? `(${formatCurrency(totals.creditReturn)})` : "—"}
+                  </td>
+                  <td className="numeric text-end font-bold text-red-400">{formatCurrency(totals.discountAmount)}</td>
+                  <td className="numeric text-end font-bold text-[color:var(--ink-900)]">{formatCurrency(totals.netSales)}</td>
+                </tr>
+              </tfoot>
+            )}
+          </table>
+        </div>
+      )}
+    </PrintableReportPage>
   );
 }

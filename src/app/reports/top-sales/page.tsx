@@ -9,15 +9,11 @@ import { usePermissions } from "@/hooks/usePermissions";
 import { EmptyState } from "@/components/ui/empty-state";
 import { LoadingState, SummaryStrip } from "@/components/ui/data-display";
 import { FilterPanel, FilterField } from "@/components/ui/filter-panel";
-import { PageHeader } from "@/components/ui/page-header";
-import { CompanyPrintHeader } from "@/components/ui/company-print-header";
 import { useCompanySettings } from "@/hooks/useCompanySettings";
-import { TrendingUp, Printer } from "lucide-react";
+import { PrintableReportPage } from "@/components/ui/printable-report";
+import { TrendingUp } from "lucide-react";
 
-function todayISO() {
-  return new Date().toISOString().split("T")[0];
-}
-
+function todayISO() { return new Date().toISOString().split("T")[0]; }
 function startOfMonthISO() {
   const d = new Date();
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-01`;
@@ -43,13 +39,7 @@ function TopSection({ title, rows, type, isRTL, t, formatCurrency }: any) {
             {rows.map((row: any, index: number) => (
               <tr key={row.id ?? index}>
                 <td className="code">{index + 1}</td>
-                <td>
-                  {type === "customer"
-                    ? (isRTL ? row.nameAr : (row.nameEn || row.nameAr))
-                    : type === "item"
-                      ? (isRTL ? row.nameAr : (row.nameEn || row.nameAr))
-                      : (isRTL ? row.nameAr : (row.nameEn || row.nameAr))}
-                </td>
+                <td>{isRTL ? row.nameAr : (row.nameEn || row.nameAr)}</td>
                 <td className="numeric text-end">{type === "item" ? row.quantitySold : row.invoiceCount}</td>
                 <td className="numeric text-end font-semibold">{formatCurrency(row.totalSales)}</td>
               </tr>
@@ -72,23 +62,19 @@ export default function TopSalesPage() {
   const [toDate, setToDate] = useState(todayISO());
 
   const report = useQuery(api.reports.getTopSalesReport, {
-    fromDate,
-    toDate,
+    fromDate, toDate,
     branchId: branchArg as any,
   });
 
   const totals = report?.totals;
 
   const summaryItems = useMemo(
-    () =>
-      totals
-        ? [
-            { label: t("topCustomers"), value: String(totals.customerCount), borderColor: "var(--brand-600)", accent: "var(--ink-900)" },
-            { label: t("topItems"), value: String(totals.itemCount), borderColor: "#0ea5e9", accent: "#0f172a" },
-            { label: t("topSalesReps"), value: String(totals.salesRepCount), borderColor: "#f59e0b", accent: "#92400e" },
-            { label: t("totalSales"), value: formatCurrency(totals.totalSales), borderColor: "#16a34a", accent: "#166534" },
-          ]
-        : [],
+    () => totals ? [
+      { label: t("topCustomers"), value: String(totals.customerCount), borderColor: "var(--brand-600)", accent: "var(--ink-900)" },
+      { label: t("topItems"), value: String(totals.itemCount), borderColor: "#0ea5e9", accent: "#0f172a" },
+      { label: t("topSalesReps"), value: String(totals.salesRepCount), borderColor: "#f59e0b", accent: "#92400e" },
+      { label: t("totalSales"), value: formatCurrency(totals.totalSales), borderColor: "#16a34a", accent: "#166534" },
+    ] : [],
     [totals, t, formatCurrency]
   );
 
@@ -97,48 +83,32 @@ export default function TopSalesPage() {
   }
 
   return (
-    <div dir={isRTL ? "rtl" : "ltr"} className="space-y-5">
-      <CompanyPrintHeader
-        company={printCompany}
-        isRTL={isRTL}
-        documentTitle={t("topSalesTitle")}
-        periodLine={`${fromDate} — ${toDate}`}
-      />
-
-      <div className="no-print">
-        <PageHeader
-          icon={TrendingUp}
-          title={t("topSalesTitle")}
-          subtitle={t("salesReportTitle")}
-          actions={
-            <button onClick={() => window.print()} className="btn-ghost h-9 px-4 rounded-xl inline-flex items-center gap-2 text-sm font-semibold">
-              <Printer className="h-4 w-4" />
-              {t("print")}
-            </button>
-          }
-        />
-      </div>
-
-      <FilterPanel>
-        <FilterField label={t("fromDate")}>
-          <input type="date" value={fromDate} onChange={(e) => setFromDate(e.target.value)} className="input-field h-8 w-auto text-sm" />
-        </FilterField>
-        <FilterField label={t("toDate")}>
-          <input type="date" value={toDate} onChange={(e) => setToDate(e.target.value)} className="input-field h-8 w-auto text-sm" />
-        </FilterField>
-      </FilterPanel>
-
-      {totals ? <SummaryStrip items={summaryItems} /> : null}
-
+    <PrintableReportPage
+      company={printCompany}
+      isRTL={isRTL}
+      title={t("topSalesTitle")}
+      period={`${fromDate} — ${toDate}`}
+      filters={
+        <FilterPanel>
+          <FilterField label={t("fromDate")}>
+            <input type="date" value={fromDate} onChange={(e) => setFromDate(e.target.value)} className="input-field h-8 w-auto text-sm" />
+          </FilterField>
+          <FilterField label={t("toDate")}>
+            <input type="date" value={toDate} onChange={(e) => setToDate(e.target.value)} className="input-field h-8 w-auto text-sm" />
+          </FilterField>
+        </FilterPanel>
+      }
+      summary={totals ? <SummaryStrip items={summaryItems} /> : undefined}
+    >
       {report === undefined ? (
         <LoadingState label={t("loading")} />
       ) : (
-        <div className="grid grid-cols-1 xl:grid-cols-3 gap-5">
+        <div className="grid grid-cols-1 xl:grid-cols-3 gap-5 p-4">
           <TopSection title={t("topCustomers")} rows={report.topCustomers ?? []} type="customer" isRTL={isRTL} t={t} formatCurrency={formatCurrency} />
           <TopSection title={t("topItems")} rows={report.topItems ?? []} type="item" isRTL={isRTL} t={t} formatCurrency={formatCurrency} />
           <TopSection title={t("topSalesReps")} rows={report.topSalesReps ?? []} type="salesRep" isRTL={isRTL} t={t} formatCurrency={formatCurrency} />
         </div>
       )}
-    </div>
+    </PrintableReportPage>
   );
 }

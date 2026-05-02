@@ -4,14 +4,13 @@ import React, { useState } from "react";
 import { useI18n } from "@/hooks/useI18n";
 import { useQuery } from "convex/react";
 import { api } from "../../../../convex/_generated/api";
-import { PieChart as PieChartIcon, Printer, CheckCircle, AlertCircle } from "lucide-react";
+import { CheckCircle, AlertCircle } from "lucide-react";
 import { useAppStore } from "@/store/useAppStore";
 import { PdfDownloadButton } from "@/components/ui/PdfDownloadButton";
 import { BalanceSheetPdf } from "@/lib/pdf/BalanceSheetPdf";
 import { LoadingState } from "@/components/ui/data-display";
-import { CompanyPrintHeader } from "@/components/ui/company-print-header";
 import { useCompanySettings } from "@/hooks/useCompanySettings";
-import { PageHeader } from "@/components/ui/page-header";
+import { PrintableReportPage } from "@/components/ui/printable-report";
 
 function todayISO() { return new Date().toISOString().split("T")[0]; }
 
@@ -153,90 +152,67 @@ export default function BalanceSheetPage() {
   );
 
   return (
-    <div dir={isRTL ? "rtl" : "ltr"} className="space-y-5">
-      <CompanyPrintHeader
-        company={printCompany}
-        isRTL={isRTL}
-        documentTitle={t("balanceSheetTitle")}
-        periodLine={`${t("asOfDateLabel")}: ${asOfDate}`}
-      />
-
-      {/* Header */}
-      <div className="no-print">
-        <PageHeader
-          icon={PieChartIcon}
-          title={t("balanceSheetTitle")}
-          actions={
-            <>
-              {data && (
-                <PdfDownloadButton
-                  document={
-                    <BalanceSheetPdf data={{
-                      logoUrl: printCompany?.logoUrl ?? undefined,
-                      companyNameEn: printCompany?.nameEn ?? undefined,
-                      companyPhone: printCompany?.phone ?? undefined,
-                      companyName: company ? (isRTL ? company.nameAr : (company.nameEn || company.nameAr)) : "",
-                      asOfDate,
-                      assets:      data.assets,
-                      liabilities: data.liabilities,
-                      equity:      data.equity,
-                      totalAssets:              data.totalAssets              ?? 0,
-                      totalLiabilitiesAndEquity: data.totalLiabilitiesAndEquity ?? 0,
-                      isBalanced:  data.isBalanced ?? false,
-                      isRTL,
-                      labels: {
-                        title:                     t("balanceSheetTitle"),
-                        asOfDate:                  t("asOfDateLabel"),
-                        assets:                    t("assets"),
-                        totalAssets:               t("totalAssets"),
-                        liabilities:               t("liabilities"),
-                        totalLiabilities:          t("totalLiabilities"),
-                        equity:                    t("equitySection"),
-                        totalEquity:               t("totalEquity"),
-                        currentPeriodIncome:       t("currentPeriodIncome"),
-                        totalLiabilitiesAndEquity: t("totalLiabilitiesAndEquity"),
-                        balanced:                  t("balanced"),
-                        unbalanced:                t("unbalanced"),
-                        printedBy:                 t("printedBy"),
-                      },
-                      formatCurrency: (n: number) => new Intl.NumberFormat("en-QA", { style: "currency", currency: "QAR", minimumFractionDigits: 2 }).format(n),
-                    }} />
-                  }
-                  fileName={`balance-sheet-${asOfDate}.pdf`}
-                  label={t("downloadPdf") ?? "PDF"}
-                />
-              )}
-              <button onClick={() => window.print()} className="btn-ghost h-9 px-4 rounded-xl inline-flex items-center gap-2 text-sm font-semibold"><Printer className="h-4 w-4" />{t("printReport")}</button>
-            </>
-          }
-        />
-      </div>
-
-      {/* Filters */}
-      <div className="no-print">
-      <div className="surface-card p-3 flex items-center gap-4 flex-wrap print:hidden">
-        <div className="flex items-center gap-1.5">
-          <span className="text-xs text-[color:var(--ink-500)]">{t("asOfDateLabel")}:</span>
-          <input type="date" value={asOfDate} onChange={e => setAsOfDate(e.target.value)} className="input-field h-9 w-auto" />
-        </div>
-        {branches && branches.length > 0 && (
+    <PrintableReportPage
+      company={printCompany}
+      isRTL={isRTL}
+      title={t("balanceSheetTitle")}
+      period={`${t("asOfDateLabel")}: ${asOfDate}`}
+      actions={
+        data ? (
+          <PdfDownloadButton
+            document={
+              <BalanceSheetPdf data={{
+                logoUrl: printCompany?.logoUrl ?? undefined,
+                companyNameEn: printCompany?.nameEn ?? undefined,
+                companyPhone: printCompany?.phone ?? undefined,
+                companyName: company ? (isRTL ? company.nameAr : (company.nameEn || company.nameAr)) : "",
+                asOfDate,
+                assets: data.assets, liabilities: data.liabilities, equity: data.equity,
+                totalAssets: data.totalAssets ?? 0,
+                totalLiabilitiesAndEquity: data.totalLiabilitiesAndEquity ?? 0,
+                isBalanced: data.isBalanced ?? false,
+                isRTL,
+                labels: {
+                  title: t("balanceSheetTitle"), asOfDate: t("asOfDateLabel"),
+                  assets: t("assets"), totalAssets: t("totalAssets"),
+                  liabilities: t("liabilities"), totalLiabilities: t("totalLiabilities"),
+                  equity: t("equitySection"), totalEquity: t("totalEquity"),
+                  currentPeriodIncome: t("currentPeriodIncome"),
+                  totalLiabilitiesAndEquity: t("totalLiabilitiesAndEquity"),
+                  balanced: t("balanced"), unbalanced: t("unbalanced"), printedBy: t("printedBy"),
+                },
+                formatCurrency: (n: number) => new Intl.NumberFormat("en-QA", { style: "currency", currency: "QAR", minimumFractionDigits: 2 }).format(n),
+              }} />
+            }
+            fileName={`balance-sheet-${asOfDate}.pdf`}
+            label={t("downloadPdf") ?? "PDF"}
+          />
+        ) : undefined
+      }
+      filters={
+        <div className="surface-card p-3 flex items-center gap-4 flex-wrap">
           <div className="flex items-center gap-1.5">
-            <span className="text-xs text-[color:var(--ink-500)]">{t("branch")}:</span>
-            <select value={branchId} onChange={e => setBranchId(e.target.value)} className="input-field h-9 w-auto">
-              <option value="">{t("allBranches")}</option>
-              {branches.map((b: any) => (
-                <option key={b._id} value={b._id}>{isRTL ? b.nameAr : (b.nameEn || b.nameAr)}</option>
-              ))}
-            </select>
+            <span className="text-xs text-[color:var(--ink-500)]">{t("asOfDateLabel")}:</span>
+            <input type="date" value={asOfDate} onChange={e => setAsOfDate(e.target.value)} className="input-field h-9 w-auto" />
           </div>
-        )}
-        <label className="inline-flex items-center gap-2 text-sm text-[color:var(--ink-700)]">
-          <input type="checkbox" checked={hideZero} onChange={e => setHideZero(e.target.checked)} />
-          {t("hideZeroBalances")}
-        </label>
-      </div>
-      </div>
-
+          {branches && branches.length > 0 && (
+            <div className="flex items-center gap-1.5">
+              <span className="text-xs text-[color:var(--ink-500)]">{t("branch")}:</span>
+              <select value={branchId} onChange={e => setBranchId(e.target.value)} className="input-field h-9 w-auto">
+                <option value="">{t("allBranches")}</option>
+                {branches.map((b: any) => (
+                  <option key={b._id} value={b._id}>{isRTL ? b.nameAr : (b.nameEn || b.nameAr)}</option>
+                ))}
+              </select>
+            </div>
+          )}
+          <label className="inline-flex items-center gap-2 text-sm text-[color:var(--ink-700)]">
+            <input type="checkbox" checked={hideZero} onChange={e => setHideZero(e.target.checked)} />
+            {t("hideZeroBalances")}
+          </label>
+        </div>
+      }
+    >
       {/* Balance Check */}
       {!loading && data && (
         <div
@@ -268,13 +244,12 @@ export default function BalanceSheetPage() {
       )}
 
       {loading ? (
-        <div className="surface-card p-8 text-center">
+        <div className="p-8 text-center">
           <LoadingState label={t("loading")} />
         </div>
       ) : (
-        <div className="surface-card overflow-hidden">
-          <div className="overflow-x-auto">
-            <table className="data-table">
+        <div className="overflow-x-auto">
+          <table className="data-table">
 
               {/* ── ASSETS ── */}
               {renderSection("assets", assetGroups, totalAssets, "totalAssets")}
@@ -308,22 +283,8 @@ export default function BalanceSheetPage() {
 
             </table>
           </div>
-        </div>
       )}
 
-      <style jsx global>{`
-        @media print {
-          .print\\:hidden { display: none !important; }
-          .print\\:block { display: block !important; }
-          .no-print { display: none !important; }
-          aside, nav, header, .sidebar { display: none !important; }
-          main { margin: 0 !important; padding: 0 !important; width: 100% !important; }
-          body { background: white !important; }
-          .surface-card { box-shadow: none !important; border: 1px solid #ddd !important; }
-          table { page-break-inside: auto; }
-          tr { page-break-inside: avoid; }
-        }
-      `}</style>
-    </div>
+    </PrintableReportPage>
   );
 }

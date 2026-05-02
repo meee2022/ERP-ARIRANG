@@ -12,11 +12,6 @@ export const metadata: Metadata = {
   keywords: ["Arirang Bakery", "ERP", "accounting", "distribution", "Qatar", "\u0645\u062d\u0627\u0633\u0628\u0629", "\u0645\u062e\u0628\u0632"],
   authors: [{ name: "Arirang Bakery" }],
   creator: "Arirang Bakery",
-  icons: {
-    icon: [{ url: "/logo.png", type: "image/png" }],
-    apple: [{ url: "/logo.png" }],
-    shortcut: "/logo.png",
-  },
   openGraph: {
     title: "Arirang Bakery ERP",
     description: "Arirang Bakery \u2014 \u0646\u0638\u0627\u0645 \u0645\u062d\u0627\u0633\u0628\u0629 \u0648\u062a\u0648\u0632\u064a\u0639 | Accounting & Distribution ERP",

@@ -542,21 +542,10 @@ export default function EmployeesPage() {
   const [showModal, setShowModal] = useState(false);
   const [editEmployee, setEditEmployee] = useState<any>(null);
 
-  const seedStaff = useMutation(api.seedStaff.seedRealStaff);
-  const [seeding, setSeeding] = useState(false);
   const [showAlerts, setShowAlerts] = useState(true);
 
   const qidAlerts = useQuery(api.hr.getQidExpiryAlerts, {});
 
-  const handleSeedStaff = async () => {
-    if (!confirm(isRTL ? "سيتم حذف جميع الموظفين الحاليين وإضافة 76 موظف من الملف. هل أنت متأكد؟" : "This will delete all current employees and add 76 from the Excel file. Confirm?")) return;
-    setSeeding(true);
-    try {
-      const res = await seedStaff({});
-      toast.success(isRTL ? `تم بنجاح! ${(res as any).total} موظف` : `Done! ${(res as any).total} employees added`);
-    } catch (e: any) { toast.error(e); }
-    finally { setSeeding(false); }
-  };
 
   // Queries
   const employees = useQuery(api.hr.listEmployees, {
@@ -687,14 +676,6 @@ export default function EmployeesPage() {
             >
               <FileSpreadsheet className="h-4 w-4" />
               {isRTL ? "Excel تنزيل" : "Download Excel"}
-            </button>
-            <button
-              onClick={handleSeedStaff}
-              disabled={seeding}
-              className="h-10 px-3 rounded-lg inline-flex items-center gap-2 text-sm font-semibold border border-orange-300 bg-orange-50 text-orange-700 hover:bg-orange-100 disabled:opacity-50 print:hidden"
-            >
-              <RefreshCw className={`h-4 w-4 ${seeding ? "animate-spin" : ""}`} />
-              {seeding ? (isRTL ? "جاري الاستيراد..." : "Importing...") : (isRTL ? "استيراد موظفين Excel" : "Import from Excel")}
             </button>
             <button
               onClick={openAdd}
